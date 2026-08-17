@@ -1,0 +1,27 @@
+{
+  "robot": {
+    "device_id": "arm_001",
+    "device_name": "华数BR610六轴工业机械臂",
+    "ip": "10.10.56.214",
+    "port": 23234,
+    "group_id": 0,
+    "axis_count": 6,
+    "timeout_sec": 3.0,
+    "reconnect_interval_sec": 5.0
+  },
+  "mqtt": {
+    "host": "127.0.0.1",
+    "port": 1883,
+    "username": "",
+    "password": "",
+    "topic_telemetry": "robot/huashu_arm/{device_id}/telemetry",
+    "topic_status": "robot/huashu_arm/{device_id}/status",
+    "topic_alarm": "robot/huashu_arm/{device_id}/alarm",
+    "qos": 1
+  },
+  "collection": {
+    "interval_sec": 1.0,
+    "include_io": true,
+    "enable_alarm_listener": true
+  }
+}

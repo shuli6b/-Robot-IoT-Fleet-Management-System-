@@ -1,0 +1,38 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# SQLite Database Files
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Log files
+*.log
+
+# Large offline binaries & packages
+*.zip
+*.tar.gz
+*.tgz
+*.deb
+*.whl
+*.exe
+mosquitto_installer.exe
+offline_packages/
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+
+# IDE & OS files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
