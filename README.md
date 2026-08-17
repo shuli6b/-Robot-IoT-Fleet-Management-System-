@@ -69,8 +69,8 @@
 
 ```bash
 # 克隆仓库代码
-git clone <您的GitHub仓库地址>
-cd 机器人管理系统
+git clone https://github.com/shuli6b/-Robot-IoT-Fleet-Management-System-.git
+cd -Robot-IoT-Fleet-Management-System-
 
 # 安装核心依赖
 pip install -r requirements.txt
