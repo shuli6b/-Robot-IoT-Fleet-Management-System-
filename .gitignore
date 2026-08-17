@@ -20,8 +20,12 @@ __pycache__/
 *.deb
 *.whl
 *.exe
+*.rar
 mosquitto_installer.exe
 offline_packages/
+
+# Proprietary vendor SDK (keep locally, do not upload)
+huashu_sdk/
 
 # Virtual Environment
 venv/
