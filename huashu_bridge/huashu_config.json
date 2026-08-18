@@ -14,9 +14,10 @@
     "port": 1883,
     "username": "",
     "password": "",
-    "topic_telemetry": "robot/huashu_arm/{device_id}/telemetry",
-    "topic_status": "robot/huashu_arm/{device_id}/status",
+    "topic_state": "robot/huashu_arm/{device_id}/state",
+    "topic_sensor": "robot/huashu_arm/{device_id}/sensor",
     "topic_alarm": "robot/huashu_arm/{device_id}/alarm",
+    "topic_cmd_sub": "cmd/huashu_arm/{device_id}",
     "qos": 1
   },
   "collection": {

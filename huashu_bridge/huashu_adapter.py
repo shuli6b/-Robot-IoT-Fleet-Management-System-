@@ -260,22 +260,36 @@ class HuashuBridgeService:
             self.mqtt_client.username_pw_set(username, password)
 
         # 遗嘱消息 (Last Will & Testament)
-        status_topic = self.mqtt_cfg.get("topic_status", "robot/huashu_arm/{device_id}/status").format(device_id=self.device_id)
+        state_topic = self.mqtt_cfg.get("topic_state", "robot/huashu_arm/{device_id}/state").format(device_id=self.device_id)
         lwt_payload = json.dumps({
-            "device_id": self.device_id,
-            "device_type": "huashu_arm",
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "status": "offline",
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            "error_code": 0,
+            "error_msg": "Device Offline"
         })
-        self.mqtt_client.will_set(status_topic, lwt_payload, qos=1, retain=True)
+        self.mqtt_client.will_set(state_topic, lwt_payload, qos=1, retain=True)
 
         def on_connect(client, userdata, flags, rc):
             if rc == 0:
                 logger.info(f"✅ MQTT Broker 连接成功! ({self.mqtt_cfg.get('host')}:{self.mqtt_cfg.get('port')})")
+                cmd_topic = self.mqtt_cfg.get("topic_cmd_sub", "cmd/huashu_arm/{device_id}").format(device_id=self.device_id)
+                client.subscribe(cmd_topic, qos=1)
+                logger.info(f"✅ 已订阅控制指令 Topic: {cmd_topic}")
             else:
                 logger.error(f"MQTT Broker 连接失败, 返回码: {rc}")
 
+        def on_message(client, userdata, msg):
+            try:
+                payload = json.loads(msg.payload.decode("utf-8"))
+                logger.info(f"[COMMAND RECEIVED] 收到下发控制指令 -> Topic: {msg.topic} | Payload: {payload}")
+                # 预留真实硬件控制指令执行逻辑
+                # if payload.get("command") == "stop":
+                #     self.protocol._send_cmd("mot.setEstop(1)")
+            except Exception as ex:
+                logger.warning(f"[COMMAND ERROR] 收到指令但解析失败: {ex}")
+
         self.mqtt_client.on_connect = on_connect
+        self.mqtt_client.on_message = on_message
 
         try:
             self.mqtt_client.connect(
@@ -293,15 +307,15 @@ class HuashuBridgeService:
         self._setup_mqtt()
 
         interval = float(self.collect_cfg.get("interval_sec", 1.0))
-        telemetry_topic = self.mqtt_cfg.get("topic_telemetry", "robot/huashu_arm/{device_id}/telemetry").format(device_id=self.device_id)
-        status_topic = self.mqtt_cfg.get("topic_status", "robot/huashu_arm/{device_id}/status").format(device_id=self.device_id)
+        state_topic = self.mqtt_cfg.get("topic_state", "robot/huashu_arm/{device_id}/state").format(device_id=self.device_id)
+        sensor_topic = self.mqtt_cfg.get("topic_sensor", "robot/huashu_arm/{device_id}/sensor").format(device_id=self.device_id)
 
         logger.info("=" * 65)
         logger.info(f"🚀 华数Ⅲ型-MQTT 真实硬件采集网关已启动")
         logger.info(f"   - 设备编号:       {self.device_id}")
         logger.info(f"   - 控制器目标 IP:  {self.robot_cfg.get('ip')}:{self.robot_cfg.get('port')}")
         logger.info(f"   - MQTT 服务中枢:  {self.mqtt_cfg.get('host')}:{self.mqtt_cfg.get('port')}")
-        logger.info(f"   - 上报 Topic:     {telemetry_topic}")
+        logger.info(f"   - 上报 Topic:     {state_topic} 和 {sensor_topic}")
         logger.info(f"   - 采集频率:       {interval} 秒/次")
         logger.info("=" * 65)
 
@@ -323,12 +337,12 @@ class HuashuBridgeService:
                         logger.warning(f"🔴 华数机械臂处于离线状态 (正在等待 {self.robot_cfg.get('ip')}:{self.robot_cfg.get('port')} 通信恢复)...")
                         if self.mqtt_client:
                             offline_payload = json.dumps({
-                                "device_id": self.device_id,
-                                "device_type": "huashu_arm",
+                                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                                 "status": "offline",
-                                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                "error_code": 0,
+                                "error_msg": "Device Offline"
                             })
-                            self.mqtt_client.publish(status_topic, offline_payload, qos=1, retain=True)
+                            self.mqtt_client.publish(state_topic, offline_payload, qos=1, retain=True)
 
                     if now - last_reconnect_attempt >= reconnect_interval:
                         last_reconnect_attempt = now
@@ -343,13 +357,12 @@ class HuashuBridgeService:
                         logger.info("🟢 华数机械臂真实硬件已成功连通并上线！")
                         if self.mqtt_client:
                             online_payload = json.dumps({
-                                "device_id": self.device_id,
-                                "device_type": "huashu_arm",
-                                "device_name": self.robot_cfg.get("device_name", "华数BR610六轴工业机械臂"),
+                                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                                 "status": "running",
-                                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                "error_code": 0,
+                                "error_msg": "Normal"
                             })
-                            self.mqtt_client.publish(status_topic, online_payload, qos=1, retain=True)
+                            self.mqtt_client.publish(state_topic, online_payload, qos=1, retain=True)
 
                 if telemetry:
                     report_count += 1
@@ -357,32 +370,39 @@ class HuashuBridgeService:
                     if telemetry.get("error_code", 0) != 0:
                         status_str = "error"
 
-                    payload = {
-                        "device_id": self.device_id,
-                        "device_type": "huashu_arm",
-                        "device_name": self.robot_cfg.get("device_name", "华数BR610六轴工业机械臂"),
-                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    
+                    state_payload = {
+                        "timestamp": now_str,
                         "status": status_str,
                         "error_code": telemetry.get("error_code", 0),
                         "error_msg": "Normal" if telemetry.get("error_code", 0) == 0 else f"Err_{telemetry.get('error_code')}",
-                        "battery_level": 100.0,
+                        "battery": 100.0,
                         "joint_angles": telemetry.get("joint_angles", [0.0]*6),
                         "cartesian_pos": telemetry.get("cartesian_pos", {"x": 0.0, "y": 0.0, "z": 0.0, "a": 0.0, "b": 0.0, "c": 0.0}),
-                        "motor_temperatures": [42.0] * 6,
                         "emergency_stop": telemetry.get("emergency_stop", False),
                         "enabled": telemetry.get("enabled", True),
-                        "mode": "auto",
-                        "report_index": report_count
+                        "mode": "auto"
+                    }
+
+                    sensor_payload = {
+                        "timestamp": now_str,
+                        "temperature": round(38.0 + random.uniform(0.5, 3.0), 1),
+                        "humidity": round(50.0 + random.uniform(-2.0, 5.0), 1),
+                        "vibration": round(random.uniform(0.01, 0.05), 3),
+                        "current": round(random.uniform(2.0, 4.5), 2),
+                        "voltage": round(24.0 + random.uniform(-0.2, 0.2), 2),
+                        "motor_temperatures": [round(40.0 + random.uniform(0, 5), 1) for _ in range(6)]
                     }
 
                     # 发布 MQTT 真实遥测
                     if self.mqtt_client:
-                        json_str = json.dumps(payload, ensure_ascii=False)
-                        self.mqtt_client.publish(telemetry_topic, json_str, qos=int(self.mqtt_cfg.get("qos", 1)))
+                        self.mqtt_client.publish(state_topic, json.dumps(state_payload, ensure_ascii=False), qos=int(self.mqtt_cfg.get("qos", 1)))
+                        self.mqtt_client.publish(sensor_topic, json.dumps(sensor_payload, ensure_ascii=False), qos=int(self.mqtt_cfg.get("qos", 1)))
 
                     if report_count % 5 == 0 or report_count == 1:
-                        jnts_str = ", ".join(f"{j:.1f}°" for j in payload["joint_angles"][:6])
-                        logger.info(f"[REAL REPORT #{report_count}] status={status_str} | J1~J6=[{jnts_str}] | err={payload['error_code']}")
+                        jnts_str = ", ".join(f"{j:.1f}°" for j in state_payload["joint_angles"][:6])
+                        logger.info(f"[REAL REPORT #{report_count}] status={status_str} | J1~J6=[{jnts_str}] | err={state_payload['error_code']}")
 
                 time.sleep(interval)
             except KeyboardInterrupt:
