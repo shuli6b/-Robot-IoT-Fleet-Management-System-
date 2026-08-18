@@ -1,11 +1,23 @@
 {
-  "robot": {
-    "device_id": "arm_001",
-    "device_name": "华数BR610六轴工业机械臂",
-    "ip": "10.10.56.214",
-    "port": 23234,
-    "group_id": 0,
-    "axis_count": 6,
+  "robots": [
+    {
+      "device_id": "arm_001",
+      "device_name": "华数BR610六轴工业机械臂_A线",
+      "ip": "10.10.56.214",
+      "port": 23234,
+      "group_id": 0,
+      "axis_count": 6
+    },
+    {
+      "device_id": "arm_002",
+      "device_name": "华数BR610六轴工业机械臂_B线",
+      "ip": "10.10.56.215",
+      "port": 23234,
+      "group_id": 0,
+      "axis_count": 6
+    }
+  ],
+  "robot_common": {
     "timeout_sec": 3.0,
     "reconnect_interval_sec": 5.0
   },

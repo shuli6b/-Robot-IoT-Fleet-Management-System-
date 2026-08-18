@@ -190,26 +190,37 @@ class HuashuBridgeService:
     """
     华数-MQTT 真实硬件桥接核心服务管理器
     """
-    def __init__(self, config_path: Optional[str] = None, overrides: Optional[Dict[str, Any]] = None):
-        if not config_path:
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            config_path = os.path.join(script_dir, "huashu_config.json")
-            if not os.path.exists(config_path):
-                config_path = "huashu_config.json"
+    def __init__(self, config_path: Optional[str] = None, robot_cfg: Optional[Dict[str, Any]] = None, config_dict: Optional[Dict[str, Any]] = None):
+        if config_dict:
+            self.config = config_dict
+        else:
+            if not config_path:
+                script_dir = os.path.dirname(os.path.abspath(__file__))
+                config_path = os.path.join(script_dir, "huashu_config.json")
+                if not os.path.exists(config_path):
+                    config_path = "huashu_config.json"
+            self.config_path = config_path
+            self.config = self._load_config()
 
-        self.config_path = config_path
-        self.config = self._load_config()
-        if overrides:
-            self._apply_overrides(overrides)
+        # Fallback to single 'robot' if 'robots' not present
+        if robot_cfg:
+            self.robot_cfg = robot_cfg
+        else:
+            self.robot_cfg = self.config.get("robot", {})
 
-        self.robot_cfg = self.config.get("robot", {})
+        # Merge with common robot settings
+        common_cfg = self.config.get("robot_common", {})
+        for k, v in common_cfg.items():
+            if k not in self.robot_cfg:
+                self.robot_cfg[k] = v
+
         self.mqtt_cfg = self.config.get("mqtt", {})
         self.collect_cfg = self.config.get("collection", {})
 
         self.device_id = self.robot_cfg.get("device_id", "arm_001")
         self.protocol = HuashuIIIProtocol(
             ip=self.robot_cfg.get("ip", "10.10.56.214"),
-            port=int(self.robot_cfg.get("port", 23333)),
+            port=int(self.robot_cfg.get("port", 23234)),
             timeout=float(self.robot_cfg.get("timeout_sec", 3.0))
         )
 
@@ -218,32 +229,14 @@ class HuashuBridgeService:
 
     def _load_config(self) -> Dict[str, Any]:
         """加载配置文件"""
-        if os.path.exists(self.config_path):
-            try:
+        try:
+            if os.path.exists(self.config_path):
                 with open(self.config_path, "r", encoding="utf-8") as f:
                     cfg = json.load(f)
-                    logger.info(f"已成功加载配置文件: {self.config_path}")
                     return cfg
-            except Exception as e:
-                logger.error(f"解析配置文件失败: {e}，将采用默认配置")
-        else:
-            logger.warning(f"未找到配置文件 {self.config_path}，使用内置默认参数")
+        except Exception as e:
+            logger.error(f"解析配置文件失败: {e}，将采用默认配置")
         return {}
-
-    def _apply_overrides(self, overrides: Dict[str, Any]):
-        """应用命令行动态参数覆盖"""
-        if "robot_ip" in overrides and overrides["robot_ip"]:
-            self.config.setdefault("robot", {})["ip"] = overrides["robot_ip"]
-        if "robot_port" in overrides and overrides["robot_port"]:
-            self.config.setdefault("robot", {})["port"] = int(overrides["robot_port"])
-        if "mqtt_host" in overrides and overrides["mqtt_host"]:
-            self.config.setdefault("mqtt", {})["host"] = overrides["mqtt_host"]
-        if "mqtt_port" in overrides and overrides["mqtt_port"]:
-            self.config.setdefault("mqtt", {})["port"] = int(overrides["mqtt_port"])
-        if "device_id" in overrides and overrides["device_id"]:
-            self.config.setdefault("robot", {})["device_id"] = overrides["device_id"]
-        if "interval" in overrides and overrides["interval"]:
-            self.config.setdefault("collection", {})["interval_sec"] = float(overrides["interval"])
 
     def _setup_mqtt(self):
         """初始化 MQTT 客户端"""
@@ -430,26 +423,60 @@ class HuashuBridgeService:
 def main():
     parser = argparse.ArgumentParser(description="华数Ⅲ型工业机器人 -> MQTT 真实硬件采集桥接器")
     parser.add_argument("--config", "-c", default=None, help="配置文件路径 (默认 huashu_config.json)")
-    parser.add_argument("--robot-ip", help="华数控制器 IP 地址 (例如 10.10.56.214 或 192.168.1.100)")
-    parser.add_argument("--robot-port", type=int, help="华数控制器端口 (默认 23234)")
-    parser.add_argument("--mqtt-host", help="MQTT Broker 主机地址 (默认 127.0.0.1 或 物联网平台IP)")
-    parser.add_argument("--mqtt-port", type=int, help="MQTT Broker 端口 (默认 1883)")
-    parser.add_argument("--device-id", help="设备编号 (默认 arm_001)")
-    parser.add_argument("--interval", type=float, help="遥测采集频率秒数 (默认 1.0 秒)")
+    parser.add_argument("--robot-ip", help="华数控制器 IP 地址 (覆盖配置)")
+    parser.add_argument("--robot-port", type=int, help="华数控制器端口 (覆盖配置)")
+    parser.add_argument("--mqtt-host", help="MQTT Broker 主机地址 (覆盖配置)")
+    parser.add_argument("--mqtt-port", type=int, help="MQTT Broker 端口 (覆盖配置)")
+    parser.add_argument("--device-id", help="设备编号 (覆盖配置)")
+    parser.add_argument("--interval", type=float, help="遥测采集频率秒数 (覆盖配置)")
 
     args = parser.parse_args()
 
-    overrides = {}
-    if args.robot_ip: overrides["robot_ip"] = args.robot_ip
-    if args.robot_port: overrides["robot_port"] = args.robot_port
-    if args.mqtt_host: overrides["mqtt_host"] = args.mqtt_host
-    if args.mqtt_port: overrides["mqtt_port"] = args.mqtt_port
-    if args.device_id: overrides["device_id"] = args.device_id
-    if args.interval: overrides["interval"] = args.interval
+    # 读取基础配置
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    config_path = args.config if args.config else os.path.join(script_dir, "huashu_config.json")
+    if not os.path.exists(config_path):
+        config_path = "huashu_config.json"
+    
+    config_dict = {}
+    if os.path.exists(config_path):
+        with open(config_path, "r", encoding="utf-8") as f:
+            config_dict = json.load(f)
 
-    service = HuashuBridgeService(config_path=args.config, overrides=overrides)
-    service.start()
+    # 动态参数覆盖
+    if args.mqtt_host: config_dict.setdefault("mqtt", {})["host"] = args.mqtt_host
+    if args.mqtt_port: config_dict.setdefault("mqtt", {})["port"] = int(args.mqtt_port)
+    if args.interval: config_dict.setdefault("collection", {})["interval_sec"] = float(args.interval)
 
+    robots = config_dict.get("robots", [])
+    if not robots:
+        # Fallback to single robot
+        robot = config_dict.get("robot", {})
+        if args.robot_ip: robot["ip"] = args.robot_ip
+        if args.robot_port: robot["port"] = args.robot_port
+        if args.device_id: robot["device_id"] = args.device_id
+        robots = [robot]
+
+    services = []
+    threads = []
+    
+    logger.info(f"配置解析完成，共发现 {len(robots)} 个机器人设备需要连接。")
+
+    for r_cfg in robots:
+        svc = HuashuBridgeService(config_dict=config_dict, robot_cfg=r_cfg)
+        services.append(svc)
+        t = threading.Thread(target=svc.start, daemon=True)
+        threads.append(t)
+        t.start()
+
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        logger.info("收到中断信号，正在通知所有桥接服务退出...")
+        for svc in services:
+            svc.stop()
+        logger.info("所有服务已退出。")
 
 if __name__ == "__main__":
     main()
