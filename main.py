@@ -1065,9 +1065,30 @@ async def save_huashu_config_api(body: HuashuBridgeConfigModel = Body(...)):
             if os.path.exists(cf):
                 with open(cf, "r", encoding="utf-8") as f:
                     file_cfg = json.load(f)
-                file_cfg.setdefault("robot", {})["ip"] = update_data.get("robot_ip", "10.10.56.214")
-                file_cfg.setdefault("robot", {})["port"] = int(update_data.get("robot_port", 23333))
-                file_cfg.setdefault("robot", {})["device_id"] = update_data.get("device_id", "arm_001")
+                
+                robots = file_cfg.get("robots", [])
+                device_id = update_data.get("device_id", "arm_001")
+                
+                # Check if robot exists
+                robot_found = False
+                for r in robots:
+                    if r.get("device_id") == device_id:
+                        r["ip"] = update_data.get("robot_ip", r.get("ip"))
+                        r["port"] = int(update_data.get("robot_port", r.get("port", 23234)))
+                        robot_found = True
+                        break
+                
+                if not robot_found:
+                    robots.append({
+                        "device_id": device_id,
+                        "device_name": update_data.get("device_name", "华数BR610六轴工业机械臂"),
+                        "ip": update_data.get("robot_ip", "10.10.56.214"),
+                        "port": int(update_data.get("robot_port", 23234)),
+                        "group_id": update_data.get("group_id", 0),
+                        "axis_count": 6
+                    })
+                
+                file_cfg["robots"] = robots
                 file_cfg.setdefault("collection", {})["interval_sec"] = float(update_data.get("interval_sec", 1.0))
                 with open(cf, "w", encoding="utf-8") as f:
                     json.dump(file_cfg, f, ensure_ascii=False, indent=2)
