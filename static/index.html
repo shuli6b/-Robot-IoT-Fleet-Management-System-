@@ -375,12 +375,20 @@
                                         <p id="selectedDeviceTypeDisplay" class="text-xs text-slate-400">--</p>
                                     </div>
                                 </div>
-                                <button onclick="openHistoryForSelected()" class="text-xs bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 hover:text-blue-200 border border-blue-500/30 px-3 py-1.5 rounded-lg transition flex items-center gap-1.5">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                    </svg>
-                                    <span>历史明细</span>
-                                </button>
+                                <div class="flex items-center gap-2">
+                                    <button onclick="openHistoryForSelected()" class="text-xs bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 hover:text-blue-200 border border-blue-500/30 px-3 py-1.5 rounded-lg transition flex items-center gap-1.5">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                        </svg>
+                                        <span>历史明细</span>
+                                    </button>
+                                    <button onclick="deleteSelectedDevicePrompt()" class="text-xs bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 hover:text-rose-200 border border-rose-500/30 px-3 py-1.5 rounded-lg transition flex items-center gap-1.5" title="彻底删除此设备档案">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                        </svg>
+                                        <span>删除设备</span>
+                                    </button>
+                                </div>
                             </div>
 
                             <!-- Key Metrics Grid -->
@@ -1318,15 +1326,55 @@
                             <div>${dev.last_report_time ? dev.last_report_time.replace('T', ' ') : '--'}</div>
                             <div class="text-[10px] text-slate-500">${relTime}</div>
                         </td>
-                        <td class="py-3 text-right">
+                        <td class="py-3 text-right space-x-1 whitespace-nowrap">
                             <button onclick="event.stopPropagation(); selectDevice('${dev.device_type}', '${dev.device_id}');" 
                                 class="px-2.5 py-1 text-xs rounded-lg ${isSelected ? 'bg-blue-600 text-white font-medium' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'} transition">
                                 遥测
+                            </button>
+                            <button onclick="event.stopPropagation(); deleteDevicePrompt('${dev.device_type}', '${dev.device_id}');" 
+                                class="px-2 py-1 text-xs rounded-lg bg-rose-950/40 hover:bg-rose-900/80 text-rose-400 hover:text-rose-200 border border-rose-800/40 transition" title="删除该设备档案">
+                                🗑️
                             </button>
                         </td>
                     </tr>
                 `;
             }).join('');
+        }
+
+        // Delete Device Prompts
+        async function deleteSelectedDevicePrompt() {
+            if (!selectedDevice) {
+                showToast('请先选择要删除的设备', '⚠️');
+                return;
+            }
+            await deleteDevicePrompt(selectedDevice.type, selectedDevice.id);
+        }
+
+        async function deleteDevicePrompt(deviceType, deviceId) {
+            const devName = DEVICE_TYPE_NAMES[deviceType] || deviceType;
+            if (!confirm(`⚠️ 危险操作确认\n\n确定要从系统中彻底删除设备【${deviceId}】(${devName}) 及其所有历史数据吗？\n删除后不可恢复！`)) {
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/devices/${encodeURIComponent(deviceType)}/${encodeURIComponent(deviceId)}`, {
+                    method: 'DELETE'
+                });
+                const data = await res.json();
+                if (res.ok && data.code === 200) {
+                    showToast(`设备 ${deviceId} 已成功删除`, '🗑️');
+                    if (selectedDevice && selectedDevice.id === deviceId && selectedDevice.type === deviceType) {
+                        selectedDevice = null;
+                    }
+                    await fetchOverview();
+                    await fetchDevices();
+                } else {
+                    showToast('删除失败: ' + (data.message || '未知错误'), '❌');
+                }
+            } catch (err) {
+                console.error('deleteDevice 异常:', err);
+                showToast('请求失败: ' + err.message, '❌');
+            }
         }
 
         // 3. Select Device & Fetch Realtime Data

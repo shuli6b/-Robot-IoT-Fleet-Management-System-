@@ -110,7 +110,7 @@ class RobotSimulator:
             curr_status = "error" if error_code != 0 else random.choice(status_opts)
             return {
                 "timestamp": now_iso,
-                "model": "华数BR610",
+                "model": "远程测试机器人",
                 "status": curr_status,
                 "battery": self.battery,
                 "error_code": error_code,
@@ -231,7 +231,7 @@ def main():
     for i in range(1, args.num_devices + 1):
         # 按照 4:3:3 的比例分配设备类型
         dtype = types[i % 3]
-        device_id = f"{dtype.split('_')[-1]}_{i:03d}"
+        device_id = f"远程测试机器人_{i:03d}"
         simulators.append(RobotSimulator(dtype, device_id))
 
     logger.info("==========================================================")

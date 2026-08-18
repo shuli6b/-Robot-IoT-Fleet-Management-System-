@@ -964,4 +964,33 @@ def save_huashu_bridge_config(config: Dict[str, Any], db_path: str = DB_PATH) ->
         return False
 
 
+def delete_device(device_id: str, device_type: Optional[str] = None, db_path: str = DB_PATH) -> bool:
+    """
+    从数据库中删除指定设备及其所有历史遥测数据
+    """
+    conn = get_connection(db_path)
+    try:
+        if device_type:
+            conn.execute(
+                "DELETE FROM device_data WHERE device_type = ? AND device_id = ?",
+                (device_type, device_id),
+            )
+            conn.execute(
+                "DELETE FROM devices WHERE device_type = ? AND device_id = ?",
+                (device_type, device_id),
+            )
+        else:
+            conn.execute("DELETE FROM device_data WHERE device_id = ?", (device_id,))
+            conn.execute("DELETE FROM devices WHERE device_id = ?", (device_id,))
+        conn.commit()
+        logger.info(f"已成功删除设备档案及历史数据: {device_type or '*'}/{device_id}")
+        return True
+    except Exception as e:
+        logger.error(f"删除设备异常 ({device_id}): {e}", exc_info=True)
+        return False
+    finally:
+        conn.close()
+
+
+
 

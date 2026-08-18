@@ -47,6 +47,7 @@ from database import (
     LLM_PROVIDER_PRESETS,
     get_huashu_bridge_config,
     save_huashu_bridge_config,
+    delete_device,
 )
 
 # ---------------------------------------------------------------------------
@@ -443,6 +444,28 @@ async def get_device_latest(device_type: str, device_id: str):
             "latest_data": latest_data,
         },
     )
+
+
+@app.delete("/api/devices/{device_type}/{device_id}")
+@app.delete("/api/devices/{device_id}")
+async def delete_device_api(device_id: str, device_type: Optional[str] = None):
+    """
+    删除设备档案及其所有历史遥测数据
+    """
+    success = delete_device(device_id=device_id, device_type=device_type)
+    if success:
+        return api_response(
+            code=200,
+            message=f"设备 [{device_id}] 及其关联遥测数据已成功清除",
+            data={"device_id": device_id, "deleted": True}
+        )
+    else:
+        return api_response(
+            code=400,
+            message=f"删除设备 [{device_id}] 失败",
+            data=None,
+            status_code=status.HTTP_400_BAD_REQUEST
+        )
 
 
 @app.get("/api/devices/{device_type}/{device_id}/history")
