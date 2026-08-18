@@ -947,16 +947,16 @@ async def ai_chat_and_diagnose(body: ChatRequest = Body(...)):
     # 1. 尝试调用配置的第三方大模型 (Google / DeepSeek / GPT / Ollama)
     if llm_cfg.get("enabled") and (llm_cfg.get("api_key") or llm_cfg.get("provider") == "ollama"):
         custom_role = llm_cfg.get("custom_prompt", "").strip()
-        system_prompt = f"""你是机器人管理系统的专家级具身智能与物联网运维 AI Copilot 助手。
+        system_prompt = f"""你是机器人管理系统中的 AI Copilot 助手。
 系统已为你实时接入了现场各机器人的最新遥测数据、I/O矩阵、OEE以及商业环境传感器指标：
 
 {prompt_context}
 
 【交互指南】：
-1. 请以专业、严谨且富有工程洞察力的人设与用户进行自然、顺畅的连续多轮对话。回答无需拘束于死板模板，自由输出深度解答、排障分析、排产策略或指令脚本。
+1. 你可以自由地与用户对话，如果用户问你是谁或者你是什么模型，请大方地承认你的大模型身份，并同时说明你现在已经接入了工厂物联网系统，可以帮助他们分析设备数据。
 2. 结合上方现场全域真实遥测数据进行针对性分析，解答用户关于华数机械臂、珞石AMR、四足机器狗、环境质量（CO2/PM2.5）或维保周期的任何问题。
 3. 请使用清晰优美的 Markdown 格式输出。
-{f'【补充专家人设要求】：{custom_role}' if custom_role else ''}"""
+{f'【补充人设要求】：{custom_role}' if custom_role else ''}"""
 
         success, llm_reply, meta = await call_llm_api(
             base_url=llm_cfg.get("base_url", "https://api.deepseek.com/v1"),
