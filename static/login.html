@@ -386,9 +386,11 @@
                     body: JSON.stringify({ username: u, password: p })
                 });
                 const data = await res.json();
-                if (data.code === 200) {
-                    localStorage.setItem('robot_token', data.data.token);
-                    localStorage.setItem('robot_user', JSON.stringify(data.data.user));
+                if (data.code === 200 && data.data) {
+                    const userData = data.data;
+                    localStorage.setItem('robot_token', userData.token || '');
+                    localStorage.setItem('robot_user', JSON.stringify(userData));
+                    localStorage.setItem('xinbang_user', JSON.stringify(userData));
                     window.location.href = '/';
                 } else {
                     errBox.innerText = data.message || '登录失败，请检查工号或密码';
@@ -423,10 +425,25 @@
                 });
                 const data = await res.json();
                 if (data.code === 200) {
-                    alert('注册成功！已自动为您登录');
-                    localStorage.setItem('robot_token', data.data.token);
-                    localStorage.setItem('robot_user', JSON.stringify(data.data.user));
-                    window.location.href = '/';
+                    alert('注册成功！正在为您自动登录...');
+                    // Auto login with new credentials
+                    const loginRes = await fetch('/api/auth/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username: u, password: p })
+                    });
+                    const loginData = await loginRes.json();
+                    if (loginData.code === 200 && loginData.data) {
+                        const userData = loginData.data;
+                        localStorage.setItem('robot_token', userData.token || '');
+                        localStorage.setItem('robot_user', JSON.stringify(userData));
+                        localStorage.setItem('xinbang_user', JSON.stringify(userData));
+                        window.location.href = '/';
+                    } else {
+                        switchTab('login');
+                        document.getElementById('loginUsername').value = u;
+                        document.getElementById('loginPassword').value = p;
+                    }
                 } else {
                     errBox.innerText = data.message || '注册失败';
                     errBox.classList.remove('hidden');

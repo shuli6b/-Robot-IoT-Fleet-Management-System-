@@ -2157,24 +2157,23 @@
             }
         }
 
-        // -------------------------------------------------------------
-        // Authentication & Session
-        // -------------------------------------------------------------
-        // -------------------------------------------------------------
-        // Authentication & Session
-        // -------------------------------------------------------------
         function initUserSession() {
-            const saved = localStorage.getItem('robot_user') || localStorage.getItem('xinbang_user') || localStorage.getItem('qtx_user');
-            if (saved) {
+            const rawUser = localStorage.getItem('robot_user') || localStorage.getItem('xinbang_user') || localStorage.getItem('qtx_user');
+            if (rawUser && rawUser !== 'undefined' && rawUser !== 'null') {
                 try {
-                    currentUser = JSON.parse(saved);
-                    applyUserRoleUI();
-                    return;
+                    currentUser = JSON.parse(rawUser);
+                    if (currentUser && (currentUser.username || currentUser.role)) {
+                        applyUserRoleUI();
+                        return;
+                    }
                 } catch (e) {
-                    localStorage.removeItem('robot_user');
-                    localStorage.removeItem('xinbang_user');
+                    console.error('Failed to parse user session:', e);
                 }
             }
+            localStorage.removeItem('robot_user');
+            localStorage.removeItem('xinbang_user');
+            localStorage.removeItem('qtx_user');
+            currentUser = null;
             window.location.replace('/login');
         }
 
