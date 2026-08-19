@@ -1146,12 +1146,34 @@
                     },
                     xAxis: {
                         axisLine: { lineStyle: { color: isDark ? '#334155' : '#E2E8F0' } },
-                        axisLabel: { color: isDark ? '#64748B' : '#94A3B8' }
+                        axisLabel: { color: isDark ? '#94A3B8' : '#64748B' }
                     },
                     yAxis: {
                         splitLine: { lineStyle: { color: isDark ? '#1E293B' : '#F1F5F9' } },
-                        axisLabel: { color: isDark ? '#64748B' : '#94A3B8' }
-                    }
+                        axisLabel: { color: isDark ? '#94A3B8' : '#64748B' }
+                    },
+                    series: [
+                        {
+                            name: '机械臂与AMR状态报文',
+                            itemStyle: { color: isDark ? '#60A5FA' : '#2563EB' },
+                            areaStyle: {
+                                color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                    { offset: 0, color: isDark ? 'rgba(96, 165, 250, 0.28)' : 'rgba(37, 99, 235, 0.15)' },
+                                    { offset: 1, color: 'rgba(37, 99, 235, 0.00)' }
+                                ])
+                            }
+                        },
+                        {
+                            name: '传感器数据流',
+                            itemStyle: { color: isDark ? '#34D399' : '#059669' },
+                            areaStyle: {
+                                color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                    { offset: 0, color: isDark ? 'rgba(52, 211, 153, 0.25)' : 'rgba(5, 150, 105, 0.12)' },
+                                    { offset: 1, color: 'rgba(5, 150, 105, 0.00)' }
+                                ])
+                            }
+                        }
+                    ]
                 });
             }
 
@@ -1372,6 +1394,10 @@
                 trafficDataSensor.push(Math.floor(35 + Math.random() * 15));
             }
 
+            const isDark = document.documentElement.classList.contains('dark');
+            const line1Color = isDark ? '#60A5FA' : '#2563EB';
+            const line2Color = isDark ? '#34D399' : '#059669';
+
             const option = {
                 backgroundColor: 'transparent',
                 animation: true,
@@ -1379,13 +1405,13 @@
                 animationEasing: 'cubicOut',
                 tooltip: {
                     trigger: 'axis',
-                    backgroundColor: '#FFFFFF',
-                    borderColor: '#E2E8F0',
-                    textStyle: { color: '#0F172A', fontSize: 11 }
+                    backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+                    borderColor: isDark ? '#334155' : '#E2E8F0',
+                    textStyle: { color: isDark ? '#F8FAFC' : '#0F172A', fontSize: 11 }
                 },
                 legend: {
                     data: ['机械臂与AMR状态报文', '传感器数据流'],
-                    textStyle: { color: '#64748B', fontSize: 11 },
+                    textStyle: { color: isDark ? '#94A3B8' : '#64748B', fontSize: 11 },
                     top: 0,
                     right: 0
                 },
@@ -1400,13 +1426,13 @@
                     type: 'category',
                     boundaryGap: false,
                     data: trafficTimeLabels,
-                    axisLine: { lineStyle: { color: '#E2E8F0' } },
-                    axisLabel: { color: '#94A3B8', fontSize: 10 }
+                    axisLine: { lineStyle: { color: isDark ? '#334155' : '#E2E8F0' } },
+                    axisLabel: { color: isDark ? '#94A3B8' : '#64748B', fontSize: 10 }
                 },
                 yAxis: {
                     type: 'value',
-                    splitLine: { lineStyle: { color: '#F1F5F9' } },
-                    axisLabel: { color: '#94A3B8', fontSize: 10 }
+                    splitLine: { lineStyle: { color: isDark ? '#1E293B' : '#F1F5F9' } },
+                    axisLabel: { color: isDark ? '#94A3B8' : '#64748B', fontSize: 10 }
                 },
                 series: [
                     {
@@ -1414,11 +1440,11 @@
                         type: 'line',
                         smooth: true,
                         showSymbol: false,
-                        itemStyle: { color: '#0F172A' },
+                        itemStyle: { color: line1Color },
                         areaStyle: {
                             color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                                { offset: 0, color: 'rgba(15, 23, 42, 0.15)' },
-                                { offset: 1, color: 'rgba(15, 23, 42, 0.00)' }
+                                { offset: 0, color: isDark ? 'rgba(96, 165, 250, 0.28)' : 'rgba(37, 99, 235, 0.15)' },
+                                { offset: 1, color: 'rgba(37, 99, 235, 0.00)' }
                             ])
                         },
                         data: trafficDataState
@@ -1428,10 +1454,10 @@
                         type: 'line',
                         smooth: true,
                         showSymbol: false,
-                        itemStyle: { color: '#059669' },
+                        itemStyle: { color: line2Color },
                         areaStyle: {
                             color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                                { offset: 0, color: 'rgba(5, 150, 105, 0.12)' },
+                                { offset: 0, color: isDark ? 'rgba(52, 211, 153, 0.25)' : 'rgba(5, 150, 105, 0.12)' },
                                 { offset: 1, color: 'rgba(5, 150, 105, 0.00)' }
                             ])
                         },
@@ -1502,27 +1528,28 @@
             secFleet.classList.add('hidden');
             secAudit.classList.add('hidden');
 
-            [btnNavOverview, btnNavFleet, btnNavAudit].forEach(b => {
-                if (b) b.className = 'px-4 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition flex items-center gap-1.5';
-            });
-            [mobNavOverview, mobNavFleet, mobNavAudit].forEach(b => {
-                if (b) b.className = 'flex-1 py-1 text-center text-slate-500 border-b-2 border-transparent';
-            });
+            const activeBtnClass = 'px-4 py-1.5 rounded-lg text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800 shadow-sm border border-slate-200/80 dark:border-slate-700 transition flex items-center gap-1.5 font-medium';
+            const inactiveBtnClass = 'px-4 py-1.5 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition flex items-center gap-1.5';
+
+            const activeMobClass = 'flex-1 py-1 text-center font-bold text-slate-900 dark:text-slate-100 border-b-2 border-slate-900 dark:border-slate-100';
+            const inactiveMobClass = 'flex-1 py-1 text-center text-slate-500 dark:text-slate-400 border-b-2 border-transparent';
+
+            if (btnNavOverview) btnNavOverview.className = (tab === 'overview') ? activeBtnClass : inactiveBtnClass;
+            if (btnNavFleet) btnNavFleet.className = (tab === 'fleet') ? activeBtnClass : inactiveBtnClass;
+            if (btnNavAudit) btnNavAudit.className = (tab === 'audit') ? activeBtnClass : inactiveBtnClass;
+
+            if (mobNavOverview) mobNavOverview.className = (tab === 'overview') ? activeMobClass : inactiveMobClass;
+            if (mobNavFleet) mobNavFleet.className = (tab === 'fleet') ? activeMobClass : inactiveMobClass;
+            if (mobNavAudit) mobNavAudit.className = (tab === 'audit') ? activeMobClass : inactiveMobClass;
 
             if (tab === 'overview') {
                 secOverview.classList.remove('hidden');
-                if (btnNavOverview) btnNavOverview.className = 'px-4 py-1.5 rounded-lg text-slate-900 bg-white shadow-sm border border-slate-200/80 transition flex items-center gap-1.5';
-                if (mobNavOverview) mobNavOverview.className = 'flex-1 py-1 text-center font-bold text-slate-900 border-b-2 border-slate-900';
                 setTimeout(() => { initOverviewTrafficChart(); }, 100);
             } else if (tab === 'fleet') {
                 secFleet.classList.remove('hidden');
-                if (btnNavFleet) btnNavFleet.className = 'px-4 py-1.5 rounded-lg text-slate-900 bg-white shadow-sm border border-slate-200/80 transition flex items-center gap-1.5';
-                if (mobNavFleet) mobNavFleet.className = 'flex-1 py-1 text-center font-bold text-slate-900 border-b-2 border-slate-900';
                 renderActiveFleetView();
             } else if (tab === 'audit') {
                 secAudit.classList.remove('hidden');
-                if (btnNavAudit) btnNavAudit.className = 'px-4 py-1.5 rounded-lg text-slate-900 bg-white shadow-sm border border-slate-200/80 transition flex items-center gap-1.5';
-                if (mobNavAudit) mobNavAudit.className = 'flex-1 py-1 text-center font-bold text-slate-900 border-b-2 border-slate-900';
                 fetchAuditData(1);
             }
         }
@@ -1553,14 +1580,17 @@
             const gridContainer = document.getElementById('fleetGridContainer');
             const listContainer = document.getElementById('fleetListContainer');
 
+            const activeClass = 'px-3 py-1 rounded-md text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800 shadow-sm transition flex items-center gap-1.5 font-medium';
+            const inactiveClass = 'px-3 py-1 rounded-md text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition flex items-center gap-1.5';
+
             if (mode === 'grid') {
-                btnGrid.className = 'px-3 py-1 rounded-md text-slate-900 bg-white shadow-sm transition flex items-center gap-1.5';
-                btnList.className = 'px-3 py-1 rounded-md text-slate-500 hover:text-slate-900 transition flex items-center gap-1.5';
+                btnGrid.className = activeClass;
+                btnList.className = inactiveClass;
                 gridContainer.classList.remove('hidden');
                 listContainer.classList.add('hidden');
             } else {
-                btnList.className = 'px-3 py-1 rounded-md text-slate-900 bg-white shadow-sm transition flex items-center gap-1.5';
-                btnGrid.className = 'px-3 py-1 rounded-md text-slate-500 hover:text-slate-900 transition flex items-center gap-1.5';
+                btnList.className = activeClass;
+                btnGrid.className = inactiveClass;
                 gridContainer.classList.add('hidden');
                 listContainer.classList.remove('hidden');
             }
@@ -2451,13 +2481,13 @@
             if (tab === 'diag') {
                 tabDiag.classList.remove('hidden');
                 tabConfig.classList.add('hidden');
-                btnDiag.className = 'px-4 py-2.5 font-bold text-slate-900 border-b-2 border-slate-900 transition';
-                btnConfig.className = 'px-4 py-2.5 text-slate-500 hover:text-slate-900 border-b-2 border-transparent transition';
+                btnDiag.className = 'px-4 py-2.5 font-bold text-slate-900 dark:text-slate-100 border-b-2 border-slate-900 dark:border-slate-100 transition';
+                btnConfig.className = 'px-4 py-2.5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border-b-2 border-transparent transition';
             } else {
                 tabDiag.classList.add('hidden');
                 tabConfig.classList.remove('hidden');
-                btnDiag.className = 'px-4 py-2.5 text-slate-500 hover:text-slate-900 border-b-2 border-transparent transition';
-                btnConfig.className = 'px-4 py-2.5 font-bold text-slate-900 border-b-2 border-slate-900 transition';
+                btnDiag.className = 'px-4 py-2.5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border-b-2 border-transparent transition';
+                btnConfig.className = 'px-4 py-2.5 font-bold text-slate-900 dark:text-slate-100 border-b-2 border-slate-900 dark:border-slate-100 transition';
                 loadAiConfig();
             }
         }
@@ -2468,10 +2498,10 @@
                 const isUser = msg.role === 'user';
                 return `
                     <div class="flex items-start gap-2.5 ${isUser ? 'flex-row-reverse' : ''}">
-                        <div class="w-7 h-7 rounded-full ${isUser ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 border border-slate-200'} flex items-center justify-center text-xs shadow-sm shrink-0 font-medium">
+                        <div class="w-7 h-7 rounded-full ${isUser ? 'bg-slate-900 dark:bg-slate-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700'} flex items-center justify-center text-xs shadow-sm shrink-0 font-medium">
                             ${isUser ? '我' : 'AI'}
                         </div>
-                        <div class="max-w-[82%] p-3 rounded-xl ${isUser ? 'bg-slate-900 text-white' : 'bg-slate-100 border border-slate-200 text-slate-800'}">
+                        <div class="max-w-[82%] p-3 rounded-xl ${isUser ? 'bg-slate-900 dark:bg-slate-800 text-white dark:text-slate-100' : 'bg-slate-100 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200'}">
                             <div class="whitespace-pre-wrap leading-relaxed">${escapeHtml(msg.content)}</div>
                         </div>
                     </div>
