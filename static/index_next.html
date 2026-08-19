@@ -100,20 +100,30 @@
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
         }
         .dark .clean-modal, html.dark .clean-modal {
-            background: #111827 !important;
+            background-color: #111827 !important;
             border-color: #1F2937 !important;
             color: #F8FAFC !important;
         }
 
-        .dark header, html.dark header {
-            background-color: #0F172A !important;
-            border-color: #1E293B !important;
+        /* Comprehensive Dark Mode Color Inversions */
+        .dark .bg-white, html.dark .bg-white {
+            background-color: #111827 !important;
         }
-        .dark nav, html.dark nav {
+        .dark .bg-slate-50, html.dark .bg-slate-50 {
+            background-color: #0B0F19 !important;
+        }
+        .dark .bg-slate-100, html.dark .bg-slate-100 {
             background-color: #1E293B !important;
         }
+        .dark .bg-slate-200, html.dark .bg-slate-200 {
+            background-color: #334155 !important;
+        }
+
         .dark .text-slate-900, html.dark .text-slate-900 {
             color: #F8FAFC !important;
+        }
+        .dark .text-slate-800, html.dark .text-slate-800 {
+            color: #F1F5F9 !important;
         }
         .dark .text-slate-700, html.dark .text-slate-700 {
             color: #E2E8F0 !important;
@@ -124,12 +134,10 @@
         .dark .text-slate-500, html.dark .text-slate-500 {
             color: #94A3B8 !important;
         }
-        .dark .bg-slate-50, html.dark .bg-slate-50 {
-            background-color: #0B0F19 !important;
+        .dark .text-slate-400, html.dark .text-slate-400 {
+            color: #64748B !important;
         }
-        .dark .bg-slate-100, html.dark .bg-slate-100 {
-            background-color: #1E293B !important;
-        }
+
         .dark .border-slate-100, html.dark .border-slate-100,
         .dark .border-slate-200, html.dark .border-slate-200 {
             border-color: #1F2937 !important;
@@ -137,12 +145,44 @@
         .dark .border-slate-300, html.dark .border-slate-300 {
             border-color: #334155 !important;
         }
+
+        .dark .hover\:bg-slate-50:hover, html.dark .hover\:bg-slate-50:hover,
+        .dark .hover\:bg-slate-100:hover, html.dark .hover\:bg-slate-100:hover {
+            background-color: #1E293B !important;
+        }
+        .dark .hover\:bg-slate-200:hover, html.dark .hover\:bg-slate-200:hover {
+            background-color: #334155 !important;
+        }
+
+        .dark header, html.dark header {
+            background-color: #0F172A !important;
+            border-color: #1E293B !important;
+        }
+        .dark nav, html.dark nav {
+            background-color: #0B0F19 !important;
+            border-color: #1E293B !important;
+        }
+
+        /* Inputs, selects, and textareas */
         .dark input, .dark select, .dark textarea,
         html.dark input, html.dark select, html.dark textarea {
             background-color: #1E293B !important;
             border-color: #334155 !important;
             color: #F8FAFC !important;
         }
+        .dark input::placeholder, .dark textarea::placeholder,
+        html.dark input::placeholder, html.dark textarea::placeholder {
+            color: #64748B !important;
+        }
+
+        /* Device cards backdrop overlay badges */
+        .dark .bg-white\/90, html.dark .bg-white\/90,
+        .dark .bg-white\/85, html.dark .bg-white\/85 {
+            background-color: rgba(17, 24, 39, 0.9) !important;
+            color: #F8FAFC !important;
+            border-color: #374151 !important;
+        }
+
         .dark .divide-slate-100 > * + *, html.dark .divide-slate-100 > * + *,
         .dark .divide-slate-200 > * + *, html.dark .divide-slate-200 > * + * {
             border-color: #1F2937 !important;
@@ -1628,34 +1668,34 @@
                     <div onclick="selectDevice('${dev.device_type}', '${dev.device_id}'); openRobot3DModal();" 
                         class="clean-card rounded-xl overflow-hidden cursor-pointer group">
                         
-                        <div class="relative h-44 w-full overflow-hidden bg-slate-100">
+                        <div class="relative h-44 w-full overflow-hidden bg-slate-100 dark:bg-slate-900">
                             <img src="${img}" alt="${dev.device_id}" class="w-full h-full object-cover object-center group-hover:scale-105 transition duration-300">
                             
                             <div class="absolute top-3 left-3">
-                                <span class="px-2.5 py-1 rounded-md bg-white/90 backdrop-blur-sm text-[11px] font-mono ${isOnline ? 'text-emerald-700 border border-emerald-200' : 'text-slate-500 border border-slate-200'} flex items-center gap-1.5 shadow-sm">
+                                <span class="px-2.5 py-1 rounded-md bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm text-[11px] font-mono ${isOnline ? 'text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800' : 'text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700'} flex items-center gap-1.5 shadow-sm">
                                     <span class="w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-slate-400'}"></span>
                                     <span>${isOnline ? '运行正常' : '已离线'}</span>
                                 </span>
                             </div>
 
                             <div class="absolute bottom-2.5 left-3 right-3 flex items-center justify-between">
-                                <div class="font-mono font-bold text-slate-900 text-sm tracking-tight bg-white/85 px-2 py-0.5 rounded backdrop-blur-sm">${dev.device_id}</div>
-                                <div class="text-[10px] text-slate-700 font-medium bg-white/85 px-2 py-0.5 rounded backdrop-blur-sm">${typeName}</div>
+                                <div class="font-mono font-bold text-slate-900 dark:text-slate-100 text-sm tracking-tight bg-white/85 dark:bg-slate-900/85 px-2 py-0.5 rounded backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 shadow-sm">${dev.device_id}</div>
+                                <div class="text-[10px] text-slate-700 dark:text-slate-300 font-medium bg-white/85 dark:bg-slate-900/85 px-2 py-0.5 rounded backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 shadow-sm">${typeName}</div>
                             </div>
                         </div>
 
                         <div class="p-4 space-y-2.5 text-xs">
-                            <div class="flex items-center justify-between text-slate-500 text-[11px]">
+                            <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 text-[11px]">
                                 <span>母线动力/电池</span>
-                                <span class="font-mono text-slate-900 font-medium">96% (良好)</span>
+                                <span class="font-mono text-slate-900 dark:text-slate-100 font-semibold">96% (良好)</span>
                             </div>
-                            <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                                <div class="bg-slate-900 h-full rounded-full" style="width: 96%"></div>
+                            <div class="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                                <div class="bg-slate-900 dark:bg-blue-500 h-full rounded-full" style="width: 96%"></div>
                             </div>
 
-                            <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                                <span class="text-slate-400">在线时长: <span class="font-mono text-slate-700">${formatRelativeTime(dev.last_report_time)}</span></span>
-                                <span class="font-medium text-slate-900 group-hover:underline flex items-center gap-1">
+                            <div class="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px]">
+                                <span class="text-slate-400">在线时长: <span class="font-mono text-slate-700 dark:text-slate-300 font-medium">${formatRelativeTime(dev.last_report_time)}</span></span>
+                                <span class="font-medium text-slate-900 dark:text-slate-100 group-hover:underline flex items-center gap-1">
                                     <span>工况与控制</span><span>→</span>
                                 </span>
                             </div>
@@ -1678,23 +1718,23 @@
 
                 return `
                     <tr onclick="selectDevice('${dev.device_type}', '${dev.device_id}'); openRobot3DModal();" 
-                        class="hover:bg-slate-50 cursor-pointer transition">
+                        class="hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer transition">
                         <td class="py-3 pr-2">
                             <div>
-                                <div class="font-mono font-bold text-slate-900 text-xs">${dev.device_id}</div>
-                                <div class="text-[10px] text-slate-500">${typeName}</div>
+                                <div class="font-mono font-bold text-slate-900 dark:text-slate-100 text-xs">${dev.device_id}</div>
+                                <div class="text-[10px] text-slate-500 dark:text-slate-400">${typeName}</div>
                             </div>
                         </td>
                         <td class="py-3">
-                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[10px] font-medium ${isOnline ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500'}">
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[10px] font-medium ${isOnline ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-400 dark:border-emerald-800' : 'bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'}">
                                 <span class="w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-slate-400'}"></span>
                                 <span>${isOnline ? '运行正常' : '已离线'}</span>
                             </span>
                         </td>
-                        <td class="py-3 font-mono text-slate-800 text-xs">96%</td>
-                        <td class="py-3 text-[11px] text-slate-500 font-mono">${formatRelativeTime(dev.last_report_time)}</td>
+                        <td class="py-3 font-mono text-slate-800 dark:text-slate-200 text-xs font-semibold">96%</td>
+                        <td class="py-3 text-[11px] text-slate-500 dark:text-slate-400 font-mono">${formatRelativeTime(dev.last_report_time)}</td>
                         <td class="py-3 text-right">
-                            <button class="px-3 py-1 text-xs rounded-md bg-slate-900 hover:bg-slate-800 text-white font-medium transition">
+                            <button class="px-3 py-1 text-xs rounded-md bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:border dark:border-slate-700 text-white font-medium transition">
                                 工况与控制
                             </button>
                         </td>
