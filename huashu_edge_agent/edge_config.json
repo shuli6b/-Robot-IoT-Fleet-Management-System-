@@ -1,0 +1,30 @@
+{
+  "mqtt": {
+    "host": "填入你的云服务器公网IP或穿透域名",
+    "port": 1883,
+    "username": "device_huashu_arm",
+    "password": "Arm_Secure_2026!",
+    "topic_state": "robot/huashu_arm/{device_id}/state",
+    "topic_sensor": "robot/huashu_arm/{device_id}/sensor",
+    "topic_cmd_sub": "cmd/huashu_arm/{device_id}",
+    "qos": 1
+  },
+  "robots": [
+    {
+      "device_id": "arm_001",
+      "device_name": "华数BR610六轴工业机械臂",
+      "ip": "127.0.0.1",
+      "port": 23234,
+      "group_id": 0,
+      "axis_count": 6
+    }
+  ],
+  "robot_common": {
+    "timeout_sec": 3.0,
+    "reconnect_interval_sec": 5.0
+  },
+  "collection": {
+    "interval_sec": 1.0,
+    "include_io": true
+  }
+}
