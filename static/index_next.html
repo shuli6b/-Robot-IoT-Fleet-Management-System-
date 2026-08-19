@@ -291,7 +291,7 @@
                         <div class="flex items-center justify-between">
                             <div>
                                 <h3 class="text-sm font-bold text-slate-900 tracking-tight">实时遥测吞吐趋势</h3>
-                                <p class="text-xs text-slate-500">毫秒级遥测与传感器数据吞吐曲线</p>
+                                <p class="text-xs text-slate-500">遥测与传感器数据实时吞吐趋势曲线</p>
                             </div>
                             <span class="text-xs font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">持续推流中</span>
                         </div>
@@ -943,7 +943,7 @@
             </div>
 
             <div class="px-6 py-3.5 bg-white border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
-                <span>毫秒级 MQTT 报文完整归档</span>
+                <span>MQTT 原始报文归档记录</span>
                 <button onclick="closeTelemetryJsonModal()" class="px-4 py-1.5 rounded-lg bg-slate-900 text-white font-medium hover:bg-slate-800 transition">关闭</button>
             </div>
         </div>
@@ -1056,7 +1056,7 @@
                 img: '/static/assets/base_panyu.jpg',
                 attr1: '工业机械臂自动化产线',
                 attr3: '20+ 台六轴高精机械臂',
-                desc: '广州番禺智造中心专注于华数 BR610 六轴工业机器人高精加工、打磨、弧焊与码垛工序。产线全面覆盖 5G 工业物联网网关，支持微秒级 HSC3 总线运动控制与闭环电流遥测。'
+                desc: '广州番禺智造中心专注于华数 BR610 六轴工业机器人高精加工、打磨、弧焊与码垛工序。产线全面覆盖 5G 工业物联网网关，支持 HSC3 工业总线运动控制与闭环电流遥测。'
             },
             'nansha': {
                 title: '广州南沙创新港',
@@ -1211,8 +1211,13 @@
         }
 
         // -------------------------------------------------------------
-        // Overview Realtime Traffic Chart (Clean Light)
+        // Overview Realtime Traffic Chart (Clean Light & Dynamic Stream)
         // -------------------------------------------------------------
+        let trafficTimeLabels = [];
+        let trafficDataState = [];
+        let trafficDataSensor = [];
+        let trafficStreamTimer = null;
+
         function initOverviewTrafficChart() {
             const chartDom = document.getElementById('overviewTrafficChart');
             if (!chartDom) return;
@@ -1224,19 +1229,22 @@
 
             trafficChartInstance = echarts.init(chartDom);
             const now = new Date();
-            const timeLabels = [];
-            const dataState = [];
-            const dataSensor = [];
+            trafficTimeLabels = [];
+            trafficDataState = [];
+            trafficDataSensor = [];
 
             for (let i = 12; i >= 0; i--) {
-                const t = new Date(now.getTime() - i * 5000);
-                timeLabels.push(t.toLocaleTimeString());
-                dataState.push(Math.floor(18 + Math.random() * 8));
-                dataSensor.push(Math.floor(35 + Math.random() * 15));
+                const t = new Date(now.getTime() - i * 3000);
+                trafficTimeLabels.push(t.toLocaleTimeString('zh-CN', { hour12: false }));
+                trafficDataState.push(Math.floor(18 + Math.random() * 8));
+                trafficDataSensor.push(Math.floor(35 + Math.random() * 15));
             }
 
             const option = {
                 backgroundColor: 'transparent',
+                animation: true,
+                animationDuration: 600,
+                animationEasing: 'cubicOut',
                 tooltip: {
                     trigger: 'axis',
                     backgroundColor: '#FFFFFF',
@@ -1259,7 +1267,7 @@
                 xAxis: {
                     type: 'category',
                     boundaryGap: false,
-                    data: timeLabels,
+                    data: trafficTimeLabels,
                     axisLine: { lineStyle: { color: '#E2E8F0' } },
                     axisLabel: { color: '#94A3B8', fontSize: 10 }
                 },
@@ -1281,7 +1289,7 @@
                                 { offset: 1, color: 'rgba(15, 23, 42, 0.00)' }
                             ])
                         },
-                        data: dataState
+                        data: trafficDataState
                     },
                     {
                         name: '传感器数据流',
@@ -1295,14 +1303,49 @@
                                 { offset: 1, color: 'rgba(5, 150, 105, 0.00)' }
                             ])
                         },
-                        data: dataSensor
+                        data: trafficDataSensor
                     }
                 ]
             };
 
             trafficChartInstance.setOption(option);
+
+            if (!trafficStreamTimer) {
+                trafficStreamTimer = setInterval(streamTrafficDataTick, 2500);
+            }
+
             window.addEventListener('resize', () => {
                 if (trafficChartInstance) trafficChartInstance.resize();
+            });
+        }
+
+        function streamTrafficDataTick() {
+            if (!trafficChartInstance || activeNavTab !== 'overview') return;
+
+            const nowStr = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+            const onlineCount = currentDevices.filter(d => d.status === 'online').length;
+            const baseState = onlineCount > 0 ? onlineCount * 2 : 16;
+            const baseSensor = onlineCount > 0 ? onlineCount * 3.5 : 32;
+
+            const nextState = Math.floor(baseState + (Math.random() * 8 - 4));
+            const nextSensor = Math.floor(baseSensor + (Math.random() * 14 - 7));
+
+            trafficTimeLabels.push(nowStr);
+            trafficDataState.push(Math.max(5, nextState));
+            trafficDataSensor.push(Math.max(10, nextSensor));
+
+            if (trafficTimeLabels.length > 15) {
+                trafficTimeLabels.shift();
+                trafficDataState.shift();
+                trafficDataSensor.shift();
+            }
+
+            trafficChartInstance.setOption({
+                xAxis: { data: trafficTimeLabels },
+                series: [
+                    { data: trafficDataState },
+                    { data: trafficDataSensor }
+                ]
             });
         }
 
