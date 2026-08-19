@@ -1,169 +1,155 @@
-# 智能机器人管理系统 (Robot IoT Fleet Management System)
+# 工业机器人物联网管控平台 (Robot IoT Fleet Management System)
 
-基于 **FastAPI + EMQX (MQTT) + SQLite + 原生轻量化前端** 构建的高性能、工业级机器人集群监控与远程调度管理平台。
-
----
-
-## 🌟 系统核心特性
-
-- 🚀 **高并发数据接入**：基于 MQTT (paho-mqtt) 异步消息架构，支持海量异构机器人（机械臂、AMR、四足巡检狗）毫秒级遥测数据并发上报。
-- 🎨 **双版本顶尖 UI 架构（同时并存 & 自由切换）**：
-  - 🌙 **经典暗黑 SCADA 工业版**（访问路径：`/` 或 `/dark`）：沉稳深色钛蓝质感，适合车间工控屏、中控指挥中心与 24 小时 SCADA 监控大屏。
-  - ☀️ **全新极简浅白企业版**（访问路径：`/light` 或 `/login` 或 `/v2`）：国际顶尖极简浅白风格（参考 Apple / Linear / Stripe 设计规范），纯净高呼吸感，纯线条 SVG 矢量图标，适合高管驾驶舱、移动端巡检与商务展示。
-- 📊 **全域 3D 姿态与控制中心**：支持 10+ 台设备实时卡片/列表渲染、六轴机械臂关节角度解析、末端空间坐标（XYZ）展示、华数 14 项二次开发指令集与原始 JSON 报文实时追踪。
-- 🧠 **AI 自然语言口语指令编译器**：支持输入自然语言（中英文口语），通过大模型一键自动解析为标准工业控制指令与规范 JSON 参数。
-- 🎮 **双向远程指令调度**：支持通过 Web 界面向指定设备秒级下发 `start`（启动）、`stop`（停机）、`reset`（复位）、`emergency_stop`（急停）等控制指令（QoS=1）。
-- ⏱️ **智能心跳与容灾状态机**：内置后台异步设备心跳扫描与自动离线判定（超时 15 秒自动置灰标记为 `offline`），支持网络抖动自动重连与本地降级入库。
-- 🤖 **工业智能诊断中心**：支持接入多大模型服务（通义千问、DeepSeek、OpenAI、Ollama、企业私有模型等），实现设备故障与遥测指标的智能分析诊断。
+基于 **FastAPI + EMQX (MQTT) + SQLite** 构建的工业机器人设备监控与远程指令调度管理系统。
 
 ---
 
-## 🌐 双版本 UI 访问路径速查
+## 📋 功能特点
 
-| 版本名称 | 访问路径 | 设计风格与适用场景 |
+- **多设备数据接入**：基于 MQTT 异步消息机制，支持机械臂、AMR 移动机器人、四足巡检机器狗等设备的运行状态与传感器数据上报。
+- **双版本界面**：
+  - **暗黑工业版**（路径：`/` 或 `/dark`）：深色界面，适合车间工控屏与中控室监控大屏。
+  - **极简浅色版**（路径：`/light` 或 `/login` 或 `/v2`）：浅色界面与矢量线条图标，适合日常管理与移动端查看。
+- **设备工况监控**：支持设备台账展示、六轴机械臂关节角度解析、末端空间坐标（XYZ）展示与原始报文查看。
+- **AI 自然语言指令解析**：支持输入中文口语化指令，解析为标准控制指令标识与 JSON 参数。
+- **远程指令调度**：支持通过 Web 界面向现场设备下发启动、暂停、复位、急停等控制指令。
+- **设备心跳检测**：后台定时扫描设备上报时间，超时未上报自动标记为离线状态。
+- **设备智能诊断**：支持配置大模型 API（通义千问、DeepSeek、OpenAI、Ollama 等兼容接口），辅助分析设备运行状态。
+
+---
+
+## 🌐 界面访问路径
+
+| 界面版本 | 访问路径 | 说明 |
 | :--- | :--- | :--- |
-| **经典暗黑 SCADA 版** | `http://<服务器IP>:8000/` 或 `/dark` | 沉稳钛黑深蓝、车间监控、大屏展示 |
-| **全新极简浅白版** | `http://<服务器IP>:8000/light` 或 `/v2` | 极简纯净浅白、高管驾驶舱、移动端巡检 |
-| **独立极简登录大屏** | `http://<服务器IP>:8000/login` | 极简矢量地图、企业级纯白登录卡片 |
+| **极简浅色版** | `http://<服务器IP>:8000/light` 或 `/v2` | 浅色管理后台，支持卡片与列表切换 |
+| **独立登录页** | `http://<服务器IP>:8000/login` | 矢量地图与系统登录/注册界面 |
+| **暗黑工业版** | `http://<服务器IP>:8000/` 或 `/dark` | 经典深色界面 |
+| **MQTT 中间件控制台** | `http://<服务器IP>:18083` | EMQX 节点与连接管理 |
 
 ---
 
-## 🏗️ 系统架构设计
+## 🏗️ 系统架构
 
 ```text
-[ 工业现场端 ]                              [ 远端/云端服务器 (Ubuntu 22.04) ]
-+---------------------+                      +---------------------------------------+
-| 华数机械臂 / AMR / 狗 |                      |            EMQX 消息中间件             |
-| (物理设备或模拟集群)  | ===== MQTT 报文 =====> |      (端口: 1883 TCP, 18083 Dashboard) |
-+---------------------+ (robot/{type}/{id}/#) +---------------------------------------+
-                                                                 ▲
-                                                                 │ MQTT 订阅 / 发布 (cmd/#)
-                                                                 ▼
-                                              +---------------------------------------+
-                                              |         FastAPI 核心后台服务           |
-                                              |  - 数据清洗与 WAL 高频入库 (SQLite)    |
-                                              |  - RESTful API & 自动化心跳扫描        |
-                                              |  - 指令下发路由与鉴权校验               |
-                                              +---------------------------------------+
-                                                                 ▲
-                                                                 │ HTTP / JSON 轮询
-                                                                 ▼
-                                              +---------------------------------------+
-                                              |        原生轻量化 Web 管理大屏        |
-                                              |   (http://服务器IP:8000 / index.html)   |
-                                              +---------------------------------------+
+[ 现场设备端 ]                                  [ 服务器端 (Ubuntu / Windows) ]
++-------------------------+                      +---------------------------------------+
+| 华数机械臂 / AMR / 机器狗 |                      |            EMQX 消息中间件             |
+| (现场设备或模拟器)        | ===== MQTT 报文 =====> |      (端口: 1883 TCP, 18083 Dashboard) |
++-------------------------+ (robot/{type}/{id}/#) +---------------------------------------+
+                                                                     ▲
+                                                                     │ MQTT 订阅 / 发布 (cmd/#)
+                                                                     ▼
+                                                  +---------------------------------------+
+                                                  |         FastAPI 后端服务              |
+                                                  |  - 数据清洗与 SQLite 存储             |
+                                                  |  - RESTful API 与设备状态检测         |
+                                                  |  - 指令下发与鉴权校验                 |
+                                                  +---------------------------------------+
+                                                                     ▲
+                                                                     │ HTTP 接口与静态页面
+                                                                     ▼
+                                                  +---------------------------------------+
+                                                  |            Web 管理界面               |
+                                                  |   (http://服务器IP:8000)              |
+                                                  +---------------------------------------+
 ```
 
 ---
 
-## 📂 项目目录结构
+## 📂 项目结构
 
 ```text
-机器人管理系统/
-├── main.py                     # FastAPI 后端核心主程序（MQTT监听、REST API、静态托管）
-├── database.py                 # SQLite 数据库访问层（WAL高并发模式、线程安全）
-├── mock_robot.py               # 工业机器人多设备并发模拟器（支持10+台多型号动态生成）
-├── run_broker.py               # 本地测试用微型 MQTT 中间件服务
-├── requirements.txt            # Python 核心依赖清单
-├── robot-iot.service           # Linux Systemd 守护进程服务配置文件
-├── start.sh / stop.sh          # Linux 一键启动与安全停止脚本
-├── static/                     # 前端静态资源目录
-│   └── index.html              # 现代化单文件监控调度前端（HTML5 + Tailwind CSS + JS）
-├── huashu_sdk/                 # 华数机器人官方二次开发接口库
-├── huashu_bridge/              # 华数现场转接桥接程序组件
-└── README.md                   # 本部署与测试说明文档
+├── main.py                     # FastAPI 后端服务主程序（MQTT监听、REST API、静态托管）
+├── database.py                 # SQLite 数据库访问层
+├── mock_robot.py               # 机器人设备多节点模拟器
+├── run_broker.py               # 本地测试用微型 MQTT 服务
+├── requirements.txt            # Python 依赖清单
+├── robot-iot.service           # Linux Systemd 服务配置
+├── start.sh / stop.sh          # Linux 启动与停止脚本
+├── static/                     # 前端静态资源
+│   ├── index.html              # 暗黑版监控界面
+│   ├── index_next.html         # 极简浅色版监控界面
+│   └── login.html              # 极简浅色登录界面
+├── huashu_sdk/                 # 华数二次开发接口文件
+└── README.md                   # 说明文档
 ```
 
 ---
 
-## 🚀 快速开始与本地测试 (Windows / Linux)
+## 🚀 本地运行与测试 (Windows / Linux)
 
 ### 1. 环境准备
-确保已安装 **Python 3.8+** 及 **Git**。
+需要安装 **Python 3.8+**。
 
 ```bash
-# 克隆仓库代码
 git clone https://github.com/shuli6b/-Robot-IoT-Fleet-Management-System-.git
 cd -Robot-IoT-Fleet-Management-System-
 
-# 安装核心依赖
 pip install -r requirements.txt
 ```
 
-### 2. 本地快速启动（3 步完成全闭环测试）
-
-为方便开发与功能验证，系统内置了本地轻量化微型 MQTT Broker，无需安装大型中间件即可在本地一键运行：
-
+### 2. 本地启动
 ```bash
-# 步骤 1：启动本地微型 MQTT 服务 (监听 0.0.0.0:1883)
+# 1. 启动微型 MQTT 服务
 python run_broker.py
 
-# 步骤 2：新建终端，启动 FastAPI 后台管理服务 (监听 0.0.0.0:8000)
+# 2. 新建终端启动 FastAPI 后端
 python main.py
 
-# 步骤 3：新建终端，启动 10 台并发模拟机器人
+# 3. 新建终端启动模拟设备数据上报
 python mock_robot.py --num-devices 10
 ```
 
-### 3. 访问监控大屏
-打开浏览器访问：👉 **http://127.0.0.1:8000**
-- 顶部概览将显示 **总设备数：10**、**在线设备：10**。
-- 右上角 MQTT 状态将显示绿灯 **「已连接」**。
-- 可点击任意设备卡片查看动态更新的轴角度、坐标位置与原始报文，并在右下角测试下发任务控制指令。
+### 3. 打开浏览器访问
+- 浅色版本：`http://127.0.0.1:8000/light`
+- 登录页面：`http://127.0.0.1:8000/login`
+- 暗黑版本：`http://127.0.0.1:8000/`
 
 ---
 
-## 🐧 生产环境部署指南 (Ubuntu 22.04 LTS)
+## 🐧 服务器部署说明 (Ubuntu 22.04 LTS)
 
-### 1. 基础环境安装
+### 1. 基础环境
 ```bash
 sudo apt update && sudo apt install -y python3 python3-pip python3-venv ufw
 ```
 
-### 2. 安装与配置 EMQX 消息中间件
+### 2. 安装 EMQX 中间件
 ```bash
-# 下载并安装 EMQX
 wget https://www.emqx.com/en/downloads/broker/v5.8.0/emqx-5.8.0-ubuntu22.04-amd64.deb
 sudo dpkg -i emqx-5.8.0-ubuntu22.04-amd64.deb
 sudo systemctl enable emqx --now
-
-# 配置安全认证账户 (禁用匿名登录)
-sudo emqx ctl users add robot_server robot_server_pass
 ```
 
-### 3. 部署后台应用
+### 3. 配置后台服务
 ```bash
-# 进入项目目录并创建 Python 虚拟环境
-cd /home/ubuntu/机器人管理系统
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-# 配置 Systemd 系统守护进程
 sudo cp robot-iot.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable robot-iot --now
 ```
 
-### 4. 开放防火墙端口
+### 4. 防火墙配置
 ```bash
-sudo ufw allow 8000/tcp    # Web 大屏及 REST API 端口
-sudo ufw allow 1883/tcp    # MQTT 工业协议接入端口
-sudo ufw allow 18083/tcp   # EMQX 后台管理 Dashboard 端口 (可选)
+sudo ufw allow 8000/tcp    # Web 与 API 端口
+sudo ufw allow 1883/tcp    # MQTT 端口
+sudo ufw allow 18083/tcp   # EMQX Dashboard 端口
 sudo ufw reload
 ```
 
 ---
 
-## 📡 工业设备对接协议规范
+## 📡 报文对接格式
 
-### 1. MQTT 报文规范
-
-#### ① 设备遥测数据上报 (Device -> Server)
+### 1. 设备遥测数据上报 (Device -> Server)
 - **主题格式**：`robot/{device_type}/{device_id}/{data_type}`
-  - `device_type`：`huashu_arm`（机械臂）/ `luxshare_amr`（移动机器人）/ `robot_dog`（四足巡检狗）
-  - `data_type`：`state`（状态运行）/ `sensor`（传感器指标）/ `alarm`（告警）
-- **Payload 示例 (华数机械臂)**：
+  - `device_type`：`huashu_arm` / `luxshare_amr` / `robot_dog`
+  - `data_type`：`state`（状态）/ `sensor`（传感器）/ `alarm`（告警）
+- **Payload 示例**：
 ```json
 {
   "timestamp": "2026-08-17T16:00:00Z",
@@ -176,31 +162,29 @@ sudo ufw reload
 }
 ```
 
-#### ② 远程控制指令下发 (Server -> Device)
-- **主题格式**：`cmd/{device_type}/{device_id}`
+### 2. 控制指令下发 (Server -> Device)
+- **主题格式**：`robot/{device_type}/{device_id}/cmd`
 - **Payload 示例**：
 ```json
 {
   "cmd_id": "cmd_1723880000",
-  "action": "emergency_stop",
-  "params": {},
+  "action": "start_cycle",
+  "params": {
+    "speed": 80
+  },
   "timestamp": "2026-08-17T16:00:05Z"
 }
 ```
 
 ---
 
-## 🔍 RESTful API 核心接口速查
+## 🔍 API 接口速查
 
-| 请求方法 | 接口路径 | 说明 |
+| 方法 | 路径 | 说明 |
 | :--- | :--- | :--- |
-| `GET` | `/api/system/overview` | 获取系统整体概览指标、MQTT连接状态与设备总数 |
-| `GET` | `/api/devices` | 获取所有接入设备的最新在线状态与基础属性 |
-| `GET` | `/api/devices/{type}/{id}/latest` | 获取指定设备的完整遥测历史与最新传感器读数 |
-| `POST` | `/api/control/dispatch` | 向指定设备下发控制指令并同步记录审计日志 |
-| `POST` | `/api/ai/chat` | 工业智能故障诊断与数据分析交互接口 |
-
----
-
-## 📄 开源许可证与协议
-本项目严格遵循工程规范开发，供工业机器人集群调度及智能化管理场景使用。
+| `GET` | `/api/system/overview` | 获取系统概览统计与连接状态 |
+| `GET` | `/api/devices` | 获取设备列表与最新在线状态 |
+| `GET` | `/api/history` | 查询历史遥测报文记录 |
+| `POST` | `/api/device/{id}/cmd` | 向指定设备下发控制指令 |
+| `POST` | `/api/ai/parse_command` | 自然语言指令解析 |
+| `POST` | `/api/ai/chat` | AI 智能诊断对话 |
