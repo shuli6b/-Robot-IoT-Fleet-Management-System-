@@ -1205,10 +1205,16 @@
                 { label: '🛑 紧急停车 (stop)', cmd: 'stop', params: { reason: "manual_estop" } }
             ],
             'huashu_arm': [
-                { label: '⚡ 启动生产节拍 (start_cycle)', cmd: 'start_cycle', params: { speed: 80, cycle_limit: 500, program: "BR610_WELD_01" } },
-                { label: '🔄 零位校准复位 (reset)', cmd: 'reset', params: {} },
-                { label: '⏸️ 暂停工序 (pause)', cmd: 'pause', params: {} },
-                { label: '🛑 紧急制动 (stop)', cmd: 'stop', params: { reason: "safety_door_open" } }
+                { label: '⚡ 启动生产工序 (start_cycle)', cmd: 'start_cycle', params: { program: "MAIN.PRG", speed: 80 } },
+                { label: '🔄 故障清除与伺服复位 (reset)', cmd: 'reset', params: {} },
+                { label: '⏸️ 暂停工序节拍 (pause)', cmd: 'pause', params: {} },
+                { label: '🛑 紧急制动停机 (stop)', cmd: 'stop', params: { reason: "emergency" } },
+                { label: '🔌 伺服电机上使能 (enable)', cmd: 'enable', params: {} },
+                { label: '🔌 伺服电机去使能 (disable)', cmd: 'disable', params: {} },
+                { label: '🎚️ 调整运行速度倍率 (set_speed)', cmd: 'set_speed', params: { speed: 60 } },
+                { label: '🕹️ 单轴点动测试 (jog)', cmd: 'jog', params: { axis: 0, direction: "+" } },
+                { label: '🛑 停止单轴点动 (stop_jog)', cmd: 'stop_jog', params: {} },
+                { label: '⚡ 气爪/电磁阀 IO 输出 (set_do)', cmd: 'set_do', params: { port: 0, value: 1 } }
             ],
             'robot_dog': [
                 { label: '🐕 商业环境与客流巡检 (patrol)', cmd: 'patrol', params: { route: "LOBBY_FLOOR_1", sensors: ["co2", "pm25", "foot_traffic"] } },
@@ -1487,13 +1493,27 @@
             let items = [];
 
             if (type === 'huashu_arm') {
-                if (payload.speed !== undefined) items.push({ label: '运行速率', val: `${payload.speed}%` });
-                if (payload.payload_kg !== undefined) items.push({ label: '当前负载', val: `${payload.payload_kg} kg` });
+                if (payload.speed !== undefined) items.push({ label: '运行速度倍率', val: `${payload.speed}%` });
+                if (payload.enabled !== undefined) items.push({ label: '伺服电机使能', val: payload.enabled ? '🟢 已使能 (ON)' : '⚪ 去使能 (OFF)' });
+                if (payload.emergency_stop !== undefined) items.push({ label: '急停回路状态', val: payload.emergency_stop ? '🛑 急停触发 (ESTOP)' : '🟢 正常闭合' });
+                if (payload.payload_kg !== undefined) items.push({ label: '额定/工作负载', val: `${payload.payload_kg} kg` });
                 if (payload.cycle_count !== undefined) items.push({ label: '节拍循环计数', val: `${payload.cycle_count} 次` });
-                if (payload.temperature !== undefined) items.push({ label: '电机温度', val: `${payload.temperature} °C` });
+                if (payload.temperature !== undefined) items.push({ label: '核心温度', val: `${payload.temperature} °C` });
+
+                if (payload.cartesian_pos) {
+                    const c = payload.cartesian_pos;
+                    const posStr = `X:${c.x ?? 0} Y:${c.y ?? 0} Z:${c.z ?? 0} mm | A:${c.a ?? 0}° B:${c.b ?? 0}° C:${c.c ?? 0}°`;
+                    items.push({ label: '笛卡尔末端位姿 (XYZABC 空间坐标)', val: posStr, full: true });
+                }
+
                 if (payload.joint_angles && Array.isArray(payload.joint_angles)) {
-                    const angles = payload.joint_angles.map((a, idx) => `J${idx+1}:${a}°`).join(' ');
-                    items.push({ label: '六轴关节位姿', val: angles, full: true });
+                    const angles = payload.joint_angles.map((a, idx) => `J${idx+1}:${a}°`).join('  ');
+                    items.push({ label: '六轴关节位姿 (J1~J6 角度)', val: angles, full: true });
+                }
+
+                if (payload.motor_currents && Array.isArray(payload.motor_currents)) {
+                    const currs = payload.motor_currents.map((c, idx) => `I${idx+1}:${c}A`).join('  ');
+                    items.push({ label: '各轴伺服反馈电流 (I1~I6 电流)', val: currs, full: true });
                 }
             } else if (type === 'luxshare_amr') {
                 if (payload.speed_mps !== undefined) items.push({ label: '线速度', val: `${payload.speed_mps} m/s` });

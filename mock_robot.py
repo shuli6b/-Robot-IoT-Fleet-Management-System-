@@ -108,16 +108,30 @@ class RobotSimulator:
             ]
             status_opts = ["running", "running", "running", "idle"]
             curr_status = "error" if error_code != 0 else random.choice(status_opts)
+            cartesian_pos = {
+                "x": round(450.0 + math.cos(self.step * 0.1) * 60.0, 2),
+                "y": round(200.0 + math.sin(self.step * 0.1) * 60.0, 2),
+                "z": round(350.0 + math.sin(self.step * 0.2) * 35.0, 2),
+                "a": 180.0,
+                "b": 0.0,
+                "c": round(joint_angles[0], 2)
+            }
+            motor_currents = [round(1.5 + abs(math.sin(self.step * 0.15 + i)) * 1.8, 2) for i in range(6)]
+
             return {
                 "timestamp": now_iso,
-                "model": "远程测试机器人",
+                "model": "华数BR610工业机械臂",
                 "status": curr_status,
                 "battery": self.battery,
                 "error_code": error_code,
                 "error_msg": error_msg,
                 "joint_angles": joint_angles,
-                "speed": random.randint(55, 85),
-                "payload_kg": round(random.uniform(4.8, 5.5), 2),
+                "cartesian_pos": cartesian_pos,
+                "motor_currents": motor_currents,
+                "enabled": (curr_status != "idle" and curr_status != "error"),
+                "emergency_stop": False,
+                "speed": random.randint(60, 90),
+                "payload_kg": 5.0,
                 "cycle_count": self.cycle_count,
                 "running_hours": round(152.0 + self.step * 0.05, 1),
                 "di_status": [1, 1, 0, 1],  # DI: 安全光幕/夹爪到位/急停正常/气压就绪
