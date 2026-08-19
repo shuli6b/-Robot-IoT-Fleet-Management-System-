@@ -1639,9 +1639,33 @@ if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
+@app.get("/login", include_in_schema=False)
+async def serve_login_page():
+    """纯净极简浅色登录页面"""
+    if os.path.exists("static/login.html"):
+        return FileResponse("static/login.html")
+    if os.path.exists("static/index_next.html"):
+        return FileResponse("static/index_next.html")
+    return FileResponse("static/index.html")
+
+
+@app.get("/light", include_in_schema=False)
+@app.get("/v2", include_in_schema=False)
+@app.get("/next", include_in_schema=False)
+@app.get("/preview", include_in_schema=False)
+async def serve_index_next():
+    """全新极简浅白企业版 UI 大屏"""
+    if os.path.exists("static/index_next.html"):
+        return FileResponse("static/index_next.html")
+    if os.path.exists("static/index.html"):
+        return FileResponse("static/index.html")
+    return api_response(code=200, message="极简浅白版 UI 正在就绪中...")
+
+
+@app.get("/dark", include_in_schema=False)
 @app.get("/", include_in_schema=False)
 async def serve_index():
-    """根路径返回前端 Web 页面"""
+    """经典暗黑 SCADA 工业版 UI 大屏"""
     if os.path.exists("static/index.html"):
         return FileResponse("static/index.html")
     return api_response(code=200, message="机器人物联网管理系统 API 服务正常运行中")

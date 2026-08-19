@@ -1,0 +1,2492 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>昕邦智能装备 - 机器人物联网管控平台</title>
+    
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Local TailwindCSS with fallback -->
+    <script src="/static/tailwindcss.js" onerror="this.onerror=null;this.src='https://cdn.tailwindcss.com';"></script>
+    <!-- Local ECharts with fallback -->
+    <script src="/static/echarts.min.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js';"></script>
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#F8FAFC',
+                            100: '#F1F5F9',
+                            200: '#E2E8F0',
+                            300: '#CBD5E1',
+                            400: '#94A3B8',
+                            500: '#64748B',
+                            600: '#475569',
+                            700: '#334155',
+                            800: '#1E293B',
+                            900: '#0F172A',
+                            950: '#020617',
+                        },
+                        accent: {
+                            blue: '#2563EB',
+                            emerald: '#059669',
+                            amber: '#D97706',
+                            rose: '#E11D48',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: #F8FAFC;
+            color: #0F172A;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: #F8FAFC; }
+        ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+
+        .clean-card {
+            background: #FFFFFF;
+            border: 1px solid #E2E8F0;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.02);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .clean-card:hover {
+            border-color: #CBD5E1;
+            box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.05);
+        }
+
+        .clean-modal {
+            background: #FFFFFF;
+            border: 1px solid #E2E8F0;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+        }
+
+        .pulse-subtle {
+            animation: pulse-ring 2.4s infinite;
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.5); }
+            70% { transform: scale(1); box-shadow: 0 0 0 5px rgba(5, 150, 105, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(5, 150, 105, 0); }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-slate-900 selection:text-white bg-[#F8FAFC] text-slate-900">
+
+    <!-- Top Connection Alert Banner -->
+    <div id="connectionBanner" class="hidden bg-rose-50 border-b border-rose-200 text-rose-700 px-4 py-2 text-xs font-medium flex items-center justify-between transition-all duration-300">
+        <div class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-rose-500 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+            </svg>
+            <span id="connectionBannerText">与中央物联网服务器通信连接中...</span>
+        </div>
+        <button onclick="fetchOverview(); fetchDevices();" class="text-xs bg-rose-600 hover:bg-rose-700 text-white px-2.5 py-1 rounded-md transition">重新连接</button>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- 1. Minimalist Top Navigation Bar (White, Clean, Line Icons)   -->
+    <!-- ============================================================= -->
+    <header class="bg-white sticky top-0 z-30 border-b border-slate-200 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-15 sm:h-16 flex items-center justify-between gap-3">
+            
+            <!-- Left: Brand Logo & Title -->
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-slate-900 text-white flex items-center justify-center shadow-sm shrink-0 cursor-pointer" onclick="openRobot3DModal()">
+                    <svg class="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                    </svg>
+                </div>
+                <div class="min-w-0">
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-xs sm:text-base font-bold text-slate-900 tracking-tight truncate flex items-center gap-2">
+                            <span class="sm:hidden">昕邦智能</span>
+                            <span class="hidden sm:inline">昕邦智能装备 · 机器人物联网管控平台</span>
+                            <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="系统通信正常"></span>
+                        </h1>
+                        <span class="text-[10px] font-medium px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 hidden xl:inline">v4.2 PRO</span>
+                    </div>
+                    <div class="flex items-center gap-2 text-[10px] text-slate-500 font-mono">
+                        <span class="hidden sm:inline">广州番禺智造中心 · 广州南沙创新港</span>
+                        <span class="hidden sm:inline text-slate-300">|</span>
+                        <span id="hudClock" class="text-slate-700 font-medium">--:--:--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Center: Navigation Tabs (Clean Pill Style) -->
+            <nav class="hidden lg:flex items-center p-1 rounded-xl bg-slate-100 text-xs shrink-0 font-medium">
+                <button id="tabBtnNavOverview" onclick="switchNavTab('overview')" class="px-4 py-1.5 rounded-lg text-slate-900 bg-white shadow-sm border border-slate-200/80 transition flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
+                    <span>综合概览</span>
+                </button>
+                <button id="tabBtnNavFleet" onclick="switchNavTab('fleet')" class="px-4 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path></svg>
+                    <span>设备台账与控制</span>
+                </button>
+                <button id="tabBtnNavAudit" onclick="switchNavTab('audit')" class="px-4 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    <span>遥测历史审计</span>
+                </button>
+            </nav>
+
+            <!-- Right: Actions, AI Copilot & Account Center -->
+            <div class="flex items-center gap-2 shrink-0">
+                <!-- Switch to Dark Edition -->
+                <a href="/dark" class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition items-center gap-1.5 border border-slate-200 shadow-sm shrink-0 flex" title="切换至经典暗黑版 SCADA 大屏">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                    <span class="hidden sm:inline">暗黑版</span>
+                </a>
+
+                <!-- Admin Only: EMQX MQTT Dashboard Button -->
+                <a id="btnEmqxDashboard" href="#" onclick="window.open('http://' + (window.location.hostname || 'localhost') + ':18083', '_blank'); return false;" class="hidden px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition items-center gap-1.5 border border-slate-200 shadow-sm shrink-0" title="打开 EMQX 工业消息中间件管理大屏">
+                    <svg class="w-3.5 h-3.5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"></path></svg>
+                    <span class="hidden xl:inline">MQTT 运维</span>
+                </a>
+
+                <!-- AI Copilot Button -->
+                <button onclick="openAiDiagnosisModal()" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium shadow-sm transition flex items-center gap-1.5 shrink-0">
+                    <svg class="w-3.5 h-3.5 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    <span>AI 专家</span>
+                </button>
+
+                <!-- Current User Profile Badge -->
+                <button onclick="openUserProfileModal()" id="currentUserBadge" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 hover:border-slate-300 text-xs font-medium text-slate-700 transition shadow-sm shrink-0" title="点击进入账号中心与修改密码">
+                    <span class="w-2 h-2 rounded-full bg-slate-400" id="userRoleDot"></span>
+                    <span id="userNameDisplay" class="truncate max-w-[60px] sm:max-w-[100px]">未登录</span>
+                </button>
+
+                <!-- Logout Button -->
+                <button onclick="handleUserLogout()" title="退出登录" class="p-1.5 sm:p-2 rounded-lg bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 border border-slate-200 transition text-xs shrink-0 flex items-center justify-center">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Mobile Nav Tabs Bar -->
+        <div class="flex lg:hidden items-center justify-around px-2 py-1.5 border-t border-slate-200 bg-white text-xs font-medium">
+            <button onclick="switchNavTab('overview')" id="mobNavOverview" class="flex-1 py-1 text-center font-bold text-slate-900 border-b-2 border-slate-900">概览</button>
+            <button onclick="switchNavTab('fleet')" id="mobNavFleet" class="flex-1 py-1 text-center text-slate-500 border-b-2 border-transparent">设备</button>
+            <button onclick="switchNavTab('audit')" id="mobNavAudit" class="flex-1 py-1 text-center text-slate-500 border-b-2 border-transparent">审计</button>
+        </div>
+    </header>
+
+    <!-- ============================================================= -->
+    <!-- 2. Main Executive Body Workspace                              -->
+    <!-- ============================================================= -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- Top Clean Metric Cards (5 Columns) -->
+        <section class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+            <!-- Total Fleet -->
+            <div class="clean-card p-4 rounded-xl">
+                <div class="flex items-center justify-between text-slate-500 text-xs font-medium">
+                    <span>设备总规模</span>
+                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                </div>
+                <div class="mt-2 flex items-baseline gap-1">
+                    <span id="statTotalDevices" class="text-2xl font-bold text-slate-900 tracking-tight">--</span>
+                    <span class="text-xs text-slate-400 font-normal">台</span>
+                </div>
+                <div class="mt-1 text-[11px] text-slate-500 truncate" id="statTypeChips">华数/珞石/机器狗</div>
+            </div>
+
+            <!-- Active Online -->
+            <div class="clean-card p-4 rounded-xl">
+                <div class="flex items-center justify-between text-slate-500 text-xs font-medium">
+                    <span>实时在线率</span>
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 pulse-subtle"></span>
+                </div>
+                <div class="mt-2 flex items-baseline gap-1">
+                    <span id="statOnlineDevices" class="text-2xl font-bold text-slate-900 tracking-tight">--</span>
+                    <span class="text-xs text-slate-400 font-normal">台在线</span>
+                </div>
+                <div class="mt-2 flex items-center gap-2">
+                    <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                        <div id="statOnlineProgress" class="bg-emerald-600 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                    <span id="statOnlineRate" class="text-[10px] font-mono text-slate-700 font-medium">0%</span>
+                </div>
+            </div>
+
+            <!-- Telemetry Throughput -->
+            <div class="clean-card p-4 rounded-xl">
+                <div class="flex items-center justify-between text-slate-500 text-xs font-medium">
+                    <span>遥测报文吞吐</span>
+                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+                </div>
+                <div class="mt-2 flex items-baseline gap-1">
+                    <span id="statTotalRecords" class="text-2xl font-bold text-slate-900 tracking-tight">--</span>
+                    <span class="text-xs text-slate-400 font-normal">条</span>
+                </div>
+                <div class="mt-1 text-[11px] text-slate-500 flex items-center justify-between">
+                    <span>存储引擎</span>
+                    <span class="text-slate-700 font-mono text-[10px]">SQLite WAL</span>
+                </div>
+            </div>
+
+            <!-- OEE Utilization -->
+            <div class="clean-card p-4 rounded-xl">
+                <div class="flex items-center justify-between text-slate-500 text-xs font-medium">
+                    <span>综合稼动率 (OEE)</span>
+                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
+                </div>
+                <div class="mt-2 flex items-baseline gap-1">
+                    <span id="statUtilizationRate" class="text-2xl font-bold text-slate-900 tracking-tight">95.4%</span>
+                    <span class="text-xs text-slate-500 font-normal">正常</span>
+                </div>
+                <div class="mt-1 text-[11px] text-slate-500 flex items-center justify-between">
+                    <span>任务达成率:</span>
+                    <span class="text-slate-800 font-mono font-medium">98.8%</span>
+                </div>
+            </div>
+
+            <!-- Dual Base Network -->
+            <div class="clean-card p-4 rounded-xl col-span-2 sm:col-span-1">
+                <div class="flex items-center justify-between text-slate-500 text-xs font-medium">
+                    <span>工业专网</span>
+                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
+                </div>
+                <div class="mt-2 text-sm font-semibold text-slate-900">广州番禺 · 广州南沙</div>
+                <div class="mt-1 text-[11px] text-slate-500 flex items-center justify-between">
+                    <span>5G 专网工业总线</span>
+                    <span class="text-emerald-600 font-medium">100% 通畅</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================= -->
+        <!-- VIEW 1: COMPREHENSIVE OVERVIEW (综合运行概览)                  -->
+        <!-- ============================================================= -->
+        <section id="sectionOverview" class="space-y-4">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                
+                <!-- Left: Telemetry Traffic Trend & Base Distribution (7 Cols) -->
+                <div class="lg:col-span-7 space-y-4">
+                    <!-- Real-time Throughput Chart -->
+                    <div class="clean-card p-5 rounded-xl space-y-3">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-900 tracking-tight">实时遥测吞吐趋势</h3>
+                                <p class="text-xs text-slate-500">毫秒级遥测与传感器数据吞吐曲线</p>
+                            </div>
+                            <span class="text-xs font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">持续推流中</span>
+                        </div>
+                        <div id="overviewTrafficChart" class="w-full h-56"></div>
+                    </div>
+
+                    <!-- Dual Bases Overview Cards -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div onclick="openBaseModal('panyu')" class="clean-card p-4 rounded-xl cursor-pointer group hover:border-slate-400">
+                            <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+                                <div class="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                                    <span class="w-2 h-2 rounded-full bg-slate-900"></span>
+                                    <span>广州番禺智造中心</span>
+                                </div>
+                                <span class="text-xs text-slate-400 group-hover:text-slate-700">详情 →</span>
+                            </div>
+                            <div class="mt-2.5 text-xs text-slate-600 space-y-1">
+                                <div class="text-[11px] text-slate-500">主产线：华数 BR610 六轴工业机械臂高精加工</div>
+                                <div class="flex justify-between text-[11px] pt-1 font-medium">
+                                    <span>设备规模: <strong class="text-slate-900">20+ 节点</strong></span>
+                                    <span class="text-emerald-600">正常运行</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div onclick="openBaseModal('nansha')" class="clean-card p-4 rounded-xl cursor-pointer group hover:border-slate-400">
+                            <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+                                <div class="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                                    <span class="w-2 h-2 rounded-full bg-slate-900"></span>
+                                    <span>广州南沙创新港</span>
+                                </div>
+                                <span class="text-xs text-slate-400 group-hover:text-slate-700">详情 →</span>
+                            </div>
+                            <div class="mt-2.5 text-xs text-slate-600 space-y-1">
+                                <div class="text-[11px] text-slate-500">核心装备：复合移动 AMR 与四足仿生机器狗巡检</div>
+                                <div class="flex justify-between text-[11px] pt-1 font-medium">
+                                    <span>设备规模: <strong class="text-slate-900">30+ 节点</strong></span>
+                                    <span class="text-emerald-600">正常运行</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Fleet Health & Operational Event Logs (5 Cols) -->
+                <div class="lg:col-span-5 space-y-4">
+                    <!-- Fleet Health Index -->
+                    <div class="clean-card p-5 rounded-xl space-y-3">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-900 tracking-tight">各品类设备健康指数</h3>
+                                <p class="text-xs text-slate-500">基于伺服负载、电机温升与通讯质量分析</p>
+                            </div>
+                            <span class="text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">健康状况良好</span>
+                        </div>
+                        <div class="space-y-3.5 text-xs pt-1">
+                            <div class="space-y-1">
+                                <div class="flex justify-between text-[11px]">
+                                    <span class="text-slate-600">华数六轴工业机械臂 (伺服电机负载与温升)</span>
+                                    <span class="font-mono text-slate-900 font-semibold">98.5%</span>
+                                </div>
+                                <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                                    <div class="bg-slate-900 h-full rounded-full" style="width: 98.5%"></div>
+                                </div>
+                            </div>
+                            <div class="space-y-1">
+                                <div class="flex justify-between text-[11px]">
+                                    <span class="text-slate-600">珞石复合 AMR 移动机器人 (电池健康度与定位精度)</span>
+                                    <span class="font-mono text-slate-900 font-semibold">96.2%</span>
+                                </div>
+                                <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                                    <div class="bg-slate-900 h-full rounded-full" style="width: 96.2%"></div>
+                                </div>
+                            </div>
+                            <div class="space-y-1">
+                                <div class="flex justify-between text-[11px]">
+                                    <span class="text-slate-600">四足仿生机器狗 (关节扭矩与红外测温模组)</span>
+                                    <span class="font-mono text-slate-900 font-semibold">97.8%</span>
+                                </div>
+                                <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                                    <div class="bg-slate-900 h-full rounded-full" style="width: 97.8%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Operational Event Stream -->
+                    <div class="clean-card p-5 rounded-xl space-y-3">
+                        <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-900 tracking-tight">最新控制与工况事件流</h3>
+                                <p class="text-xs text-slate-500">现场设备遥测心跳与事件记录</p>
+                            </div>
+                            <button onclick="switchNavTab('audit')" class="text-xs text-slate-600 hover:text-slate-900 font-medium">全量审计 →</button>
+                        </div>
+                        <div id="overviewEventList" class="space-y-2 text-xs font-mono max-h-48 overflow-y-auto pr-1">
+                            <div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200/60 flex items-center justify-between">
+                                <span class="text-slate-700">arm_001 [华数机械臂] 周期上报正常</span>
+                                <span class="text-[10px] text-slate-400">刚刚</span>
+                            </div>
+                            <div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200/60 flex items-center justify-between">
+                                <span class="text-slate-700">amr_001 [珞石AMR] 激光SLAM定位良好</span>
+                                <span class="text-[10px] text-slate-400">1秒前</span>
+                            </div>
+                            <div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200/60 flex items-center justify-between">
+                                <span class="text-slate-700">dog_001 [四足机器狗] 巡检数据上报正常</span>
+                                <span class="text-[10px] text-slate-400">2秒前</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================= -->
+        <!-- VIEW 2: FLEET MONITORING & MISSION CONTROL (设备台账与控制)    -->
+        <!-- ============================================================= -->
+        <section id="sectionFleet" class="hidden space-y-4">
+            
+            <!-- Fleet Filter & Layout Switcher Bar -->
+            <div class="clean-card p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div class="flex items-center gap-2.5">
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                            <span>设备运行监控与控制台</span>
+                            <span class="text-xs font-mono px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200" id="fleetCountBadge">0 台设备</span>
+                        </h3>
+                        <p class="text-xs text-slate-500">点击任意设备进入 3D 姿态监控、伺服电流矩阵与任务工步指令控制</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2.5 flex-wrap">
+                    <!-- Category Filter -->
+                    <select id="fleetFilterType" onchange="renderActiveFleetView()" class="bg-white border border-slate-300 text-slate-700 text-xs rounded-lg px-3 py-1.5 focus:ring-1 focus:ring-slate-900 focus:outline-none font-medium">
+                        <option value="">全部品类 (All Types)</option>
+                        <option value="huashu_arm">华数 BR610 六轴机械臂</option>
+                        <option value="luxshare_amr">珞石 SR3 复合移动 AMR</option>
+                        <option value="robot_dog">四足仿生巡检机器狗</option>
+                    </select>
+
+                    <!-- Layout Switcher (Grid vs List) -->
+                    <div class="flex items-center p-0.5 rounded-lg bg-slate-100 text-xs font-medium">
+                        <button id="btnFleetGrid" onclick="setFleetLayout('grid')" class="px-3 py-1 rounded-md text-slate-900 bg-white shadow-sm transition flex items-center gap-1.5" title="卡片大图视图">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
+                            <span>卡片</span>
+                        </button>
+                        <button id="btnFleetList" onclick="setFleetLayout('list')" class="px-3 py-1 rounded-md text-slate-500 hover:text-slate-900 transition flex items-center gap-1.5" title="紧凑数据列表视图">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
+                            <span>列表</span>
+                        </button>
+                    </div>
+
+                    <button onclick="refreshAllManual()" class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition text-xs font-medium flex items-center gap-1.5 border border-slate-200">
+                        <svg class="w-3.5 h-3.5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                        <span>刷新数据</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 1. Grid Mode Container -->
+            <div id="fleetGridContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"></div>
+
+            <!-- 2. List Mode Container (Hidden by default) -->
+            <div id="fleetListContainer" class="hidden clean-card rounded-xl p-4 sm:p-5">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200 pb-2">
+                                <th class="pb-2.5 pr-2">设备编号 / 品类</th>
+                                <th class="pb-2.5 px-2">运行工况</th>
+                                <th class="pb-2.5 px-2">母线/电池</th>
+                                <th class="pb-2.5 px-2">最后心跳</th>
+                                <th class="pb-2.5 pl-2 text-right">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fleetListTableBody" class="divide-y divide-slate-100 text-xs"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================= -->
+        <!-- VIEW 3: TELEMETRY AUDIT & JSON INSPECTOR (遥测历史审计)         -->
+        <!-- ============================================================= -->
+        <section id="sectionAudit" class="hidden clean-card rounded-xl p-4 sm:p-5 space-y-4">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-200">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                        <span>全域遥测报文审计与追溯</span>
+                        <span class="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 font-mono" id="auditTotalBadge">0 条</span>
+                    </h3>
+                    <p class="text-xs text-slate-500 mt-0.5">归档记录所有机器人上报的原始 MQTT 状态、传感器、告警与指令报文，点击任意条目可查看完整 JSON</p>
+                </div>
+            </div>
+
+            <!-- Multi-field Filter -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                <select id="auditDeviceSelect" onchange="fetchAuditData(1)" class="bg-white border border-slate-300 text-slate-700 rounded-lg px-2.5 py-1.5 focus:outline-none">
+                    <option value="">全部设备</option>
+                </select>
+                <select id="auditTypeSelect" onchange="fetchAuditData(1)" class="bg-white border border-slate-300 text-slate-700 rounded-lg px-2.5 py-1.5 focus:outline-none">
+                    <option value="">全部报文类型</option>
+                    <option value="state">状态 (state)</option>
+                    <option value="sensor">传感器 (sensor)</option>
+                    <option value="alarm">告警 (alarm)</option>
+                    <option value="cmd">控制指令 (cmd)</option>
+                </select>
+                <input type="datetime-local" id="auditStartTime" class="bg-white border border-slate-300 text-slate-700 rounded-lg px-2.5 py-1.5 focus:outline-none">
+                <div class="flex gap-1.5">
+                    <button onclick="fetchAuditData(1)" class="flex-1 py-1.5 rounded-lg bg-slate-900 text-white font-medium text-xs hover:bg-slate-800 transition">查询</button>
+                    <button onclick="resetAuditFilter()" class="py-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs border border-slate-200">重置</button>
+                </div>
+            </div>
+
+            <!-- Data Table -->
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="text-[11px] font-semibold text-slate-500 uppercase border-b border-slate-200 pb-2">
+                            <th class="pb-2 pr-2">#</th>
+                            <th class="pb-2 px-2">设备编号</th>
+                            <th class="pb-2 px-2">品类</th>
+                            <th class="pb-2 px-2">报文类型</th>
+                            <th class="pb-2 px-2">入库时间</th>
+                            <th class="pb-2 pl-2 text-right">报文快照 (点击查看完整JSON)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="auditTableBody" class="divide-y divide-slate-100 text-xs font-mono">
+                        <tr><td colspan="6" class="py-8 text-center text-slate-400 font-sans">点击查询加载历史数据</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="flex items-center justify-between pt-2 border-t border-slate-200 text-xs text-slate-500">
+                <span id="auditPageInfo">第 1 / 1 页</span>
+                <div class="flex items-center gap-1.5">
+                    <button id="btnAuditPrev" onclick="changeAuditPage(-1)" disabled class="px-3 py-1 rounded-md bg-slate-100 text-slate-500 disabled:opacity-40 hover:bg-slate-200 transition">上一页</button>
+                    <button id="btnAuditNext" onclick="changeAuditPage(1)" disabled class="px-3 py-1 rounded-md bg-slate-100 text-slate-500 disabled:opacity-40 hover:bg-slate-200 transition">下一页</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Clean Footer -->
+    <footer class="mt-auto border-t border-slate-200 py-4 bg-white text-xs text-slate-500">
+        <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+            <span>© 2026 昕邦智能装备 · 机器人物联网管控平台 (广州番禺 · 广州南沙)</span>
+            <div id="techSupportBadge" class="hidden text-[11px] text-slate-600 font-mono">
+                技术支持 — 擎天智运维团队
+            </div>
+        </div>
+    </footer>
+
+    <!-- ============================================================= -->
+    <!-- MODAL 1: BASE SHOWCASE MODAL                                  -->
+    <!-- ============================================================= -->
+    <div id="baseProfileModal" style="z-index: 9999;" class="hidden fixed inset-0 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm transition-all duration-200">
+        <div class="clean-modal rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
+            <div class="px-6 py-4 bg-white border-b border-slate-200 flex items-center justify-between">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-900 tracking-tight" id="baseModalTitle">广州番禺智造中心</h3>
+                    <p class="text-xs text-slate-500" id="baseModalSub">华数六轴工业机械臂高精加工与焊接示范产线</p>
+                </div>
+                <button onclick="closeBaseModal()" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 flex items-center justify-center transition">✕</button>
+            </div>
+            
+            <div class="p-6 overflow-y-auto space-y-4 bg-slate-50">
+                <div class="relative w-full h-64 sm:h-80 rounded-xl overflow-hidden border border-slate-200 shadow-sm">
+                    <img id="baseModalImage" src="/static/assets/base_panyu.jpg" alt="Base Profile" class="w-full h-full object-cover object-center">
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                    <div class="p-3.5 bg-white rounded-xl border border-slate-200 shadow-sm">
+                        <div class="text-slate-500">产线规划定位</div>
+                        <div class="font-bold text-slate-900 text-sm mt-1" id="baseModalAttr1">工业机械臂产线</div>
+                    </div>
+                    <div class="p-3.5 bg-white rounded-xl border border-slate-200 shadow-sm">
+                        <div class="text-slate-500">通信网络设施</div>
+                        <div class="font-bold text-emerald-700 text-sm mt-1 font-mono">5G 专网 + 工业总线</div>
+                    </div>
+                    <div class="p-3.5 bg-white rounded-xl border border-slate-200 shadow-sm">
+                        <div class="text-slate-500">设备接入规模</div>
+                        <div class="font-bold text-slate-900 text-sm mt-1 font-mono" id="baseModalAttr3">50+ 节点协同</div>
+                    </div>
+                </div>
+
+                <div class="p-4 bg-white rounded-xl border border-slate-200 text-xs text-slate-600 leading-relaxed shadow-sm" id="baseModalDesc"></div>
+            </div>
+
+            <div class="px-6 py-3.5 bg-white border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
+                <span>数字孪生节点已接入昕邦工业物联网控制中枢</span>
+                <button onclick="closeBaseModal()" class="px-4 py-1.5 rounded-lg bg-slate-900 text-white font-medium hover:bg-slate-800 transition">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- MODAL 2: 3D DIGITAL TWIN & COMMAND CONSOLE MODAL              -->
+    <!-- ============================================================= -->
+    <div id="robot3DModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm transition-all duration-200">
+        <div class="clean-modal rounded-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
+            
+            <!-- Top Modal Header -->
+            <div class="px-6 py-4 bg-white border-b border-slate-200 flex items-center justify-between">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-900 tracking-tight" id="modalDevTitle">华数 BR610 六轴工业机器人</h3>
+                    <p class="text-xs text-slate-500" id="modalDevSubTitle">ID: arm_001 | 实时 3D 运动学、伺服状态与任务工步指令控制</p>
+                </div>
+                <button onclick="closeRobot3DModal()" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 flex items-center justify-center transition">✕</button>
+            </div>
+
+            <!-- Scrollable Body -->
+            <div class="p-6 overflow-y-auto flex-1 space-y-5 bg-slate-50">
+                
+                <!-- 1. 3D Digital Twin Visual Banner -->
+                <div class="relative w-full h-64 sm:h-72 rounded-xl overflow-hidden border border-slate-200 shadow-sm bg-white">
+                    <img id="modalRobotImage" src="/static/assets/huashu_br610_arm.jpg" alt="3D Robot" class="w-full h-full object-cover object-center">
+                    <div class="absolute top-3 left-3">
+                        <span class="px-3 py-1 rounded-lg bg-white/90 backdrop-blur-sm border border-slate-200 text-xs font-mono text-slate-800 flex items-center gap-1.5 shadow-sm">
+                            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                            <span id="modalBannerType">华数 BR610 六轴工业机械臂</span>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- 2. Specifications, Kinematics & Health Gauges -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                    <!-- Specs -->
+                    <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm space-y-3">
+                        <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+                            <span class="font-bold text-slate-900">规格参数</span>
+                            <span class="text-[10px] text-slate-400 font-mono" id="modalSpecBrand">华数机器人</span>
+                        </div>
+                        <div class="space-y-2 text-slate-600 text-[11px]" id="modalSpecList"></div>
+                    </div>
+
+                    <!-- Kinematics -->
+                    <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm space-y-3">
+                        <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+                            <span class="font-bold text-slate-900">运动学姿态</span>
+                            <span class="text-[10px] text-slate-500 font-mono">1.0s 周期</span>
+                        </div>
+                        <div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80 space-y-1">
+                            <span class="text-[10px] text-slate-500">末端空间坐标 (mm/°)</span>
+                            <div class="font-mono text-xs text-slate-900 font-bold truncate" id="modalCartesianPos">X: 450.2 | Y: 200.1 | Z: 350.0</div>
+                            <div class="font-mono text-[10px] text-slate-500 truncate" id="modalEulerAngles">A: 180.0° | B: 0.0° | C: 45.0°</div>
+                        </div>
+                        <div class="space-y-1.5" id="modalJointsContainer"></div>
+                    </div>
+
+                    <!-- Currents & Health -->
+                    <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm space-y-3">
+                        <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+                            <span class="font-bold text-slate-900">伺服电流与工况</span>
+                            <span class="text-[10px] text-emerald-700 font-bold font-mono">98 分</span>
+                        </div>
+                        <div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80 space-y-1.5">
+                            <span class="text-[10px] text-slate-500">伺服电机电流 (A)</span>
+                            <div class="grid grid-cols-3 gap-1.5 font-mono text-[11px]" id="modalMotorCurrentsGrid"></div>
+                        </div>
+                        <div class="space-y-1.5 text-[11px] text-slate-600">
+                            <div class="flex justify-between"><span>循环工步计数:</span><span class="font-mono text-slate-900 font-medium" id="modalCycleCount">1,420 次</span></div>
+                            <div class="flex justify-between"><span>累计运行工时:</span><span class="font-mono text-slate-900 font-medium" id="modalRunHours">152.4 小时</span></div>
+                            <div class="flex justify-between"><span>下次保养周期:</span><span class="font-mono text-slate-700" id="modalMaintRemain">剩余 347.6 小时</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Integrated Command Dispatch Console (Downwards Scroll Section) -->
+                <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm space-y-4">
+                    <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                        <h4 class="text-sm font-bold text-slate-900 tracking-tight">任务控制指令下发中心 (工业二次开发指令集)</h4>
+                        <span class="text-xs font-mono text-slate-500" id="modalCmdTopicTarget">cmd/--/--</span>
+                    </div>
+
+                    <!-- Admin Command Panel -->
+                    <div id="modalAdminCmdPanel" class="space-y-3.5">
+                        
+                        <!-- AI Natural Language Command Parser Row -->
+                        <div class="p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-2">
+                            <div class="flex items-center justify-between text-[11px]">
+                                <span class="font-bold text-slate-800 flex items-center gap-1.5">
+                                    <svg class="w-3.5 h-3.5 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                    <span>AI 自然语言指令编译器</span>
+                                </span>
+                                <span class="text-slate-500 text-[10px]">支持中英文口语化指令</span>
+                            </div>
+                            <div class="flex gap-2">
+                                <input type="text" id="modalNlCommandInput" placeholder="输入口语，如：“启动焊接工步速度80” 或 “去A01取料并送往B03”" class="flex-1 bg-white border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-2 focus:ring-1 focus:ring-slate-900 focus:outline-none">
+                                <button type="button" onclick="parseNaturalLanguageCommand()" id="btnNlParse" class="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs shadow-sm transition flex items-center gap-1 shrink-0">
+                                    <span>一键解析</span>
+                                </button>
+                            </div>
+                            <div id="nlParseResultHint" class="hidden text-[11px] text-slate-700 font-mono"></div>
+                        </div>
+
+                        <!-- Manual & Preset Selector Row -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                            <div>
+                                <label class="block text-[11px] text-slate-500 mb-1">标准工业控制工步指令预设</label>
+                                <select id="modalCmdPresetSelect" onchange="onModalCmdPresetChange()" class="w-full bg-white border border-slate-300 text-slate-800 rounded-lg px-3 py-2 focus:outline-none"></select>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-500 mb-1">指令标识 (Command Tag)</label>
+                                <input type="text" id="modalCmdCustomInput" placeholder="输入控制指令" class="w-full bg-white border border-slate-300 text-slate-800 rounded-lg px-3 py-2 font-mono focus:outline-none">
+                            </div>
+                        </div>
+
+                        <!-- JSON Payload Editor with Format/Validate Button -->
+                        <div>
+                            <div class="flex items-center justify-between text-[11px] text-slate-500 mb-1">
+                                <span>指令参数 (JSON Payload)</span>
+                                <button type="button" onclick="formatAndValidateModalJson()" class="text-slate-700 hover:underline font-medium">格式化 & 校验 JSON</button>
+                            </div>
+                            <textarea id="modalCmdParamsEditor" rows="3" class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-xs font-mono rounded-lg p-3 focus:outline-none" placeholder='{"speed": 80}'></textarea>
+                        </div>
+
+                        <!-- MQTT Dispatch Button -->
+                        <button onclick="dispatchModalCommand()" class="w-full py-3 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs shadow-sm transition flex items-center justify-center gap-2">
+                            <span>下发指令至现场设备 (MQTT)</span>
+                        </button>
+                    </div>
+
+                    <!-- User Readonly Banner -->
+                    <div id="modalUserReadonlyBanner" class="hidden p-4 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-between text-xs text-slate-600">
+                        <span>当前账号为操作员角色，仅开放状态监控，指令下发功能已受控保护。</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-medium">需管理员权限</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-6 py-3.5 bg-white border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
+                <span>广州番禺示范线 · 昕邦工业机器人数字孪生接入点</span>
+                <button onclick="closeRobot3DModal()" class="px-4 py-1.5 rounded-lg bg-slate-900 text-white font-medium hover:bg-slate-800 transition">完成查看</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- MODAL 3: MINIMALIST LIGHT LOGIN PORTAL                        -->
+    <!-- ============================================================= -->
+    <div id="authModal" class="hidden fixed inset-0 z-50 overflow-y-auto min-h-screen p-3 sm:p-6 flex items-start sm:items-center justify-center bg-slate-900/60 backdrop-blur-sm transition-all duration-200">
+        <div class="clean-modal rounded-2xl w-full max-w-4xl my-auto overflow-hidden grid grid-cols-1 lg:grid-cols-12 shadow-2xl bg-white">
+            
+            <!-- Left: Minimalist ECharts China Map (7 Cols) -->
+            <div class="lg:col-span-7 relative bg-slate-50 p-6 sm:p-8 flex flex-col justify-between overflow-hidden border-b lg:border-b-0 lg:border-r border-slate-200">
+                <div class="relative z-10 space-y-1">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-slate-900"></span>
+                        <h2 class="text-base sm:text-lg font-bold text-slate-900 tracking-tight">昕邦智能装备 · 工业机器人物联网管控平台</h2>
+                    </div>
+                    <p class="text-xs text-slate-500 font-mono">XINBANG INDUSTRIAL FLEET DIGITAL TWIN PLATFORM</p>
+                </div>
+
+                <!-- ECharts China Map Canvas -->
+                <div class="relative my-2 w-full h-[280px] sm:h-[340px] flex items-center justify-center">
+                    <div id="chinaMapChart" class="w-full h-full"></div>
+                </div>
+
+                <div class="relative z-10 flex items-center justify-between text-[11px] text-slate-500 font-mono">
+                    <span>广州番禺智造中心 · 广州南沙创新港</span>
+                    <span>5G 专网互联</span>
+                </div>
+            </div>
+
+            <!-- Right: Minimalist Enterprise Login / Register Form (5 Cols) -->
+            <div class="lg:col-span-5 p-6 sm:p-8 flex flex-col justify-between bg-white">
+                <div>
+                    <div class="flex items-center gap-6 border-b border-slate-200 pb-3 mb-6">
+                        <button id="tabBtnLogin" onclick="switchAuthTab('login')" class="font-bold text-sm text-slate-900 border-b-2 border-slate-900 pb-2 transition">系统账号登录</button>
+                        <button id="tabBtnRegister" onclick="switchAuthTab('register')" class="font-medium text-sm text-slate-500 hover:text-slate-900 border-b-2 border-transparent pb-2 transition">注册新账号</button>
+                    </div>
+
+                    <!-- Login Form -->
+                    <form id="loginForm" onsubmit="handleAuthLogin(event)" class="space-y-4">
+                        <div>
+                            <label class="block text-xs text-slate-600 mb-1.5 font-medium">登录账号 (Username)</label>
+                            <input type="text" id="loginUsername" required class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-lg px-3.5 py-2.5 focus:ring-1 focus:ring-slate-900 focus:outline-none" placeholder="输入系统账号">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs text-slate-600 mb-1.5 font-medium">登录密码 (Password)</label>
+                            <input type="password" id="loginPassword" required class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-lg px-3.5 py-2.5 focus:ring-1 focus:ring-slate-900 focus:outline-none" placeholder="输入登录密码">
+                        </div>
+
+                        <div id="loginErrorBox" class="hidden p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs"></div>
+
+                        <button type="submit" id="btnLoginSubmit" class="w-full py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs shadow-sm transition mt-2">
+                            立即登录管控平台
+                        </button>
+                    </form>
+
+                    <!-- Register Form -->
+                    <form id="registerForm" onsubmit="handleAuthRegister(event)" class="hidden space-y-3.5">
+                        <div>
+                            <label class="block text-xs text-slate-600 mb-1 font-medium">注册账号</label>
+                            <input type="text" id="regUsername" required class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-lg px-3.5 py-2 focus:ring-1 focus:ring-slate-900 focus:outline-none" placeholder="至少 3 位用户名">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-600 mb-1 font-medium">设置密码</label>
+                            <input type="password" id="regPassword" required class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-lg px-3.5 py-2 focus:ring-1 focus:ring-slate-900 focus:outline-none" placeholder="至少 4 位密码">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-600 mb-1 font-medium">用户姓名 / 岗位</label>
+                            <input type="text" id="regRealName" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-lg px-3.5 py-2 focus:ring-1 focus:ring-slate-900 focus:outline-none" placeholder="例：张工 / 操作员">
+                        </div>
+                        <div id="regErrorBox" class="hidden p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs"></div>
+                        <button type="submit" id="btnRegSubmit" class="w-full py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs shadow-sm transition mt-2">
+                            注册新账号
+                        </button>
+                    </form>
+                </div>
+
+                <div class="pt-4 mt-6 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-400 font-mono">
+                    <span>工业物联网安全协议认证</span>
+                    <span>v4.2-PRO</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- MODAL 4: USER PROFILE & ACCOUNT CENTER MODAL                  -->
+    <!-- ============================================================= -->
+    <div id="userProfileModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm transition-all duration-200">
+        <div class="clean-modal rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl bg-white">
+            <div class="px-6 py-4 bg-white border-b border-slate-200 flex items-center justify-between">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-900 tracking-tight">个人账号中心与权限管理</h3>
+                    <p class="text-xs text-slate-500">管理当前登录身份、修改账号名与密码</p>
+                </div>
+                <button onclick="closeUserProfileModal()" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 flex items-center justify-center transition">✕</button>
+            </div>
+
+            <div class="flex items-center px-6 border-b border-slate-200 bg-slate-50 text-xs overflow-x-auto">
+                <button id="tabBtnProfileInfo" onclick="switchProfileTab('info')" class="px-4 py-2.5 font-bold text-slate-900 border-b-2 border-slate-900 transition whitespace-nowrap">个人资料</button>
+                <button id="tabBtnProfileUsername" onclick="switchProfileTab('uname')" class="px-4 py-2.5 font-medium text-slate-500 hover:text-slate-900 border-b-2 border-transparent transition whitespace-nowrap">修改账号名</button>
+                <button id="tabBtnProfilePwd" onclick="switchProfileTab('pwd')" class="px-4 py-2.5 font-medium text-slate-500 hover:text-slate-900 border-b-2 border-transparent transition whitespace-nowrap">修改密码</button>
+                <button id="tabBtnProfileUsers" onclick="switchProfileTab('users')" class="hidden px-4 py-2.5 font-medium text-slate-500 hover:text-slate-900 border-b-2 border-transparent transition whitespace-nowrap">全员管理</button>
+            </div>
+
+            <div class="p-6 overflow-y-auto flex-1 space-y-4 text-xs bg-white">
+                <!-- Tab 1: Profile Info Form -->
+                <form id="profileInfoForm" onsubmit="handleUpdateProfile(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-slate-600 mb-1">当前登录账号名 (Username)</label>
+                        <input type="text" id="profUsername" readonly class="w-full bg-slate-100 border border-slate-200 text-slate-500 rounded-lg px-3 py-2 font-mono cursor-not-allowed">
+                    </div>
+                    <div>
+                        <label class="block text-slate-600 mb-1">用户姓名 / 岗位</label>
+                        <input type="text" id="profRealName" required class="w-full bg-white border border-slate-300 text-slate-900 rounded-lg px-3 py-2 focus:ring-1 focus:ring-slate-900 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-slate-600 mb-1">系统角色权限</label>
+                        <span id="profRoleBadge" class="inline-block px-2.5 py-1 rounded bg-slate-100 text-slate-800 border border-slate-200 font-medium font-mono text-xs">--</span>
+                    </div>
+                    <button type="submit" class="w-full py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-medium transition">保存个人资料</button>
+                </form>
+
+                <!-- Tab 2: Change Username Form -->
+                <form id="profileUsernameForm" onsubmit="handleChangeUsername(event)" class="hidden space-y-4">
+                    <div>
+                        <label class="block text-slate-600 mb-1">当前账号名</label>
+                        <input type="text" id="unameCurrent" readonly class="w-full bg-slate-100 border border-slate-200 text-slate-500 rounded-lg px-3 py-2 font-mono cursor-not-allowed">
+                    </div>
+                    <div>
+                        <label class="block text-slate-600 mb-1">设置新账号名 (至少 3 位字符)</label>
+                        <input type="text" id="unameNew" required class="w-full bg-white border border-slate-300 text-slate-900 rounded-lg px-3 py-2 focus:ring-1 focus:ring-slate-900 focus:outline-none" placeholder="输入新的用户名">
+                    </div>
+                    <div>
+                        <label class="block text-slate-600 mb-1">输入当前登录密码以验证身份</label>
+                        <input type="password" id="unamePassword" required class="w-full bg-white border border-slate-300 text-slate-900 rounded-lg px-3 py-2 focus:ring-1 focus:ring-slate-900 focus:outline-none" placeholder="输入当前密码">
+                    </div>
+                    <div id="unameErrorBox" class="hidden p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs"></div>
+                    <button type="submit" class="w-full py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-medium transition">确认修改账号名</button>
+                </form>
+
+                <!-- Tab 3: Change Password Form -->
+                <form id="profilePwdForm" onsubmit="handleChangePassword(event)" class="hidden space-y-4">
+                    <div>
+                        <label class="block text-slate-600 mb-1">当前原密码</label>
+                        <input type="password" id="pwdOld" required class="w-full bg-white border border-slate-300 text-slate-900 rounded-lg px-3 py-2 focus:ring-1 focus:ring-slate-900 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-slate-600 mb-1">设置新密码 (至少 4 位)</label>
+                        <input type="password" id="pwdNew" required class="w-full bg-white border border-slate-300 text-slate-900 rounded-lg px-3 py-2 focus:ring-1 focus:ring-slate-900 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-slate-600 mb-1">确认新密码</label>
+                        <input type="password" id="pwdConfirm" required class="w-full bg-white border border-slate-300 text-slate-900 rounded-lg px-3 py-2 focus:ring-1 focus:ring-slate-900 focus:outline-none">
+                    </div>
+                    <div id="pwdErrorBox" class="hidden p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs"></div>
+                    <button type="submit" class="w-full py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-medium transition">确认修改密码</button>
+                </form>
+
+                <!-- Tab 4: Admin Users Management Table -->
+                <div id="profileUsersTab" class="hidden space-y-3">
+                    <div class="flex items-center justify-between text-slate-500">
+                        <span>系统注册账号清单</span>
+                        <button onclick="loadAdminUsersList()" class="text-slate-900 font-medium hover:underline">刷新列表</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="text-[11px] font-semibold text-slate-500 border-b border-slate-200 pb-2">
+                                    <th class="pb-2">用户名</th>
+                                    <th class="pb-2">姓名/岗位</th>
+                                    <th class="pb-2">角色</th>
+                                    <th class="pb-2 text-right">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="adminUsersTableBody" class="divide-y divide-slate-100 text-xs"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- MODAL 5: TELEMETRY RAW JSON INSPECTOR MODAL                   -->
+    <!-- ============================================================= -->
+    <div id="telemetryJsonModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm transition-all duration-200">
+        <div class="clean-modal rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl bg-white">
+            <div class="px-6 py-4 bg-white border-b border-slate-200 flex items-center justify-between">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-900 tracking-tight" id="jsonModalTitle">遥测原始报文详情</h3>
+                    <p class="text-xs text-slate-500 font-mono" id="jsonModalSub">Topic: --</p>
+                </div>
+                <button onclick="closeTelemetryJsonModal()" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 flex items-center justify-center transition">✕</button>
+            </div>
+
+            <div class="p-6 overflow-y-auto flex-1 space-y-4 text-xs bg-slate-50">
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-slate-700">
+                    <div class="p-2.5 rounded-lg bg-white border border-slate-200"><span class="text-slate-400 block text-[10px]">设备编号</span><span id="jsonMetaId" class="font-mono font-bold text-slate-900">--</span></div>
+                    <div class="p-2.5 rounded-lg bg-white border border-slate-200"><span class="text-slate-400 block text-[10px]">设备品类</span><span id="jsonMetaType" class="font-mono text-slate-800">--</span></div>
+                    <div class="p-2.5 rounded-lg bg-white border border-slate-200"><span class="text-slate-400 block text-[10px]">报文类型</span><span id="jsonMetaDataType" class="font-mono text-slate-800">--</span></div>
+                    <div class="p-2.5 rounded-lg bg-white border border-slate-200"><span class="text-slate-400 block text-[10px]">入库时间</span><span id="jsonMetaTime" class="font-mono text-slate-800">--</span></div>
+                </div>
+
+                <div>
+                    <div class="flex items-center justify-between pb-1.5 text-slate-500">
+                        <span>原始 JSON Payload 报文</span>
+                        <button onclick="copyJsonPayload()" class="text-slate-900 font-medium hover:underline">复制 JSON</button>
+                    </div>
+                    <pre id="jsonPayloadPre" class="w-full p-4 rounded-xl bg-slate-900 text-slate-100 font-mono text-xs overflow-x-auto leading-relaxed max-h-[360px]"></pre>
+                </div>
+            </div>
+
+            <div class="px-6 py-3.5 bg-white border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
+                <span>毫秒级 MQTT 报文完整归档</span>
+                <button onclick="closeTelemetryJsonModal()" class="px-4 py-1.5 rounded-lg bg-slate-900 text-white font-medium hover:bg-slate-800 transition">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- MODAL 6: AI COPILOT & MULTI-MODEL ENGINE CONFIG MODAL         -->
+    <!-- ============================================================= -->
+    <div id="aiModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm transition-all duration-200">
+        <div class="clean-modal rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl bg-white">
+            <div class="px-6 py-4 bg-white border-b border-slate-200 flex items-center justify-between">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-900 tracking-tight">AI 智能运维专家</h3>
+                    <p class="text-xs text-slate-500">基于全场实时遥测快照与华数控制柜故障库的智能诊断</p>
+                </div>
+                <button onclick="closeAiDiagnosisModal()" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 flex items-center justify-center transition">✕</button>
+            </div>
+
+            <div class="flex items-center px-6 border-b border-slate-200 bg-slate-50 text-xs font-medium">
+                <button id="tabBtnAiDiag" onclick="switchAiTab('diag')" class="px-4 py-2.5 font-bold text-slate-900 border-b-2 border-slate-900 transition">智能对话诊断</button>
+                <button id="tabBtnAiConfig" onclick="switchAiTab('config')" class="px-4 py-2.5 text-slate-500 hover:text-slate-900 border-b-2 border-transparent transition">大模型引擎配置 (管理员)</button>
+            </div>
+
+            <div id="aiTabDiag" class="flex-1 flex flex-col p-4 sm:p-6 overflow-hidden space-y-3 bg-white">
+                <div id="chatMessageContainer" class="flex-1 overflow-y-auto space-y-3 pr-2 min-h-[280px] max-h-[440px] text-xs"></div>
+                <div class="flex items-center gap-1.5 flex-wrap pt-1">
+                    <span class="text-[10px] text-slate-400">快捷分析:</span>
+                    <button onclick="sendQuickPrompt('对当前所有在线设备的运行健康状况进行全盘综合诊断')" class="text-[11px] px-3 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 transition">全场体检</button>
+                    <button onclick="sendQuickPrompt('重点排查当前存在异常告警的设备并给出针对性建议')" class="text-[11px] px-3 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 transition">故障排查</button>
+                    <button onclick="sendQuickPrompt('分析华数机械臂各轴电机电流与负载状态')" class="text-[11px] px-3 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 transition">电流分析</button>
+                </div>
+                <form id="aiChatForm" onsubmit="handleChatSubmit(event)" class="flex gap-2 pt-1 border-t border-slate-200">
+                    <input type="text" id="aiUserInput" placeholder="向 AI 专家提问当前设备状态或输入排障咨询..." class="flex-1 bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-3.5 py-2.5 focus:ring-1 focus:ring-slate-900 focus:outline-none">
+                    <button type="submit" id="btnAiSend" class="px-4 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs shadow-sm transition">发送</button>
+                </form>
+            </div>
+
+            <div id="aiTabConfig" class="hidden p-6 overflow-y-auto space-y-4 text-xs bg-white">
+                <div>
+                    <label class="block text-slate-600 mb-1 font-semibold">大模型服务厂商 (支持全网主流模型与自定义端点)</label>
+                    <select id="cfgProviderSelect" onchange="onLlmProviderChange()" class="w-full bg-white border border-slate-300 text-slate-800 rounded-lg px-3 py-2 focus:ring-1 focus:ring-slate-900 focus:outline-none font-medium">
+                        <option value="custom">［自定义］OpenAI 兼容网关 / 本地私有化模型 (自由填入)</option>
+                        <option value="deepseek">DeepSeek (深度求索官方平台)</option>
+                        <option value="google">Google AI Studio (Gemini 2.0 / 1.5)</option>
+                        <option value="openai">OpenAI 官方 (GPT-4o / GPT-4o-mini / o1)</option>
+                        <option value="qwen">阿里云百炼 / 通义千问 (Qwen 全系列)</option>
+                        <option value="zhipu">智谱 AI 开放平台 (GLM-4 全系列)</option>
+                        <option value="moonshot">月之暗面 (Kimi / Moonshot)</option>
+                        <option value="siliconflow">硅基流动 (SiliconFlow 聚合算力)</option>
+                        <option value="baidu">百度千帆 / 文心一言 (ERNIE)</option>
+                        <option value="tencent">腾讯混元大模型 (Hunyuan)</option>
+                        <option value="minimax">MiniMax 稀宇科技 (abab6.5)</option>
+                        <option value="stepfun">阶跃星辰 (StepFun)</option>
+                        <option value="ollama">Ollama 本地私有离线部署 (免 Key)</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-600 mb-1">模型名称 (Model Identifier)</label>
+                        <input type="text" id="cfgModelName" class="w-full bg-white border border-slate-300 text-slate-800 rounded-lg px-3 py-2 font-mono" placeholder="如 deepseek-chat, gpt-4o, qwen-plus...">
+                    </div>
+                    <div>
+                        <label class="block text-slate-600 mb-1">API Base URL</label>
+                        <input type="text" id="cfgBaseUrl" class="w-full bg-white border border-slate-300 text-slate-800 rounded-lg px-3 py-2 font-mono" placeholder="https://api.deepseek.com/v1">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-slate-600 mb-1">API Key 凭据</label>
+                    <input type="password" id="cfgApiKey" class="w-full bg-white border border-slate-300 text-slate-800 rounded-lg px-3 py-2 font-mono" placeholder="sk-...">
+                </div>
+
+                <div class="flex items-center justify-between pt-3 border-t border-slate-200">
+                    <button onclick="testLlmConnection()" id="btnTestLlm" class="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition font-medium">测试连通性</button>
+                    <button onclick="saveLlmConfiguration()" id="btnSaveLlm" class="px-5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-medium transition">保存配置</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- ============================================================= -->
+    <!-- SCRIPT CONTROLLER                                             -->
+    <!-- ============================================================= -->
+    <script>
+        let currentDevices = [];
+        let selectedDevice = null;
+        let pollingTimer = null;
+        let currentUser = null;
+        let activeNavTab = 'overview';
+        let currentFleetLayout = 'grid';
+        let mapChartInstance = null;
+        let trafficChartInstance = null;
+        let rawAuditCache = [];
+
+        const DEVICE_TYPE_NAMES = { 'huashu_arm': '华数 BR610 六轴机械臂', 'luxshare_amr': '珞石 SR3 复合移动 AMR', 'robot_dog': '四足仿生巡检机器狗' };
+        const DEVICE_3D_IMAGES = {
+            'huashu_arm': '/static/assets/huashu_br610_arm.jpg',
+            'luxshare_amr': '/static/assets/luxshare_amr_sr3.jpg',
+            'robot_dog': '/static/assets/bionic_robot_dog.jpg'
+        };
+
+        const BASE_DATA = {
+            'panyu': {
+                title: '广州番禺智造中心',
+                sub: '华数六轴工业机械臂高精加工与焊接示范产线',
+                img: '/static/assets/base_panyu.jpg',
+                attr1: '工业机械臂自动化产线',
+                attr3: '20+ 台六轴高精机械臂',
+                desc: '广州番禺智造中心专注于华数 BR610 六轴工业机器人高精加工、打磨、弧焊与码垛工序。产线全面覆盖 5G 工业物联网网关，支持微秒级 HSC3 总线运动控制与闭环电流遥测。'
+            },
+            'nansha': {
+                title: '广州南沙创新港',
+                sub: '复合移动机器人 (AMR) 与四足仿生机器狗巡检基地',
+                img: '/static/assets/base_nansha.jpg',
+                attr1: '复合AMR与仿生巡检',
+                attr3: '30+ 台协同作业编队',
+                desc: '广州南沙创新港集成了激光 SLAM 复合移动机器人与四足仿生机器狗空地协同巡检体系。面向半导体 3C 取放料、管廊智慧巡检与应急搜救场景提供 24 小时自主运载支持。'
+            }
+        };
+
+        // Realtime Clock Loop
+        setInterval(() => {
+            const now = new Date();
+            const el = document.getElementById('hudClock');
+            if (el) el.innerText = now.toLocaleTimeString('zh-CN', { hour12: false }) + '.' + String(Math.floor(now.getMilliseconds()/100));
+        }, 100);
+
+        // -------------------------------------------------------------
+        // ECharts Minimalist Light China Map (Login Portal)
+        // -------------------------------------------------------------
+        async function initOfficialChinaMap() {
+            const chartDom = document.getElementById('chinaMapChart');
+            if (!chartDom) return;
+
+            if (mapChartInstance) {
+                mapChartInstance.resize();
+                return;
+            }
+
+            try {
+                const res = await fetch('/static/china.json');
+                const chinaJson = await res.json();
+
+                echarts.registerMap('china', chinaJson);
+                mapChartInstance = echarts.init(chartDom);
+
+                const option = {
+                    backgroundColor: 'transparent',
+                    tooltip: {
+                        trigger: 'item',
+                        backgroundColor: '#FFFFFF',
+                        borderColor: '#E2E8F0',
+                        borderWidth: 1,
+                        textStyle: { color: '#0F172A', fontSize: 12 },
+                        formatter: function(params) {
+                            if (params.seriesType === 'effectScatter') {
+                                return `<div class="p-1 font-mono font-semibold text-slate-900">${params.name} (点击查看基地)</div>`;
+                            }
+                            return `<div class="p-1">${params.name}</div>`;
+                        }
+                    },
+                    geo: {
+                        map: 'china',
+                        roam: false,
+                        aspectScale: 0.82,
+                        layoutCenter: ['50%', '50%'],
+                        layoutSize: '112%',
+                        itemStyle: {
+                            areaColor: '#E2E8F0',
+                            borderColor: '#CBD5E1',
+                            borderWidth: 1
+                        },
+                        emphasis: {
+                            itemStyle: {
+                                areaColor: '#CBD5E1',
+                                borderColor: '#94A3B8',
+                                borderWidth: 1.5
+                            },
+                            label: { show: false }
+                        }
+                    },
+                    series: [
+                        {
+                            name: '智造基地节点',
+                            type: 'effectScatter',
+                            coordinateSystem: 'geo',
+                            data: [
+                                {
+                                    name: '广州番禺智造中心',
+                                    value: [112.2, 23.8, 100],
+                                    key: 'panyu',
+                                    itemStyle: {
+                                        color: '#0F172A'
+                                    },
+                                    label: {
+                                        show: true,
+                                        position: 'top',
+                                        distance: 8,
+                                        formatter: '{b}',
+                                        color: '#0F172A',
+                                        fontSize: 11,
+                                        fontWeight: 'bold',
+                                        backgroundColor: '#FFFFFF',
+                                        borderColor: '#E2E8F0',
+                                        borderWidth: 1,
+                                        padding: [3, 6],
+                                        borderRadius: 4
+                                    }
+                                },
+                                {
+                                    name: '广州南沙创新港',
+                                    value: [114.9, 21.8, 100],
+                                    key: 'nansha',
+                                    itemStyle: {
+                                        color: '#059669'
+                                    },
+                                    label: {
+                                        show: true,
+                                        position: 'bottom',
+                                        distance: 8,
+                                        formatter: '{b}',
+                                        color: '#059669',
+                                        fontSize: 11,
+                                        fontWeight: 'bold',
+                                        backgroundColor: '#FFFFFF',
+                                        borderColor: '#E2E8F0',
+                                        borderWidth: 1,
+                                        padding: [3, 6],
+                                        borderRadius: 4
+                                    }
+                                }
+                            ],
+                            symbolSize: 10,
+                            showEffectOn: 'render',
+                            rippleEffect: {
+                                brushType: 'stroke',
+                                scale: 3.0,
+                                period: 2.8
+                            },
+                            zlevel: 5
+                        }
+                    ]
+                };
+
+                mapChartInstance.setOption(option);
+
+                mapChartInstance.on('click', function(params) {
+                    if (params.data && params.data.key) {
+                        openBaseModal(params.data.key);
+                    } else if (params.name.includes('广东') || params.name.includes('广州')) {
+                        openBaseModal('panyu');
+                    }
+                });
+
+                window.addEventListener('resize', () => {
+                    if (mapChartInstance) mapChartInstance.resize();
+                });
+            } catch (err) {
+                console.error('initOfficialChinaMap error:', err);
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Overview Realtime Traffic Chart (Clean Light)
+        // -------------------------------------------------------------
+        function initOverviewTrafficChart() {
+            const chartDom = document.getElementById('overviewTrafficChart');
+            if (!chartDom) return;
+
+            if (trafficChartInstance) {
+                trafficChartInstance.resize();
+                return;
+            }
+
+            trafficChartInstance = echarts.init(chartDom);
+            const now = new Date();
+            const timeLabels = [];
+            const dataState = [];
+            const dataSensor = [];
+
+            for (let i = 12; i >= 0; i--) {
+                const t = new Date(now.getTime() - i * 5000);
+                timeLabels.push(t.toLocaleTimeString());
+                dataState.push(Math.floor(18 + Math.random() * 8));
+                dataSensor.push(Math.floor(35 + Math.random() * 15));
+            }
+
+            const option = {
+                backgroundColor: 'transparent',
+                tooltip: {
+                    trigger: 'axis',
+                    backgroundColor: '#FFFFFF',
+                    borderColor: '#E2E8F0',
+                    textStyle: { color: '#0F172A', fontSize: 11 }
+                },
+                legend: {
+                    data: ['机械臂与AMR状态报文', '传感器数据流'],
+                    textStyle: { color: '#64748B', fontSize: 11 },
+                    top: 0,
+                    right: 0
+                },
+                grid: {
+                    top: 30,
+                    left: '2%',
+                    right: '3%',
+                    bottom: '2%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    boundaryGap: false,
+                    data: timeLabels,
+                    axisLine: { lineStyle: { color: '#E2E8F0' } },
+                    axisLabel: { color: '#94A3B8', fontSize: 10 }
+                },
+                yAxis: {
+                    type: 'value',
+                    splitLine: { lineStyle: { color: '#F1F5F9' } },
+                    axisLabel: { color: '#94A3B8', fontSize: 10 }
+                },
+                series: [
+                    {
+                        name: '机械臂与AMR状态报文',
+                        type: 'line',
+                        smooth: true,
+                        showSymbol: false,
+                        itemStyle: { color: '#0F172A' },
+                        areaStyle: {
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                { offset: 0, color: 'rgba(15, 23, 42, 0.15)' },
+                                { offset: 1, color: 'rgba(15, 23, 42, 0.00)' }
+                            ])
+                        },
+                        data: dataState
+                    },
+                    {
+                        name: '传感器数据流',
+                        type: 'line',
+                        smooth: true,
+                        showSymbol: false,
+                        itemStyle: { color: '#059669' },
+                        areaStyle: {
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                { offset: 0, color: 'rgba(5, 150, 105, 0.12)' },
+                                { offset: 1, color: 'rgba(5, 150, 105, 0.00)' }
+                            ])
+                        },
+                        data: dataSensor
+                    }
+                ]
+            };
+
+            trafficChartInstance.setOption(option);
+            window.addEventListener('resize', () => {
+                if (trafficChartInstance) trafficChartInstance.resize();
+            });
+        }
+
+        // -------------------------------------------------------------
+        // Navigation Switching (Overview / Fleet / Audit)
+        // -------------------------------------------------------------
+        function switchNavTab(tab) {
+            activeNavTab = tab;
+            const secOverview = document.getElementById('sectionOverview');
+            const secFleet = document.getElementById('sectionFleet');
+            const secAudit = document.getElementById('sectionAudit');
+
+            const btnNavOverview = document.getElementById('tabBtnNavOverview');
+            const btnNavFleet = document.getElementById('tabBtnNavFleet');
+            const btnNavAudit = document.getElementById('tabBtnNavAudit');
+
+            const mobNavOverview = document.getElementById('mobNavOverview');
+            const mobNavFleet = document.getElementById('mobNavFleet');
+            const mobNavAudit = document.getElementById('mobNavAudit');
+
+            secOverview.classList.add('hidden');
+            secFleet.classList.add('hidden');
+            secAudit.classList.add('hidden');
+
+            [btnNavOverview, btnNavFleet, btnNavAudit].forEach(b => {
+                if (b) b.className = 'px-4 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition flex items-center gap-1.5';
+            });
+            [mobNavOverview, mobNavFleet, mobNavAudit].forEach(b => {
+                if (b) b.className = 'flex-1 py-1 text-center text-slate-500 border-b-2 border-transparent';
+            });
+
+            if (tab === 'overview') {
+                secOverview.classList.remove('hidden');
+                if (btnNavOverview) btnNavOverview.className = 'px-4 py-1.5 rounded-lg text-slate-900 bg-white shadow-sm border border-slate-200/80 transition flex items-center gap-1.5';
+                if (mobNavOverview) mobNavOverview.className = 'flex-1 py-1 text-center font-bold text-slate-900 border-b-2 border-slate-900';
+                setTimeout(() => { initOverviewTrafficChart(); }, 100);
+            } else if (tab === 'fleet') {
+                secFleet.classList.remove('hidden');
+                if (btnNavFleet) btnNavFleet.className = 'px-4 py-1.5 rounded-lg text-slate-900 bg-white shadow-sm border border-slate-200/80 transition flex items-center gap-1.5';
+                if (mobNavFleet) mobNavFleet.className = 'flex-1 py-1 text-center font-bold text-slate-900 border-b-2 border-slate-900';
+                renderActiveFleetView();
+            } else if (tab === 'audit') {
+                secAudit.classList.remove('hidden');
+                if (btnNavAudit) btnNavAudit.className = 'px-4 py-1.5 rounded-lg text-slate-900 bg-white shadow-sm border border-slate-200/80 transition flex items-center gap-1.5';
+                if (mobNavAudit) mobNavAudit.className = 'flex-1 py-1 text-center font-bold text-slate-900 border-b-2 border-slate-900';
+                fetchAuditData(1);
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Base Showcase Modal
+        // -------------------------------------------------------------
+        function openBaseModal(key) {
+            const b = BASE_DATA[key] || BASE_DATA['panyu'];
+            document.getElementById('baseModalTitle').innerText = b.title;
+            document.getElementById('baseModalSub').innerText = b.sub;
+            document.getElementById('baseModalImage').src = b.img;
+            document.getElementById('baseModalAttr1').innerText = b.attr1;
+            document.getElementById('baseModalAttr3').innerText = b.attr3;
+            document.getElementById('baseModalDesc').innerText = b.desc;
+            document.getElementById('baseProfileModal').classList.remove('hidden');
+        }
+
+        function closeBaseModal() { document.getElementById('baseProfileModal').classList.add('hidden'); }
+
+        // -------------------------------------------------------------
+        // Fleet View & Layout Switcher (Grid vs List)
+        // -------------------------------------------------------------
+        function setFleetLayout(mode) {
+            currentFleetLayout = mode;
+            const btnGrid = document.getElementById('btnFleetGrid');
+            const btnList = document.getElementById('btnFleetList');
+            const gridContainer = document.getElementById('fleetGridContainer');
+            const listContainer = document.getElementById('fleetListContainer');
+
+            if (mode === 'grid') {
+                btnGrid.className = 'px-3 py-1 rounded-md text-slate-900 bg-white shadow-sm transition flex items-center gap-1.5';
+                btnList.className = 'px-3 py-1 rounded-md text-slate-500 hover:text-slate-900 transition flex items-center gap-1.5';
+                gridContainer.classList.remove('hidden');
+                listContainer.classList.add('hidden');
+            } else {
+                btnList.className = 'px-3 py-1 rounded-md text-slate-900 bg-white shadow-sm transition flex items-center gap-1.5';
+                btnGrid.className = 'px-3 py-1 rounded-md text-slate-500 hover:text-slate-900 transition flex items-center gap-1.5';
+                gridContainer.classList.add('hidden');
+                listContainer.classList.remove('hidden');
+            }
+            renderActiveFleetView();
+        }
+
+        function renderActiveFleetView() {
+            const filter = document.getElementById('fleetFilterType') ? document.getElementById('fleetFilterType').value : '';
+            let list = currentDevices;
+            if (filter) {
+                list = list.filter(d => d.device_type === filter);
+            }
+            document.getElementById('fleetCountBadge').innerText = `${list.length} 台设备`;
+
+            if (currentFleetLayout === 'grid') {
+                renderFleetCards(list);
+            } else {
+                renderFleetTable(list);
+            }
+        }
+
+        function renderFleetCards(list) {
+            const container = document.getElementById('fleetGridContainer');
+            if (list.length === 0) {
+                container.innerHTML = `<div class="col-span-3 py-16 text-center text-slate-400">暂无在线设备推流数据</div>`;
+                return;
+            }
+
+            container.innerHTML = list.map(dev => {
+                const isOnline = dev.status === 'online';
+                const typeName = dev.device_type_display || DEVICE_TYPE_NAMES[dev.device_type] || dev.device_type;
+                const img = DEVICE_3D_IMAGES[dev.device_type] || '/static/assets/huashu_br610_arm.jpg';
+
+                return `
+                    <div onclick="selectDevice('${dev.device_type}', '${dev.device_id}'); openRobot3DModal();" 
+                        class="clean-card rounded-xl overflow-hidden cursor-pointer group">
+                        
+                        <div class="relative h-44 w-full overflow-hidden bg-slate-100">
+                            <img src="${img}" alt="${dev.device_id}" class="w-full h-full object-cover object-center group-hover:scale-105 transition duration-300">
+                            
+                            <div class="absolute top-3 left-3">
+                                <span class="px-2.5 py-1 rounded-md bg-white/90 backdrop-blur-sm text-[11px] font-mono ${isOnline ? 'text-emerald-700 border border-emerald-200' : 'text-slate-500 border border-slate-200'} flex items-center gap-1.5 shadow-sm">
+                                    <span class="w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-slate-400'}"></span>
+                                    <span>${isOnline ? '运行正常' : '已离线'}</span>
+                                </span>
+                            </div>
+
+                            <div class="absolute bottom-2.5 left-3 right-3 flex items-center justify-between">
+                                <div class="font-mono font-bold text-slate-900 text-sm tracking-tight bg-white/85 px-2 py-0.5 rounded backdrop-blur-sm">${dev.device_id}</div>
+                                <div class="text-[10px] text-slate-700 font-medium bg-white/85 px-2 py-0.5 rounded backdrop-blur-sm">${typeName}</div>
+                            </div>
+                        </div>
+
+                        <div class="p-4 space-y-2.5 text-xs">
+                            <div class="flex items-center justify-between text-slate-500 text-[11px]">
+                                <span>母线动力/电池</span>
+                                <span class="font-mono text-slate-900 font-medium">96% (良好)</span>
+                            </div>
+                            <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                                <div class="bg-slate-900 h-full rounded-full" style="width: 96%"></div>
+                            </div>
+
+                            <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                                <span class="text-slate-400">心跳: <span class="font-mono text-slate-700">${formatRelativeTime(dev.last_report_time)}</span></span>
+                                <span class="font-medium text-slate-900 group-hover:underline flex items-center gap-1">
+                                    <span>工况与控制</span><span>→</span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderFleetTable(list) {
+            const tbody = document.getElementById('fleetListTableBody');
+            if (list.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-400">暂无在线设备推流数据</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = list.map(dev => {
+                const isOnline = dev.status === 'online';
+                const typeName = dev.device_type_display || DEVICE_TYPE_NAMES[dev.device_type] || dev.device_type;
+
+                return `
+                    <tr onclick="selectDevice('${dev.device_type}', '${dev.device_id}'); openRobot3DModal();" 
+                        class="hover:bg-slate-50 cursor-pointer transition">
+                        <td class="py-3 pr-2">
+                            <div>
+                                <div class="font-mono font-bold text-slate-900 text-xs">${dev.device_id}</div>
+                                <div class="text-[10px] text-slate-500">${typeName}</div>
+                            </div>
+                        </td>
+                        <td class="py-3">
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[10px] font-medium ${isOnline ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500'}">
+                                <span class="w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-slate-400'}"></span>
+                                <span>${isOnline ? '运行正常' : '已离线'}</span>
+                            </span>
+                        </td>
+                        <td class="py-3 font-mono text-slate-800 text-xs">96%</td>
+                        <td class="py-3 text-[11px] text-slate-500 font-mono">${formatRelativeTime(dev.last_report_time)}</td>
+                        <td class="py-3 text-right">
+                            <button class="px-3 py-1 text-xs rounded-md bg-slate-900 hover:bg-slate-800 text-white font-medium transition">
+                                工况与控制
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // -------------------------------------------------------------
+        // Multi-Robot Command Presets (Huashu, AMR, Quadruped Dog)
+        // -------------------------------------------------------------
+        function selectDevice(deviceType, deviceId) {
+            selectedDevice = { type: deviceType, id: deviceId };
+            updateModalCmdPresets(deviceType, deviceId);
+        }
+
+        const COMMAND_PRESETS = {
+            'huashu_arm': [
+                { label: '启动自动化加工节拍 (start_cycle)', cmd: 'start_cycle', params: { program: "MAIN_LINE_A.PRG", speed: 80, cycle_limit: 1000 } },
+                { label: '暂停运动工步 (pause)', cmd: 'pause', params: {} },
+                { label: '继续任务工步 (resume)', cmd: 'resume', params: {} },
+                { label: '伺服驱动器与系统故障复位 (reset)', cmd: 'reset', params: {} },
+                { label: '伺服电机上使能 (enable)', cmd: 'enable', params: { axis_mask: 63 } },
+                { label: '伺服电机下使能 (disable)', cmd: 'disable', params: { axis_mask: 63 } },
+                { label: '机械臂安全回原点 (home)', cmd: 'home', params: { speed: 20 } },
+                { label: '关节单轴微调点动 (jog_joint)', cmd: 'jog_joint', params: { axis: 1, direction: 1, speed: 10, step_deg: 5.0 } },
+                { label: '笛卡尔空间点动 (jog_cartesian)', cmd: 'jog_cartesian', params: { coord: "base", direction: "+Z", step_mm: 10.0, speed: 30 } },
+                { label: '调节全局运行速率 (set_override)', cmd: 'set_override', params: { override: 80 } },
+                { label: '设置数字量输出 DO 信号 (set_do)', cmd: 'set_do', params: { port: 1, value: 1 } },
+                { label: '末端夹爪开合动作 (set_gripper)', cmd: 'set_gripper', params: { action: "grip", force: 50, speed: 80 } },
+                { label: '载入指定加工程序 (select_prog)', cmd: 'select_prog', params: { prog_name: "BR610_AUTO_POLISH.PRG" } },
+                { label: '紧急制动快速停机 (stop)', cmd: 'stop', params: { reason: "manual_estop" } }
+            ],
+            'luxshare_amr': [
+                { label: '定点取放料调度任务 (pick_and_place)', cmd: 'pick_and_place', params: { source_station: "ST_A01", target_station: "ST_B03", tray_id: "T_88" } },
+                { label: '底盘自主导航至目标站点 (nav_to_point)', cmd: 'nav_to_point', params: { target_point: "BAY_04", x: 12.5, y: 34.8, theta: 90.0 } },
+                { label: '低电量智能回充 (auto_charge)', cmd: 'auto_charge', params: { charger_id: "CHG_BAY_01", min_battery: 95 } },
+                { label: '暂停底盘导航 (pause_nav)', cmd: 'pause_nav', params: {} },
+                { label: '恢复底盘导航 (resume_nav)', cmd: 'resume_nav', params: {} },
+                { label: '设定底盘巡航限速 (set_speed_limit)', cmd: 'set_speed_limit', params: { max_linear_speed: 1.2, max_angular_speed: 0.8 } },
+                { label: '协作臂末端闭合抓取 (arm_grip)', cmd: 'arm_grip', params: { gripper_state: "close", force_limit: 35 } },
+                { label: '取消当前调度任务 (cancel_task)', cmd: 'cancel_task', params: { task_id: "AUTO_DISPATCH" } },
+                { label: '复合机器人急停制动 (stop)', cmd: 'stop', params: { reason: "estop_button" } }
+            ],
+            'robot_dog': [
+                { label: '园区/管廊自主巡检 (patrol)', cmd: 'patrol', params: { route: "LOBBY_FLOOR_1", sensors: ["co2", "voc", "thermal_imaging"] } },
+                { label: '四足站立待命姿态 (stand)', cmd: 'stand', params: { height: 0.55 } },
+                { label: '四足蹲伏休眠姿态 (sit)', cmd: 'sit', params: {} },
+                { label: '前往指定目标坐标点 (walk_to)', cmd: 'walk_to', params: { x: 25.0, y: 18.3, gait: "trot", speed: 1.5 } },
+                { label: '开启双光谱红外热成像扫描 (start_thermal_scan)', cmd: 'start_thermal_scan', params: { alert_temp_celsius: 65.0, recording: true } },
+                { label: '空地协同搜救扫描 (uav_collab_scan)', cmd: 'uav_collab_scan', params: { uav_id: "uav_001", sync_telemetry: true } },
+                { label: '自动返回专用充电坞站 (auto_dock_charge)', cmd: 'auto_dock_charge', params: { dock_id: "DOG_DOCK_01" } },
+                { label: '电机动力紧急脱扣停机 (emergency_stop)', cmd: 'emergency_stop', params: {} }
+            ]
+        };
+
+        function updateModalCmdPresets(type, id) {
+            const topicEl = document.getElementById('modalCmdTopicTarget');
+            if (topicEl) topicEl.innerText = `Topic: robot/${type}/${id}/cmd`;
+            const select = document.getElementById('modalCmdPresetSelect');
+            if (!select) return;
+            const presets = COMMAND_PRESETS[type] || [];
+            select.innerHTML = presets.map((p, idx) => `<option value="${idx}">${p.label}</option>`).join('');
+            onModalCmdPresetChange();
+        }
+
+        function onModalCmdPresetChange() {
+            if (!selectedDevice) return;
+            const idx = parseInt(document.getElementById('modalCmdPresetSelect').value || '0', 10);
+            const presets = COMMAND_PRESETS[selectedDevice.type] || [];
+            const item = presets[idx];
+            if (item) {
+                document.getElementById('modalCmdCustomInput').value = item.cmd;
+                document.getElementById('modalCmdParamsEditor').value = JSON.stringify(item.params, null, 2);
+            }
+        }
+
+        // -------------------------------------------------------------
+        // AI Natural Language Command Parser
+        // -------------------------------------------------------------
+        async function parseNaturalLanguageCommand() {
+            if (!selectedDevice) return;
+            const input = document.getElementById('modalNlCommandInput');
+            const nlText = input.value.trim();
+            if (!nlText) {
+                showToast('请先输入口语化控制指令描述', 'ℹ️');
+                return;
+            }
+
+            const btn = document.getElementById('btnNlParse');
+            const hint = document.getElementById('nlParseResultHint');
+            btn.disabled = true;
+            btn.innerText = '解析中...';
+            hint.classList.add('hidden');
+
+            try {
+                const res = await fetch('/api/ai/parse_command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        natural_language: nlText,
+                        device_type: selectedDevice.type,
+                        device_id: selectedDevice.id
+                    })
+                });
+                const body = await res.json();
+                if (res.ok && body.code === 200 && body.data) {
+                    const { command, params, explanation } = body.data;
+                    document.getElementById('modalCmdCustomInput').value = command;
+                    document.getElementById('modalCmdParamsEditor').value = JSON.stringify(params, null, 2);
+                    
+                    hint.innerText = `[已识别]: ${explanation} -> 指令标识: ${command}`;
+                    hint.classList.remove('hidden');
+                    showToast(`已解析为指令 [${command}]`, '✅');
+                } else {
+                    showToast(body.message || '解析失败', '❌');
+                }
+            } catch (err) {
+                showToast('解析异常: ' + err.message, '❌');
+            } finally {
+                btn.disabled = false;
+                btn.innerText = '一键解析';
+            }
+        }
+
+        function formatAndValidateModalJson() {
+            const editor = document.getElementById('modalCmdParamsEditor');
+            try {
+                const val = editor.value.trim() || '{}';
+                const parsed = JSON.parse(val);
+                editor.value = JSON.stringify(parsed, null, 2);
+                showToast('JSON 格式规范无误', '✅');
+            } catch (e) {
+                showToast('JSON 语法错误: ' + e.message, '❌');
+            }
+        }
+
+        async function dispatchModalCommand() {
+            if (!selectedDevice || !currentUser || currentUser.role !== 'admin') {
+                showToast('权限不足：仅管理员可下发控制指令', '🔒');
+                return;
+            }
+            const cmd = document.getElementById('modalCmdCustomInput').value.trim();
+            let params = {};
+            try { params = JSON.parse(document.getElementById('modalCmdParamsEditor').value || '{}'); } catch (e) {}
+
+            try {
+                const res = await fetch(`/api/device/${selectedDevice.id}/cmd`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-User-Role': currentUser.role, 'X-User-Name': currentUser.username },
+                    body: JSON.stringify({ command: cmd, params: params })
+                });
+                const body = await res.json();
+                if (res.ok && body.code === 200) {
+                    showToast(`指令 [${cmd}] 已成功下发至设备!`, '✅');
+                } else {
+                    showToast('下发失败: ' + body.message, '❌');
+                }
+            } catch (e) {
+                showToast(e.message, '❌');
+            }
+        }
+
+        // -------------------------------------------------------------
+        // 3D Robot Modal
+        // -------------------------------------------------------------
+        function openRobot3DModal() {
+            if (!selectedDevice) {
+                if (currentDevices.length > 0) selectDevice(currentDevices[0].device_type, currentDevices[0].device_id);
+                else return;
+            }
+            const { type, id } = selectedDevice;
+            document.getElementById('modalRobotImage').src = DEVICE_3D_IMAGES[type] || '/static/assets/huashu_br610_arm.jpg';
+            document.getElementById('modalDevTitle').innerText = `${DEVICE_TYPE_NAMES[type] || type} (${id})`;
+            document.getElementById('modalDevSubTitle').innerText = `ID: ${id} | 工业总线实时遥测档案与控制下发`;
+
+            const specList = document.getElementById('modalSpecList');
+            if (type === 'huashu_arm') {
+                specList.innerHTML = `
+                    <div class="flex justify-between"><span>结构形式:</span><span class="font-mono text-slate-900">六轴垂直多关节</span></div>
+                    <div class="flex justify-between"><span>额定负载:</span><span class="font-mono text-slate-900">6.0 ~ 10.0 kg</span></div>
+                    <div class="flex justify-between"><span>最大半径:</span><span class="font-mono text-slate-900">1440 mm</span></div>
+                    <div class="flex justify-between"><span>重复定位:</span><span class="font-mono text-slate-900">±0.05 mm</span></div>
+                    <div class="flex justify-between"><span>防护等级:</span><span class="font-mono text-slate-900">IP65 / IP67</span></div>
+                `;
+            } else if (type === 'luxshare_amr') {
+                specList.innerHTML = `
+                    <div class="flex justify-between"><span>导航方式:</span><span class="font-mono text-slate-900">激光 SLAM 导航</span></div>
+                    <div class="flex justify-between"><span>机械臂:</span><span class="font-mono text-slate-900">6 轴柔性协作臂</span></div>
+                    <div class="flex justify-between"><span>平台载重:</span><span class="font-mono text-slate-900">200 kg (底盘)</span></div>
+                    <div class="flex justify-between"><span>最高航速:</span><span class="font-mono text-slate-900">1.5 m/s</span></div>
+                `;
+            } else {
+                specList.innerHTML = `
+                    <div class="flex justify-between"><span>关节自由度:</span><span class="font-mono text-slate-900">12 自由度高扭矩</span></div>
+                    <div class="flex justify-between"><span>越障能力:</span><span class="font-mono text-slate-900">跨越 25cm / 35°</span></div>
+                    <div class="flex justify-between"><span>感知吊舱:</span><span class="font-mono text-slate-900">双光谱热成像</span></div>
+                    <div class="flex justify-between"><span>防护等级:</span><span class="font-mono text-slate-900">IP67 全天候</span></div>
+                `;
+            }
+
+            document.getElementById('modalJointsContainer').innerHTML = [
+                { j: 'J1 基座', v: '+15.2°', p: 55 },
+                { j: 'J2 大臂', v: '-30.5°', p: 40 },
+                { j: 'J3 小臂', v: '+88.4°', p: 75 },
+                { j: 'J4 手腕', v: '0.0°', p: 50 },
+                { j: 'J5 俯仰', v: '+45.0°', p: 65 },
+                { j: 'J6 旋转', v: '-12.8°', p: 45 }
+            ].map(i => `
+                <div class="flex items-center justify-between text-[11px] text-slate-600">
+                    <span class="w-16 font-mono text-slate-500">${i.j}</span>
+                    <div class="flex-1 mx-2 bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                        <div class="bg-slate-900 h-full" style="width:${i.p}%"></div>
+                    </div>
+                    <span class="font-mono text-slate-900 w-12 text-right">${i.v}</span>
+                </div>
+            `).join('');
+
+            document.getElementById('modalMotorCurrentsGrid').innerHTML = [2.3, 3.1, 2.8, 1.2, 0.9, 0.6].map((c, i) => `
+                <div class="bg-white p-2 rounded-lg border border-slate-200 text-center">
+                    <div class="text-[9px] text-slate-400">M${i+1} 伺服</div>
+                    <div class="text-slate-900 font-bold">${c}A</div>
+                </div>
+            `).join('');
+
+            updateModalCmdPresets(type, id);
+            applyModalRoleUI();
+            document.getElementById('robot3DModal').classList.remove('hidden');
+        }
+
+        function closeRobot3DModal() { document.getElementById('robot3DModal').classList.add('hidden'); }
+
+        function applyModalRoleUI() {
+            const adminCmdPanel = document.getElementById('modalAdminCmdPanel');
+            const userReadonlyBanner = document.getElementById('modalUserReadonlyBanner');
+            if (currentUser && currentUser.role === 'admin') {
+                if (adminCmdPanel) adminCmdPanel.classList.remove('hidden');
+                if (userReadonlyBanner) userReadonlyBanner.classList.add('hidden');
+            } else {
+                if (adminCmdPanel) adminCmdPanel.classList.add('hidden');
+                if (userReadonlyBanner) userReadonlyBanner.classList.remove('hidden');
+            }
+        }
+
+        // -------------------------------------------------------------
+        // User Profile & Account Center Modal
+        // -------------------------------------------------------------
+        function openUserProfileModal() {
+            if (!currentUser) {
+                openAuthModal();
+                return;
+            }
+            document.getElementById('profUsername').value = currentUser.username;
+            document.getElementById('profRealName').value = currentUser.real_name || currentUser.username;
+            document.getElementById('profRoleBadge').innerText = currentUser.role === 'admin' ? '超级管理员 (Admin)' : '普通操作员 (User)';
+            
+            document.getElementById('unameCurrent').value = currentUser.username;
+            document.getElementById('unameNew').value = '';
+            document.getElementById('unamePassword').value = '';
+
+            const btnUsersTab = document.getElementById('tabBtnProfileUsers');
+            if (currentUser.role === 'admin') {
+                btnUsersTab.classList.remove('hidden');
+            } else {
+                btnUsersTab.classList.add('hidden');
+            }
+
+            switchProfileTab('info');
+            document.getElementById('userProfileModal').classList.remove('hidden');
+        }
+
+        function closeUserProfileModal() { document.getElementById('userProfileModal').classList.add('hidden'); }
+
+        function switchProfileTab(tab) {
+            const btnInfo = document.getElementById('tabBtnProfileInfo');
+            const btnUname = document.getElementById('tabBtnProfileUsername');
+            const btnPwd = document.getElementById('tabBtnProfilePwd');
+            const btnUsers = document.getElementById('tabBtnProfileUsers');
+
+            const formInfo = document.getElementById('profileInfoForm');
+            const formUname = document.getElementById('profileUsernameForm');
+            const formPwd = document.getElementById('profilePwdForm');
+            const tabUsers = document.getElementById('profileUsersTab');
+
+            formInfo.classList.add('hidden');
+            formUname.classList.add('hidden');
+            formPwd.classList.add('hidden');
+            tabUsers.classList.add('hidden');
+
+            [btnInfo, btnUname, btnPwd, btnUsers].forEach(b => {
+                if (b) b.className = 'px-4 py-2.5 font-medium text-slate-500 hover:text-slate-900 border-b-2 border-transparent transition whitespace-nowrap';
+            });
+
+            if (tab === 'info') {
+                formInfo.classList.remove('hidden');
+                btnInfo.className = 'px-4 py-2.5 font-bold text-slate-900 border-b-2 border-slate-900 transition whitespace-nowrap';
+            } else if (tab === 'uname') {
+                formUname.classList.remove('hidden');
+                btnUname.className = 'px-4 py-2.5 font-bold text-slate-900 border-b-2 border-slate-900 transition whitespace-nowrap';
+            } else if (tab === 'pwd') {
+                formPwd.classList.remove('hidden');
+                btnPwd.className = 'px-4 py-2.5 font-bold text-slate-900 border-b-2 border-slate-900 transition whitespace-nowrap';
+            } else if (tab === 'users') {
+                tabUsers.classList.remove('hidden');
+                btnUsers.className = 'px-4 py-2.5 font-bold text-slate-900 border-b-2 border-slate-900 transition whitespace-nowrap';
+                loadAdminUsersList();
+            }
+        }
+
+        async function handleUpdateProfile(e) {
+            e.preventDefault();
+            const realName = document.getElementById('profRealName').value.trim();
+            try {
+                const res = await fetch('/api/auth/profile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: currentUser.username, real_name: realName })
+                });
+                const body = await res.json();
+                if (res.ok && body.code === 200) {
+                    currentUser.real_name = realName;
+                    localStorage.setItem('xinbang_user', JSON.stringify(currentUser));
+                    applyUserRoleUI();
+                    showToast('个人资料已成功更新', '✅');
+                } else {
+                    showToast(body.message || '更新失败', '❌');
+                }
+            } catch (err) {
+                showToast('网络异常: ' + err.message, '❌');
+            }
+        }
+
+        async function handleChangeUsername(e) {
+            e.preventDefault();
+            const newUname = document.getElementById('unameNew').value.trim();
+            const pwd = document.getElementById('unamePassword').value.trim();
+            const errBox = document.getElementById('unameErrorBox');
+            errBox.classList.add('hidden');
+
+            try {
+                const res = await fetch('/api/auth/username', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ current_username: currentUser.username, new_username: newUname, password: pwd })
+                });
+                const body = await res.json();
+                if (res.ok && body.code === 200) {
+                    currentUser.username = newUname;
+                    localStorage.setItem('xinbang_user', JSON.stringify(currentUser));
+                    applyUserRoleUI();
+                    showToast(`账号名已修改为 [${newUname}]`, '✅');
+                    closeUserProfileModal();
+                } else {
+                    errBox.innerText = body.message || '修改失败';
+                    errBox.classList.remove('hidden');
+                }
+            } catch (err) {
+                errBox.innerText = '网络异常: ' + err.message;
+                errBox.classList.remove('hidden');
+            }
+        }
+
+        async function handleChangePassword(e) {
+            e.preventDefault();
+            const oldP = document.getElementById('pwdOld').value.trim();
+            const newP = document.getElementById('pwdNew').value.trim();
+            const confirmP = document.getElementById('pwdConfirm').value.trim();
+            const errBox = document.getElementById('pwdErrorBox');
+            errBox.classList.add('hidden');
+
+            if (newP !== confirmP) {
+                errBox.innerText = '两次输入的新密码不一致';
+                errBox.classList.remove('hidden');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/auth/password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: currentUser.username, old_password: oldP, new_password: newP })
+                });
+                const body = await res.json();
+                if (res.ok && body.code === 200) {
+                    showToast('密码修改成功，请妥善保存新密码！', '✅');
+                    document.getElementById('pwdOld').value = '';
+                    document.getElementById('pwdNew').value = '';
+                    document.getElementById('pwdConfirm').value = '';
+                    closeUserProfileModal();
+                } else {
+                    errBox.innerText = body.message || '修改失败';
+                    errBox.classList.remove('hidden');
+                }
+            } catch (err) {
+                errBox.innerText = '网络异常: ' + err.message;
+                errBox.classList.remove('hidden');
+            }
+        }
+
+        async function loadAdminUsersList() {
+            const tbody = document.getElementById('adminUsersTableBody');
+            tbody.innerHTML = `<tr><td colspan="4" class="py-4 text-center text-slate-400">正在同步全员用户...</td></tr>`;
+
+            try {
+                const res = await fetch('/api/auth/users', {
+                    headers: { 'X-User-Role': currentUser.role, 'X-User-Name': currentUser.username }
+                });
+                const body = await res.json();
+                if (res.ok && body.code === 200) {
+                    const users = body.data.users || [];
+                    tbody.innerHTML = users.map(u => `
+                        <tr class="hover:bg-slate-50">
+                            <td class="py-2.5 font-mono font-semibold text-slate-900">${u.username}</td>
+                            <td class="py-2.5 text-slate-600">${u.real_name || u.username}</td>
+                            <td class="py-2.5"><span class="px-2 py-0.5 rounded text-[10px] font-mono ${u.role === 'admin' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'}">${u.role}</span></td>
+                            <td class="py-2.5 text-right space-x-1">
+                                <button onclick="adminResetUserPwd('${u.username}')" class="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px]">重置密码</button>
+                                ${u.role === 'user' ? `<button onclick="adminSetUserRole('${u.username}', 'admin')" class="px-2 py-0.5 rounded bg-slate-900 text-white text-[10px]">设为管理员</button>` : ''}
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="4" class="py-4 text-center text-rose-600">加载失败: ${e.message}</td></tr>`;
+            }
+        }
+
+        async function adminResetUserPwd(targetUser) {
+            const newPwd = prompt(`请输入用户 [${targetUser}] 的新密码:`, '123456');
+            if (!newPwd) return;
+            try {
+                const res = await fetch('/api/auth/admin_reset_pwd', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-User-Role': currentUser.role, 'X-User-Name': currentUser.username },
+                    body: JSON.stringify({ target_username: targetUser, new_password: newPwd })
+                });
+                const data = await res.json();
+                showToast(data.message || '重置完成', '✅');
+            } catch (e) {
+                showToast('重置异常: ' + e.message, '❌');
+            }
+        }
+
+        async function adminSetUserRole(targetUser, newRole) {
+            if (!confirm(`确认将用户 [${targetUser}] 调整为 [${newRole}]？`)) return;
+            try {
+                const res = await fetch('/api/auth/update_role', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-User-Role': currentUser.role, 'X-User-Name': currentUser.username },
+                    body: JSON.stringify({ target_username: targetUser, new_role: newRole })
+                });
+                const data = await res.json();
+                showToast(data.message || '已调整角色', '✅');
+                loadAdminUsersList();
+            } catch (e) {
+                showToast('调整异常: ' + e.message, '❌');
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Authentication & Session
+        // -------------------------------------------------------------
+        function initUserSession() {
+            const saved = localStorage.getItem('xinbang_user') || localStorage.getItem('qtx_user');
+            if (saved) {
+                try {
+                    currentUser = JSON.parse(saved);
+                    applyUserRoleUI();
+                    return;
+                } catch (e) {
+                    localStorage.removeItem('xinbang_user');
+                }
+            }
+            openAuthModal();
+        }
+
+        function openAuthModal() {
+            document.getElementById('authModal').classList.remove('hidden');
+            setTimeout(() => {
+                initOfficialChinaMap();
+            }, 100);
+        }
+
+        function closeAuthModal() { document.getElementById('authModal').classList.add('hidden'); }
+
+        function switchAuthTab(tab) {
+            const tabLogin = document.getElementById('tabBtnLogin');
+            const tabReg = document.getElementById('tabBtnRegister');
+            const formLogin = document.getElementById('loginForm');
+            const formReg = document.getElementById('registerForm');
+
+            if (tab === 'login') {
+                tabLogin.className = 'font-bold text-sm text-slate-900 border-b-2 border-slate-900 pb-2 transition';
+                tabReg.className = 'font-medium text-sm text-slate-500 hover:text-slate-900 border-b-2 border-transparent pb-2 transition';
+                formLogin.classList.remove('hidden');
+                formReg.classList.add('hidden');
+            } else {
+                tabReg.className = 'font-bold text-sm text-slate-900 border-b-2 border-slate-900 pb-2 transition';
+                tabLogin.className = 'font-medium text-sm text-slate-500 hover:text-slate-900 border-b-2 border-transparent pb-2 transition';
+                formReg.classList.remove('hidden');
+                formLogin.classList.add('hidden');
+            }
+        }
+
+        async function handleAuthLogin(e) {
+            e.preventDefault();
+            const u = document.getElementById('loginUsername').value.trim();
+            const p = document.getElementById('loginPassword').value.trim();
+            const errBox = document.getElementById('loginErrorBox');
+            const btn = document.getElementById('btnLoginSubmit');
+            errBox.classList.add('hidden');
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: u, password: p })
+                });
+                const body = await res.json();
+                if (res.ok && body.code === 200) {
+                    currentUser = body.data;
+                    localStorage.setItem('xinbang_user', JSON.stringify(currentUser));
+                    closeAuthModal();
+                    applyUserRoleUI();
+                    showToast(`登录成功，欢迎 ${currentUser.real_name}!`, '✅');
+                    refreshAllManual();
+                } else {
+                    errBox.innerText = body.message || '登录失败，请核对账号密码';
+                    errBox.classList.remove('hidden');
+                }
+            } catch (err) {
+                errBox.innerText = '网络异常: ' + err.message;
+                errBox.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        async function handleAuthRegister(e) {
+            e.preventDefault();
+            const u = document.getElementById('regUsername').value.trim();
+            const p = document.getElementById('regPassword').value.trim();
+            const n = document.getElementById('regRealName').value.trim();
+            const errBox = document.getElementById('regErrorBox');
+            const btn = document.getElementById('btnRegSubmit');
+            errBox.classList.add('hidden');
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: u, password: p, real_name: n, role: 'user' })
+                });
+                const body = await res.json();
+                if (res.ok && body.code === 200) {
+                    showToast('注册成功！请直接登录', '✅');
+                    switchAuthTab('login');
+                    document.getElementById('loginUsername').value = u;
+                    document.getElementById('loginPassword').value = p;
+                } else {
+                    errBox.innerText = body.message || '注册失败';
+                    errBox.classList.remove('hidden');
+                }
+            } catch (err) {
+                errBox.innerText = '网络异常: ' + err.message;
+                errBox.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        function handleUserLogout() {
+            if (confirm('确认退出当前登录账号？')) {
+                localStorage.removeItem('xinbang_user');
+                currentUser = null;
+                applyUserRoleUI();
+                openAuthModal();
+                showToast('已安全退出系统', '👋');
+            }
+        }
+
+        function applyUserRoleUI() {
+            const roleDot = document.getElementById('userRoleDot');
+            const nameDisplay = document.getElementById('userNameDisplay');
+            const emqxBtn = document.getElementById('btnEmqxDashboard');
+            const techSupport = document.getElementById('techSupportBadge');
+
+            if (!currentUser) {
+                if (roleDot) roleDot.className = 'w-2 h-2 rounded-full bg-slate-400';
+                nameDisplay.innerText = '未登录';
+                emqxBtn.classList.add('hidden');
+                if (techSupport) techSupport.classList.add('hidden');
+                return;
+            }
+
+            const isAdmin = currentUser.role === 'admin';
+            if (roleDot) roleDot.className = isAdmin ? 'w-2 h-2 rounded-full bg-slate-900' : 'w-2 h-2 rounded-full bg-emerald-500';
+            nameDisplay.innerText = `${currentUser.real_name || currentUser.username}`;
+
+            if (techSupport) techSupport.classList.remove('hidden');
+
+            if (isAdmin) {
+                emqxBtn.classList.remove('hidden');
+                emqxBtn.style.display = 'flex';
+            } else {
+                emqxBtn.classList.add('hidden');
+            }
+            applyModalRoleUI();
+        }
+
+        // -------------------------------------------------------------
+        // Fetch Overview & Devices
+        // -------------------------------------------------------------
+        async function fetchOverview() {
+            try {
+                const res = await fetch('/api/system/overview');
+                const body = await res.json();
+                if (body.code === 200 && body.data) {
+                    const d = body.data;
+                    document.getElementById('statTotalDevices').innerText = d.total_devices ?? 0;
+                    document.getElementById('statOnlineDevices').innerText = d.online_devices ?? 0;
+                    document.getElementById('statTotalRecords').innerText = (d.total_records ?? 0).toLocaleString();
+
+                    const total = d.total_devices || 0;
+                    const online = d.online_devices || 0;
+                    const rate = total > 0 ? Math.round((online / total) * 100) : 0;
+                    document.getElementById('statOnlineRate').innerText = `${rate}%`;
+                    document.getElementById('statOnlineProgress').style.width = `${rate}%`;
+
+                    if (d.device_type_stats && d.device_type_stats.length > 0) {
+                        document.getElementById('statTypeChips').innerHTML = d.device_type_stats.map(s => 
+                            `<span class="px-1.5 py-0.5 rounded bg-slate-100 text-[10px] text-slate-700 font-mono">${s.display}: ${s.online}/${s.count}</span>`
+                        ).join(' ');
+                    }
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function fetchDevices() {
+            try {
+                const res = await fetch('/api/devices');
+                const body = await res.json();
+                if (body.code === 200 && body.data) {
+                    currentDevices = body.data.devices || [];
+                    renderActiveFleetView();
+                    updateAuditDeviceDropdown(currentDevices);
+
+                    if (currentDevices.length > 0 && !selectedDevice) {
+                        selectDevice(currentDevices[0].device_type, currentDevices[0].device_id);
+                    }
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Audit Data Fetcher & JSON Inspector
+        // -------------------------------------------------------------
+        let currentAuditPage = 1;
+        let totalAuditPages = 1;
+
+        function updateAuditDeviceDropdown(devices) {
+            const select = document.getElementById('auditDeviceSelect');
+            if (!select) return;
+            const prev = select.value;
+            select.innerHTML = `<option value="">全部设备 (All)</option>` + devices.map(d => 
+                `<option value="${d.device_id}" ${prev === d.device_id ? 'selected' : ''}>${d.device_id} (${DEVICE_TYPE_NAMES[d.device_type] || d.device_type})</option>`
+            ).join('');
+        }
+
+        async function fetchAuditData(page = 1) {
+            currentAuditPage = page;
+            const devId = document.getElementById('auditDeviceSelect').value;
+            const type = document.getElementById('auditTypeSelect').value;
+            const startTime = document.getElementById('auditStartTime').value;
+
+            let url = `/api/history?page=${page}&page_size=15&`;
+            if (devId) url += `device_id=${encodeURIComponent(devId)}&`;
+            if (type) url += `data_type=${encodeURIComponent(type)}&`;
+            if (startTime) url += `start_time=${encodeURIComponent(startTime)}&`;
+
+            try {
+                const res = await fetch(url);
+                const body = await res.json();
+                if (body.code === 200 && body.data) {
+                    const { records, total, total_pages } = body.data;
+                    rawAuditCache = records || [];
+                    totalAuditPages = total_pages || 1;
+                    document.getElementById('auditTotalBadge').innerText = `${total || 0} 条`;
+                    document.getElementById('auditPageInfo').innerText = `第 ${currentAuditPage} / ${totalAuditPages} 页`;
+                    document.getElementById('btnAuditPrev').disabled = currentAuditPage <= 1;
+                    document.getElementById('btnAuditNext').disabled = currentAuditPage >= totalAuditPages;
+
+                    const tbody = document.getElementById('auditTableBody');
+                    if (!records || records.length === 0) {
+                        tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-400 font-sans">暂无符合条件的历史遥测数据</td></tr>`;
+                        return;
+                    }
+
+                    tbody.innerHTML = records.map((r, idx) => `
+                        <tr onclick="openTelemetryJsonModal(${idx})" class="hover:bg-slate-50 cursor-pointer transition">
+                            <td class="py-2.5 pr-2 text-slate-400">${(currentAuditPage - 1) * 15 + idx + 1}</td>
+                            <td class="py-2.5 px-2 font-semibold text-slate-900">${r.device_id}</td>
+                            <td class="py-2.5 px-2 text-slate-600">${DEVICE_TYPE_NAMES[r.device_type] || r.device_type}</td>
+                            <td class="py-2.5 px-2"><span class="px-1.5 py-0.5 rounded text-[10px] uppercase bg-slate-100 text-slate-800 border border-slate-200 font-mono">${r.data_type}</span></td>
+                            <td class="py-2.5 px-2 text-slate-500 text-[11px] font-mono">${r.received_at ? r.received_at.replace('T', ' ') : '--'}</td>
+                            <td class="py-2.5 pl-2 text-right text-slate-600 truncate max-w-xs font-mono">
+                                <span class="text-slate-900 font-medium hover:underline">${escapeHtml(r.raw_payload.substring(0, 40))}... 🔍</span>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (e) {
+                console.error('fetchAuditData error:', e);
+            }
+        }
+
+        function changeAuditPage(delta) {
+            const next = currentAuditPage + delta;
+            if (next >= 1 && next <= totalAuditPages) fetchAuditData(next);
+        }
+
+        function resetAuditFilter() {
+            document.getElementById('auditDeviceSelect').value = "";
+            document.getElementById('auditTypeSelect').value = "";
+            document.getElementById('auditStartTime').value = "";
+            fetchAuditData(1);
+        }
+
+        function openTelemetryJsonModal(cacheIdx) {
+            const item = rawAuditCache[cacheIdx];
+            if (!item) return;
+
+            document.getElementById('jsonModalTitle').innerText = `遥测原始报文 #${item.id}`;
+            document.getElementById('jsonModalSub').innerText = `Topic: ${item.topic || ('robot/' + item.device_type + '/' + item.device_id + '/' + item.data_type)}`;
+            document.getElementById('jsonMetaId').innerText = item.device_id;
+            document.getElementById('jsonMetaType').innerText = DEVICE_TYPE_NAMES[item.device_type] || item.device_type;
+            document.getElementById('jsonMetaDataType').innerText = item.data_type;
+            document.getElementById('jsonMetaTime').innerText = item.received_at ? item.received_at.replace('T', ' ') : '--';
+
+            try {
+                const parsed = JSON.parse(item.raw_payload);
+                document.getElementById('jsonPayloadPre').innerText = JSON.stringify(parsed, null, 2);
+            } catch (e) {
+                document.getElementById('jsonPayloadPre').innerText = item.raw_payload;
+            }
+
+            document.getElementById('telemetryJsonModal').classList.remove('hidden');
+        }
+
+        function closeTelemetryJsonModal() { document.getElementById('telemetryJsonModal').classList.add('hidden'); }
+
+        function copyJsonPayload() {
+            const text = document.getElementById('jsonPayloadPre').innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('JSON 报文已复制到剪贴板', '📋');
+            });
+        }
+
+        // -------------------------------------------------------------
+        // AI Diagnosis Copilot Logic
+        // -------------------------------------------------------------
+        let chatMessages = [];
+        function openAiDiagnosisModal() {
+            document.getElementById('aiModal').classList.remove('hidden');
+            if (chatMessages.length === 0) {
+                chatMessages = [{ role: 'assistant', content: '您好！我是 **昕邦工业智能运维专家**。\n\n已为您实时接入现场各机器人的遥测指标与控制柜故障库。请问需要对哪台设备进行健康诊断或排障咨询？' }];
+                renderChatHistory();
+            }
+        }
+        function closeAiDiagnosisModal() { document.getElementById('aiModal').classList.add('hidden'); }
+
+        function switchAiTab(tab) {
+            const tabDiag = document.getElementById('aiTabDiag');
+            const tabConfig = document.getElementById('aiTabConfig');
+            const btnDiag = document.getElementById('tabBtnAiDiag');
+            const btnConfig = document.getElementById('tabBtnAiConfig');
+
+            if (tab === 'diag') {
+                tabDiag.classList.remove('hidden');
+                tabConfig.classList.add('hidden');
+                btnDiag.className = 'px-4 py-2.5 font-bold text-slate-900 border-b-2 border-slate-900 transition';
+                btnConfig.className = 'px-4 py-2.5 text-slate-500 hover:text-slate-900 border-b-2 border-transparent transition';
+            } else {
+                tabDiag.classList.add('hidden');
+                tabConfig.classList.remove('hidden');
+                btnDiag.className = 'px-4 py-2.5 text-slate-500 hover:text-slate-900 border-b-2 border-transparent transition';
+                btnConfig.className = 'px-4 py-2.5 font-bold text-slate-900 border-b-2 border-slate-900 transition';
+                loadAiConfig();
+            }
+        }
+
+        function renderChatHistory() {
+            const container = document.getElementById('chatMessageContainer');
+            container.innerHTML = chatMessages.map(msg => {
+                const isUser = msg.role === 'user';
+                return `
+                    <div class="flex items-start gap-2.5 ${isUser ? 'flex-row-reverse' : ''}">
+                        <div class="w-7 h-7 rounded-full ${isUser ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 border border-slate-200'} flex items-center justify-center text-xs shadow-sm shrink-0 font-medium">
+                            ${isUser ? '我' : 'AI'}
+                        </div>
+                        <div class="max-w-[82%] p-3 rounded-xl ${isUser ? 'bg-slate-900 text-white' : 'bg-slate-100 border border-slate-200 text-slate-800'}">
+                            <div class="whitespace-pre-wrap leading-relaxed">${escapeHtml(msg.content)}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            container.scrollTop = container.scrollHeight;
+        }
+
+        async function handleChatSubmit(e) {
+            e.preventDefault();
+            const input = document.getElementById('aiUserInput');
+            const text = input.value.trim();
+            if (!text) return;
+            input.value = "";
+            chatMessages.push({ role: 'user', content: text });
+            renderChatHistory();
+
+            try {
+                const res = await fetch('/api/ai/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ messages: chatMessages, temperature: 0.5 })
+                });
+                const data = await res.json();
+                chatMessages.push({ role: 'assistant', content: data.data.content || data.data.reply || '诊断完成' });
+            } catch (e) {
+                chatMessages.push({ role: 'assistant', content: '诊断服务异常: ' + e.message });
+            }
+            renderChatHistory();
+        }
+
+        function sendQuickPrompt(p) {
+            document.getElementById('aiUserInput').value = p;
+            document.getElementById('aiChatForm').dispatchEvent(new Event('submit'));
+        }
+
+        async function loadAiConfig() {
+            try {
+                const res = await fetch('/api/ai/config');
+                const body = await res.json();
+                if (body.code === 200 && body.data) {
+                    const d = body.data;
+                    document.getElementById('cfgProviderSelect').value = d.provider || 'deepseek';
+                    document.getElementById('cfgModelName').value = d.model || '';
+                    document.getElementById('cfgBaseUrl').value = d.base_url || '';
+                    document.getElementById('cfgApiKey').value = d.api_key || '';
+                }
+            } catch (e) {}
+        }
+
+        function onLlmProviderChange() {
+            const p = document.getElementById('cfgProviderSelect').value;
+            const modelInput = document.getElementById('cfgModelName');
+            const urlInput = document.getElementById('cfgBaseUrl');
+
+            if (p === 'custom') {
+                if (!urlInput.value) urlInput.value = 'http://localhost:8000/v1';
+                if (!modelInput.value) modelInput.value = 'custom-model';
+            } else if (p === 'deepseek') {
+                modelInput.value = 'deepseek-chat';
+                urlInput.value = 'https://api.deepseek.com/v1';
+            } else if (p === 'google') {
+                modelInput.value = 'gemini-2.0-flash';
+                urlInput.value = 'https://generativelanguage.googleapis.com/v1beta/openai/';
+            } else if (p === 'openai') {
+                modelInput.value = 'gpt-4o-mini';
+                urlInput.value = 'https://api.openai.com/v1';
+            } else if (p === 'qwen') {
+                modelInput.value = 'qwen-plus';
+                urlInput.value = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
+            } else if (p === 'zhipu') {
+                modelInput.value = 'glm-4-plus';
+                urlInput.value = 'https://open.bigmodel.cn/api/paas/v4';
+            } else if (p === 'moonshot') {
+                modelInput.value = 'moonshot-v1-32k';
+                urlInput.value = 'https://api.moonshot.cn/v1';
+            } else if (p === 'siliconflow') {
+                modelInput.value = 'deepseek-ai/DeepSeek-V3';
+                urlInput.value = 'https://api.siliconflow.cn/v1';
+            } else if (p === 'baidu') {
+                modelInput.value = 'ernie-4.0-8k-latest';
+                urlInput.value = 'https://qianfan.baidubce.com/v2';
+            } else if (p === 'tencent') {
+                modelInput.value = 'hunyuan-standard';
+                urlInput.value = 'https://api.hunyuan.cloud.tencent.com/v1';
+            } else if (p === 'minimax') {
+                modelInput.value = 'abab6.5s-chat';
+                urlInput.value = 'https://api.minimax.chat/v1';
+            } else if (p === 'stepfun') {
+                modelInput.value = 'step-1-8k';
+                urlInput.value = 'https://api.stepfun.com/v1';
+            } else if (p === 'ollama') {
+                modelInput.value = 'deepseek-r1:8b';
+                urlInput.value = 'http://localhost:11434/v1';
+            }
+        }
+
+        async function testLlmConnection() {
+            try {
+                const res = await fetch('/api/ai/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        provider: document.getElementById('cfgProviderSelect').value,
+                        base_url: document.getElementById('cfgBaseUrl').value.trim(),
+                        api_key: document.getElementById('cfgApiKey').value.trim(),
+                        model: document.getElementById('cfgModelName').value.trim()
+                    })
+                });
+                const body = await res.json();
+                showToast(body.code === 200 ? '连通性测试通过!' : '测试失败: ' + body.message, body.code === 200 ? '✅' : '❌');
+            } catch (e) {
+                showToast('测试异常: ' + e.message, '❌');
+            }
+        }
+
+        async function saveLlmConfiguration() {
+            if (!currentUser || currentUser.role !== 'admin') {
+                showToast('权限不足：仅管理员可配置', '🔒');
+                return;
+            }
+            try {
+                const res = await fetch('/api/ai/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        provider: document.getElementById('cfgProviderSelect').value,
+                        base_url: document.getElementById('cfgBaseUrl').value.trim(),
+                        api_key: document.getElementById('cfgApiKey').value.trim(),
+                        model: document.getElementById('cfgModelName').value.trim()
+                    })
+                });
+                const body = await res.json();
+                showToast(body.code === 200 ? '大模型配置已保存！' : '保存失败: ' + body.message, body.code === 200 ? '✅' : '❌');
+            } catch (e) {
+                showToast(e.message, '❌');
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Utilities & Toast
+        // -------------------------------------------------------------
+        function showToast(msg, icon = 'ℹ️') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = 'pointer-events-auto flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 text-white text-xs shadow-xl transition duration-200 transform translate-y-2';
+            toast.innerHTML = `<span class="text-sm">${icon}</span><span>${escapeHtml(msg)}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => { toast.classList.remove('translate-y-2'); }, 10);
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => { toast.remove(); }, 300);
+            }, 3000);
+        }
+
+        function formatRelativeTime(timeStr) {
+            if (!timeStr) return '--';
+            const clean = timeStr.replace('T', ' ');
+            const diff = Math.max(0, Math.floor((new Date() - new Date(clean)) / 1000));
+            if (diff < 3) return '刚刚';
+            if (diff < 60) return `${diff}秒前`;
+            if (diff < 3600) return `${Math.floor(diff / 60)}分钟前`;
+            return `${Math.floor(diff / 3600)}小时前`;
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function refreshAllManual() {
+            fetchOverview();
+            fetchDevices();
+            fetchAuditData(1);
+            showToast('已刷新全域设备数据', '✅');
+        }
+
+        // Init Polling Loop
+        document.addEventListener('DOMContentLoaded', () => {
+            initUserSession();
+            fetchOverview();
+            fetchDevices();
+            fetchAuditData(1);
+            setTimeout(() => { initOverviewTrafficChart(); }, 200);
+
+            pollingTimer = setInterval(() => {
+                fetchOverview();
+                fetchDevices();
+            }, 5000);
+        });
+    </script>
+</body>
+</html>
