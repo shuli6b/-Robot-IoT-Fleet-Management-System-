@@ -11,6 +11,7 @@ import json
 import sqlite3
 import logging
 import shutil
+import hashlib
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any, Tuple
 
@@ -123,6 +124,44 @@ def init_db(db_path: str = DB_PATH) -> bool:
                 )
                 """
             )
+
+            # 5. 创建用户权限管理表 (用于双角色管理员/普通用户认证体系)
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS users (
+                    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username      TEXT    NOT NULL UNIQUE,
+                    password_hash TEXT    NOT NULL,
+                    role          TEXT    NOT NULL DEFAULT 'user',
+                    real_name     TEXT    DEFAULT '',
+                    created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+                    last_login    TEXT    DEFAULT NULL
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)")
+
+            # 初始化预置种子账户
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM users")
+            if cursor.fetchone()[0] == 0:
+                import hashlib
+                admin_hash = hashlib.sha256("admin888".encode("utf-8")).hexdigest()
+                user_hash = hashlib.sha256("123456".encode("utf-8")).hexdigest()
+                guest_hash = hashlib.sha256("guest123".encode("utf-8")).hexdigest()
+                cursor.execute(
+                    "INSERT INTO users (username, password_hash, role, real_name) VALUES (?, ?, ?, ?)",
+                    ("admin", admin_hash, "admin", "超级管理员")
+                )
+                cursor.execute(
+                    "INSERT INTO users (username, password_hash, role, real_name) VALUES (?, ?, ?, ?)",
+                    ("user", user_hash, "user", "产线操作员")
+                )
+                cursor.execute(
+                    "INSERT INTO users (username, password_hash, role, real_name) VALUES (?, ?, ?, ?)",
+                    ("guest", guest_hash, "user", "访客观察员")
+                )
+                logger.info("已成功初始化默认用户: admin(管理员), user(操作员), guest(访客)")
 
         logger.info("数据库表结构与索引初始化成功")
         return True
@@ -541,6 +580,96 @@ def get_history_count(
         conn.close()
 
 
+def get_global_history(
+    device_id: Optional[str] = None,
+    data_type: Optional[str] = None,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20,
+    db_path: str = DB_PATH,
+) -> List[Dict[str, Any]]:
+    """
+    全域分页查询历史遥测数据（支持按设备、报文类型、时间范围多维过滤）。
+    """
+    if page < 1:
+        page = 1
+    if page_size < 1:
+        page_size = 20
+    if page_size > 100:
+        page_size = 100
+
+    offset = (page - 1) * page_size
+
+    conn = get_connection(db_path)
+    try:
+        query = "SELECT * FROM device_data WHERE 1=1"
+        params: List[Any] = []
+
+        if device_id:
+            query += " AND device_id = ?"
+            params.append(device_id)
+        if data_type:
+            query += " AND data_type = ?"
+            params.append(data_type)
+        if start_time:
+            query += " AND received_at >= ?"
+            params.append(start_time)
+        if end_time:
+            query += " AND received_at <= ?"
+            params.append(end_time)
+
+        query += " ORDER BY received_at DESC, id DESC LIMIT ? OFFSET ?"
+        params.extend([page_size, offset])
+
+        cursor = conn.execute(query, params)
+        rows = cursor.fetchall()
+        return [dict(r) for r in rows]
+    except Exception as e:
+        logger.error(f"get_global_history 查询异常: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def get_global_history_count(
+    device_id: Optional[str] = None,
+    data_type: Optional[str] = None,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
+    db_path: str = DB_PATH,
+) -> int:
+    """
+    查询全域符合条件的历史遥测数据总条数。
+    """
+    conn = get_connection(db_path)
+    try:
+        query = "SELECT COUNT(*) FROM device_data WHERE 1=1"
+        params: List[Any] = []
+
+        if device_id:
+            query += " AND device_id = ?"
+            params.append(device_id)
+        if data_type:
+            query += " AND data_type = ?"
+            params.append(data_type)
+        if start_time:
+            query += " AND received_at >= ?"
+            params.append(start_time)
+        if end_time:
+            query += " AND received_at <= ?"
+            params.append(end_time)
+
+        cursor = conn.execute(query, params)
+        return cursor.fetchone()[0]
+    except Exception as e:
+        logger.error(f"get_global_history_count 查询异常: {e}")
+        return 0
+    finally:
+        conn.close()
+
+
+
 def mark_offline_devices(
     threshold_seconds: int = 30,
     db_path: str = DB_PATH,
@@ -872,11 +1001,39 @@ LLM_PROVIDER_PRESETS = {
         "doc": "Kimi 开放平台，支持超长上下文文本解析"
     },
     "siliconflow": {
-        "name": "硅基流动 SiliconFlow 高速聚合平台",
+        "name": "硅基流动 SiliconFlow 聚合平台",
         "base_url": "https://api.siliconflow.cn/v1",
         "default_model": "deepseek-ai/DeepSeek-V3",
         "api_key_url": "https://cloud.siliconflow.cn/",
         "doc": "高速大模型托管与推理加速平台"
+    },
+    "baidu": {
+        "name": "百度智能云千帆 / 文心一言平台",
+        "base_url": "https://qianfan.baidubce.com/v2",
+        "default_model": "ernie-4.0-8k-latest",
+        "api_key_url": "https://cloud.baidu.com/product/wenxinworkshop",
+        "doc": "百度文心大模型系列"
+    },
+    "tencent": {
+        "name": "腾讯混元大模型开放平台",
+        "base_url": "https://api.hunyuan.cloud.tencent.com/v1",
+        "default_model": "hunyuan-standard",
+        "api_key_url": "https://cloud.tencent.com/product/hunyuan",
+        "doc": "腾讯混元工业与多模态大模型"
+    },
+    "minimax": {
+        "name": "MiniMax 稀宇科技开放平台",
+        "base_url": "https://api.minimax.chat/v1",
+        "default_model": "abab6.5s-chat",
+        "api_key_url": "https://platform.minimaxi.com/",
+        "doc": "MiniMax 高性能大语言模型"
+    },
+    "stepfun": {
+        "name": "阶跃星辰 StepFun 开放平台",
+        "base_url": "https://api.stepfun.com/v1",
+        "default_model": "step-1-8k",
+        "api_key_url": "https://platform.stepfun.com/",
+        "doc": "阶跃星辰大模型系列"
     },
     "ollama": {
         "name": "本地私有化部署平台 (Ollama / vLLM / LocalAI)",
@@ -886,11 +1043,11 @@ LLM_PROVIDER_PRESETS = {
         "doc": "本地工控机/私有服务器离线运行，免 API Key"
     },
     "custom": {
-        "name": "自定义 / 企业私有 OpenAI 兼容网关",
+        "name": "🔧 自定义 OpenAI 兼容接口 / 本地私有化网关",
         "base_url": "http://localhost:8000/v1",
         "default_model": "custom-model",
         "api_key_url": "",
-        "doc": "支持 OneAPI、FastChat、企业内部聚合网关"
+        "doc": "支持 OneAPI、FastChat、自建私有模型、聚合网关等自由填入"
     }
 }
 
@@ -990,6 +1147,233 @@ def delete_device(device_id: str, device_type: Optional[str] = None, db_path: st
         return False
     finally:
         conn.close()
+
+
+# -------------------------------------------------------------
+# 用户账号体系与权限管理 (双角色系统：admin vs user)
+# -------------------------------------------------------------
+
+def hash_password(password: str) -> str:
+    """SHA-256 哈希计算"""
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+
+
+def authenticate_user(username: str, password: str, db_path: str = DB_PATH) -> Optional[Dict[str, Any]]:
+    """
+    验证用户登录凭证
+    若验证通过，更新最后登录时间并返回用户信息字典；否则返回 None
+    """
+    conn = get_connection(db_path)
+    try:
+        pwd_hash = hash_password(password)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, username, role, real_name, created_at, last_login FROM users WHERE username = ? AND password_hash = ?",
+            (username.strip(), pwd_hash),
+        )
+        row = cursor.fetchone()
+        if row:
+            now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            conn.execute(
+                "UPDATE users SET last_login = ? WHERE id = ?",
+                (now_str, row["id"]),
+            )
+            conn.commit()
+            return {
+                "id": row["id"],
+                "username": row["username"],
+                "role": row["role"],
+                "real_name": row["real_name"] or row["username"],
+                "created_at": row["created_at"],
+                "last_login": now_str,
+            }
+        return None
+    except Exception as e:
+        logger.error(f"authenticate_user 异常: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def register_user(username: str, password: str, role: str = "user", real_name: str = "", db_path: str = DB_PATH) -> Tuple[bool, str]:
+    """
+    注册新用户账号（默认角色为普通用户 user）
+    """
+    username = username.strip()
+    if not username or len(username) < 3:
+        return False, "用户名长度至少为 3 个字符"
+    if not password or len(password) < 4:
+        return False, "密码长度至少为 4 个字符"
+    if role not in ["admin", "user"]:
+        role = "user"
+
+    conn = get_connection(db_path)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM users WHERE username = ?", (username,))
+        if cursor.fetchone():
+            return False, f"用户名 '{username}' 已存在，请更换其他用户名"
+
+        pwd_hash = hash_password(password)
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute(
+            "INSERT INTO users (username, password_hash, role, real_name, created_at) VALUES (?, ?, ?, ?, ?)",
+            (username, pwd_hash, role, real_name or username, now_str),
+        )
+        conn.commit()
+        logger.info(f"新用户注册成功: {username} (角色: {role})")
+        return True, "注册成功"
+    except Exception as e:
+        logger.error(f"register_user 异常: {e}")
+        return False, f"注册失败: {str(e)}"
+    finally:
+        conn.close()
+
+
+def get_user_by_username(username: str, db_path: str = DB_PATH) -> Optional[Dict[str, Any]]:
+    """根据用户名获取用户基础信息（不包含密码哈希）"""
+    conn = get_connection(db_path)
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, username, role, real_name, created_at, last_login FROM users WHERE username = ?",
+            (username.strip(),),
+        )
+        row = cursor.fetchone()
+        if row:
+            return dict(row)
+        return None
+    except Exception as e:
+        logger.error(f"get_user_by_username 异常: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def get_all_users(db_path: str = DB_PATH) -> List[Dict[str, Any]]:
+    """获取所有用户列表（用于超级管理员查看）"""
+    conn = get_connection(db_path)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, username, role, real_name, created_at, last_login FROM users ORDER BY id ASC")
+        return [dict(r) for r in cursor.fetchall()]
+    except Exception as e:
+        logger.error(f"get_all_users 异常: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def update_user_profile(username: str, real_name: str, db_path: str = DB_PATH) -> Tuple[bool, str]:
+    """更新用户真实姓名或岗位信息"""
+    conn = get_connection(db_path)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET real_name = ? WHERE username = ?", (real_name.strip(), username.strip()))
+        conn.commit()
+        return True, "个人信息更新成功"
+    except Exception as e:
+        logger.error(f"update_user_profile 异常: {e}")
+        return False, f"更新失败: {str(e)}"
+    finally:
+        conn.close()
+
+
+def change_user_password(username: str, old_password: str, new_password: str, db_path: str = DB_PATH) -> Tuple[bool, str]:
+    """用户自行修改密码"""
+    if len(new_password) < 4:
+        return False, "新密码长度至少需 4 位"
+    conn = get_connection(db_path)
+    try:
+        cursor = conn.cursor()
+        old_hash = hash_password(old_password)
+        cursor.execute("SELECT id FROM users WHERE username = ? AND password_hash = ?", (username.strip(), old_hash))
+        if not cursor.fetchone():
+            return False, "原密码输入错误，请重新确认"
+        new_hash = hash_password(new_password)
+        cursor.execute("UPDATE users SET password_hash = ? WHERE username = ?", (new_hash, username.strip()))
+        conn.commit()
+        logger.info(f"用户 [{username}] 密码修改成功")
+        return True, "密码修改成功，请牢记新密码"
+    except Exception as e:
+        logger.error(f"change_user_password 异常: {e}")
+        return False, f"修改失败: {str(e)}"
+    finally:
+        conn.close()
+
+
+def admin_reset_password(target_username: str, new_password: str, db_path: str = DB_PATH) -> Tuple[bool, str]:
+    """管理员重置用户密码"""
+    if len(new_password) < 4:
+        return False, "重置密码长度至少需 4 位"
+    conn = get_connection(db_path)
+    try:
+        cursor = conn.cursor()
+        new_hash = hash_password(new_password)
+        cursor.execute("UPDATE users SET password_hash = ? WHERE username = ?", (new_hash, target_username.strip()))
+        conn.commit()
+        logger.info(f"管理员已重置用户 [{target_username}] 密码")
+        return True, f"已成功重置用户 [{target_username}] 密码"
+    except Exception as e:
+        logger.error(f"admin_reset_password 异常: {e}")
+        return False, f"重置失败: {str(e)}"
+    finally:
+        conn.close()
+
+
+def update_user_role(target_username: str, new_role: str, db_path: str = DB_PATH) -> Tuple[bool, str]:
+    """管理员调整用户角色权限"""
+    if new_role not in ["admin", "user"]:
+        return False, "非法角色"
+    conn = get_connection(db_path)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET role = ? WHERE username = ?", (new_role, target_username.strip()))
+        conn.commit()
+        logger.info(f"管理员已调整用户 [{target_username}] 角色为 [{new_role}]")
+        return True, f"已调整用户 [{target_username}] 权限为 [{new_role}]"
+    except Exception as e:
+        logger.error(f"update_user_role 异常: {e}")
+        return False, f"权限调整失败: {str(e)}"
+    finally:
+        conn.close()
+
+
+def change_user_username(current_username: str, new_username: str, password: str, db_path: str = DB_PATH) -> Tuple[bool, str]:
+    """
+    修改登录账号名（需要验证当前密码以确保安全）
+    """
+    current_username = current_username.strip()
+    new_username = new_username.strip()
+    if not new_username or len(new_username) < 3:
+        return False, "新用户名长度至少为 3 个字符"
+    if new_username == current_username:
+        return False, "新用户名与原用户名一致，无需修改"
+
+    conn = get_connection(db_path)
+    try:
+        cursor = conn.cursor()
+        pwd_hash = hash_password(password)
+        cursor.execute("SELECT id FROM users WHERE username = ? AND password_hash = ?", (current_username, pwd_hash))
+        if not cursor.fetchone():
+            return False, "当前密码验证失败，无法修改账号名"
+
+        cursor.execute("SELECT id FROM users WHERE username = ?", (new_username,))
+        if cursor.fetchone():
+            return False, f"用户名 '{new_username}' 已被占用，请更换其他名称"
+
+        cursor.execute("UPDATE users SET username = ? WHERE username = ?", (new_username, current_username))
+        conn.commit()
+        logger.info(f"用户账号名修改成功: [{current_username}] -> [{new_username}]")
+        return True, "账号名修改成功"
+    except Exception as e:
+        logger.error(f"change_user_username 异常: {e}")
+        return False, f"修改失败: {str(e)}"
+    finally:
+        conn.close()
+
+
+
 
 
 

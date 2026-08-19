@@ -37,6 +37,8 @@ from database import (
     get_device_history,
     get_history_by_dev_id,
     get_history_count,
+    get_global_history,
+    get_global_history_count,
     mark_offline_devices,
     get_system_stats,
     get_device_display_name,
@@ -48,6 +50,15 @@ from database import (
     get_huashu_bridge_config,
     save_huashu_bridge_config,
     delete_device,
+    authenticate_user,
+    register_user,
+    get_user_by_username,
+    get_all_users,
+    update_user_profile,
+    change_user_password,
+    change_user_username,
+    admin_reset_password,
+    update_user_role,
 )
 
 # ---------------------------------------------------------------------------
@@ -361,8 +372,192 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 # ---------------------------------------------------------------------------
-# 7. RESTful API 路由实现
+# 7. RESTful API 路由实现与双角色鉴权 (Admin vs User)
 # ---------------------------------------------------------------------------
+
+class LoginRequest(BaseModel):
+    username: str = Field(..., description="登录账号")
+    password: str = Field(..., description="登录密码")
+
+class RegisterRequest(BaseModel):
+    username: str = Field(..., description="用户账号 (不少于3位)")
+    password: str = Field(..., description="登录密码 (不少于4位)")
+    real_name: Optional[str] = Field("", description="真实姓名/显示昵称")
+    role: Optional[str] = Field("user", description="用户角色: admin(超级管理员) 或 user(普通用户)")
+
+
+@app.post("/api/auth/login")
+async def api_user_login(body: LoginRequest = Body(...)):
+    """
+    用户登录接口 (支持超级管理员 admin 与普通用户 user)
+    """
+    user_info = authenticate_user(body.username, body.password)
+    if not user_info:
+        return api_response(
+            code=401,
+            message="账号或密码错误，请核对后重试",
+            data=None,
+            status_code=status.HTTP_401_UNAUTHORIZED
+        )
+    # 生成简单 Session Token 标识
+    token = f"qtx_token_{user_info['role']}_{int(time.time())}_{user_info['username']}"
+    return api_response(
+        code=200,
+        message=f"欢迎登录，{user_info['real_name']} ({'超级管理员' if user_info['role'] == 'admin' else '普通操作员'})",
+        data={
+            "token": token,
+            "user_id": user_info["id"],
+            "username": user_info["username"],
+            "role": user_info["role"],
+            "real_name": user_info["real_name"],
+            "last_login": user_info["last_login"]
+        }
+    )
+
+
+@app.post("/api/auth/register")
+async def api_user_register(body: RegisterRequest = Body(...)):
+    """
+    用户快速注册接口（默认赋予普通用户 user 权限）
+    """
+    success, msg = register_user(
+        username=body.username,
+        password=body.password,
+        role=body.role if body.role in ["admin", "user"] else "user",
+        real_name=body.real_name
+    )
+    if success:
+        return api_response(
+            code=200,
+            message="账号注册成功，请使用新账号登录",
+            data={"username": body.username, "role": body.role}
+        )
+    else:
+        return api_response(
+            code=400,
+            message=msg,
+            data=None,
+            status_code=status.HTTP_400_BAD_REQUEST
+        )
+
+
+@app.get("/api/auth/me")
+async def api_user_me(request: Request):
+    """获取当前登录用户信息与角色权限"""
+    user_role = request.headers.get("X-User-Role", "guest")
+    user_name = request.headers.get("X-User-Name", "guest")
+    user_info = get_user_by_username(user_name) if user_name != "guest" else None
+    return api_response(
+        code=200,
+        message="success",
+        data={
+            "username": user_name,
+            "role": user_role,
+            "real_name": user_info["real_name"] if user_info else user_name,
+            "created_at": user_info["created_at"] if user_info else "--",
+            "last_login": user_info["last_login"] if user_info else "--",
+            "is_admin": user_role == "admin"
+        }
+    )
+
+
+class UpdateProfileRequest(BaseModel):
+    username: str = Field(..., description="用户名")
+    real_name: str = Field(..., description="真实姓名/岗位昵称")
+
+class ChangePasswordRequest(BaseModel):
+    username: str = Field(..., description="用户名")
+    old_password: str = Field(..., description="原密码")
+    new_password: str = Field(..., description="新密码")
+
+class ChangeUsernameRequest(BaseModel):
+    current_username: str = Field(..., description="当前用户名")
+    new_username: str = Field(..., description="新用户名")
+    password: str = Field(..., description="当前密码(用于验证身份)")
+
+class AdminResetPasswordRequest(BaseModel):
+    target_username: str = Field(..., description="被重置目标用户名")
+    new_password: str = Field(..., description="新密码")
+
+class UpdateRoleRequest(BaseModel):
+    target_username: str = Field(..., description="目标用户名")
+    new_role: str = Field(..., description="新角色: admin 或 user")
+
+
+@app.post("/api/auth/profile")
+async def api_update_profile(body: UpdateProfileRequest = Body(...), request: Request = None):
+    """用户修改个人姓名与信息"""
+    success, msg = update_user_profile(body.username, body.real_name)
+    if success:
+        return api_response(code=200, message=msg, data={"username": body.username, "real_name": body.real_name})
+    return api_response(code=400, message=msg, status_code=status.HTTP_400_BAD_REQUEST)
+
+
+@app.post("/api/auth/password")
+async def api_change_password(body: ChangePasswordRequest = Body(...)):
+    """用户自行修改密码"""
+    success, msg = change_user_password(body.username, body.old_password, body.new_password)
+    if success:
+        return api_response(code=200, message=msg)
+    return api_response(code=400, message=msg, status_code=status.HTTP_400_BAD_REQUEST)
+
+
+@app.post("/api/auth/username")
+async def api_change_username(body: ChangeUsernameRequest = Body(...)):
+    """用户自行修改登录账号名"""
+    success, msg = change_user_username(body.current_username, body.new_username, body.password)
+    if success:
+        user_info = get_user_by_username(body.new_username)
+        return api_response(code=200, message=msg, data=user_info)
+    return api_response(code=400, message=msg, status_code=status.HTTP_400_BAD_REQUEST)
+
+
+@app.get("/api/auth/users")
+async def api_get_all_users(request: Request):
+    """管理员获取所有用户列表"""
+    user_role = request.headers.get("X-User-Role", "guest")
+    if user_role != "admin":
+        return api_response(
+            code=403,
+            message="权限不足：仅超级管理员可查看用户列表",
+            status_code=status.HTTP_403_FORBIDDEN
+        )
+    users = get_all_users()
+    return api_response(code=200, message="success", data={"users": users, "total": len(users)})
+
+
+@app.post("/api/auth/admin_reset_pwd")
+async def api_admin_reset_password(body: AdminResetPasswordRequest = Body(...), request: Request = None):
+    """管理员重置用户密码"""
+    user_role = request.headers.get("X-User-Role", "guest") if request else "guest"
+    if user_role != "admin":
+        return api_response(
+            code=403,
+            message="权限不足：仅超级管理员可重置密码",
+            status_code=status.HTTP_403_FORBIDDEN
+        )
+    success, msg = admin_reset_password(body.target_username, body.new_password)
+    if success:
+        return api_response(code=200, message=msg)
+    return api_response(code=400, message=msg, status_code=status.HTTP_400_BAD_REQUEST)
+
+
+@app.post("/api/auth/update_role")
+async def api_update_role(body: UpdateRoleRequest = Body(...), request: Request = None):
+    """管理员修改用户角色权限"""
+    user_role = request.headers.get("X-User-Role", "guest") if request else "guest"
+    if user_role != "admin":
+        return api_response(
+            code=403,
+            message="权限不足：仅超级管理员可调整用户角色",
+            status_code=status.HTTP_403_FORBIDDEN
+        )
+    success, msg = update_user_role(body.target_username, body.new_role)
+    if success:
+        return api_response(code=200, message=msg)
+    return api_response(code=400, message=msg, status_code=status.HTTP_400_BAD_REQUEST)
+
+
 
 @app.get("/api/health")
 async def health_check():
@@ -448,10 +643,19 @@ async def get_device_latest(device_type: str, device_id: str):
 
 @app.delete("/api/devices/{device_type}/{device_id}")
 @app.delete("/api/devices/{device_id}")
-async def delete_device_api(device_id: str, device_type: Optional[str] = None):
+async def delete_device_api(request: Request, device_id: str, device_type: Optional[str] = None):
     """
-    删除设备档案及其所有历史遥测数据
+    删除设备档案及其所有历史遥测数据 (超级管理员专属权限)
     """
+    role = request.headers.get("X-User-Role", "admin")
+    if role == "user":
+        return api_response(
+            code=403,
+            message="权限不足：普通用户无权删除设备档案，请使用管理员账号操作",
+            data=None,
+            status_code=status.HTTP_403_FORBIDDEN
+        )
+
     success = delete_device(device_id=device_id, device_type=device_type)
     if success:
         return api_response(
@@ -466,6 +670,49 @@ async def delete_device_api(device_id: str, device_type: Optional[str] = None):
             data=None,
             status_code=status.HTTP_400_BAD_REQUEST
         )
+
+
+@app.get("/api/history")
+async def query_global_history(
+    device_id: Optional[str] = Query(None, description="设备ID筛选"),
+    data_type: Optional[str] = Query(None, description="数据类型筛选: state/sensor/alarm/cmd等"),
+    start_time: Optional[str] = Query(None, description="起始时间"),
+    end_time: Optional[str] = Query(None, description="截止时间"),
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(15, ge=1, le=100, description="每页记录数"),
+):
+    """
+    全域分页查询历史遥测报文与事件追溯
+    """
+    total = get_global_history_count(
+        device_id=device_id,
+        data_type=data_type,
+        start_time=start_time,
+        end_time=end_time,
+    )
+
+    records = get_global_history(
+        device_id=device_id,
+        data_type=data_type,
+        start_time=start_time,
+        end_time=end_time,
+        page=page,
+        page_size=page_size,
+    )
+
+    total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+
+    return api_response(
+        code=200,
+        message="查询全域历史遥测数据成功",
+        data={
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+            "total_pages": total_pages,
+            "records": records,
+        },
+    )
 
 
 @app.get("/api/devices/{device_type}/{device_id}/history")
@@ -586,17 +833,27 @@ def publish_command_downlink(
 @app.post("/api/device/{dev_id}/cmd")
 @app.post("/api/devices/{device_type}/{device_id}/cmd")
 async def dispatch_device_command(
+    request: Request,
     dev_id: Optional[str] = None,
     device_type: Optional[str] = None,
     device_id: Optional[str] = None,
     body: CommandRequest = Body(...),
 ):
     """
-    4.6 【功能 F6】向指定端侧设备下发任务控制指令
+    4.6 【功能 F6】向指定端侧设备下发任务控制指令 (管理员专属权限)
     - 支持 /api/device/{dev_id}/cmd 或 /api/devices/{type}/{id}/cmd 两种路由规范
     - Topic: cmd/{device_type}/{device_id}
     - 严格遵循《技术需求书》1.5.1 下行 Topic 与 JSON 格式
     """
+    role = request.headers.get("X-User-Role", "admin")
+    if role == "user":
+        return api_response(
+            code=403,
+            message="权限受限：当前登录为【普通用户】角色，仅拥有大屏只读监控权限。请使用超级管理员账号登录后再下发工业控制指令！",
+            data=None,
+            status_code=status.HTTP_403_FORBIDDEN
+        )
+
     target_id = device_id or dev_id
     if not target_id:
         raise HTTPException(status_code=400, detail="未指定目标设备 ID")
@@ -1053,6 +1310,161 @@ async def ai_chat_and_diagnose(body: ChatRequest = Body(...)):
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         },
     )
+
+
+class ParseCommandRequest(BaseModel):
+    natural_language: str = Field(..., description="自然语言指令描述")
+    device_type: str = Field(..., description="设备品类: huashu_arm / luxshare_amr / robot_dog")
+    device_id: Optional[str] = Field(None, description="设备ID")
+
+
+@app.post("/api/ai/parse_command")
+async def ai_parse_command(body: ParseCommandRequest = Body(...)):
+    """
+    AI 智能自然语言指令解析：将运维人员口语化指令一键转换为标准的 MQTT 控制指令与 JSON 参数
+    """
+    nl = body.natural_language.strip()
+    dev_type = body.device_type
+    dev_id = body.device_id or "device"
+
+    llm_cfg = get_llm_config()
+
+    if llm_cfg.get("enabled") and (llm_cfg.get("api_key") or llm_cfg.get("provider") == "ollama"):
+        system_prompt = f"""你是一个工业物联网 SCADA 系统的命令编译器。你的任务是将用户的自然语言指令解析为设备可执行的 MQTT 指令。
+当前控制目标：{dev_type} ({dev_id})
+
+各设备支持的标准指令集与参数规范如下：
+1. 华数机械臂 (huashu_arm):
+- start_cycle (启动生产工步节拍, 参数: {{"program": "MAIN_LINE_A.PRG", "speed": 80, "cycle_limit": 1000}})
+- pause (暂停运动, 参数: {{}})
+- resume (继续运动, 参数: {{}})
+- stop (紧急停止制动, 参数: {{"reason": "manual_stop"}})
+- reset (伺服与系统复位, 参数: {{}})
+- enable (伺服上使能, 参数: {{"axis_mask": 63}})
+- disable (伺服下使能, 参数: {{"axis_mask": 63}})
+- home (机械臂回原点, 参数: {{"speed": 20}})
+- jog_joint (关节空间点动, 参数: {{"axis": 1, "direction": 1, "speed": 10, "step_deg": 5.0}})
+- jog_cartesian (笛卡尔空间点动, 参数: {{"coord": "base", "direction": "+Z", "step_mm": 10.0, "speed": 30}})
+- set_override (调节全局速率百分比, 参数: {{"override": 80}})
+- set_do (数字量输出, 参数: {{"port": 1, "value": 1}})
+- set_gripper (末端夹爪控制, 参数: {{"action": "grip", "force": 50, "speed": 80}})
+- select_prog (载入程序, 参数: {{"prog_name": "MAIN.PRG"}})
+
+2. 珞石复合 AMR (luxshare_amr):
+- pick_and_place (定点取放料, 参数: {{"source_station": "ST_A01", "target_station": "ST_B03", "tray_id": "T_88"}})
+- nav_to_point (导航至目标点, 参数: {{"target_point": "BAY_04", "x": 12.5, "y": 34.8, "theta": 90.0}})
+- auto_charge (自动回充, 参数: {{"charger_id": "CHG_BAY_01", "min_battery": 95}})
+- pause_nav (暂停导航, 参数: {{}})
+- resume_nav (继续导航, 参数: {{}})
+- set_speed_limit (巡航限速, 参数: {{"max_linear_speed": 1.2, "max_angular_speed": 0.8}})
+- arm_grip (协作臂抓取, 参数: {{"gripper_state": "close", "force_limit": 35}})
+- cancel_task (取消任务, 参数: {{"task_id": "AUTO_DISPATCH"}})
+- stop (急停, 参数: {{"reason": "estop_button"}})
+
+3. 四足机器狗 (robot_dog):
+- patrol (自主巡检, 参数: {{"route": "LOBBY_FLOOR_1", "sensors": ["co2", "voc", "thermal_imaging"]}})
+- stand (站立待命, 参数: {{"height": 0.55}})
+- sit (蹲伏休眠, 参数: {{}})
+- walk_to (前往目标点, 参数: {{"x": 25.0, "y": 18.3, "gait": "trot", "speed": 1.5}})
+- start_thermal_scan (红外热成像扫描, 参数: {{"alert_temp_celsius": 65.0, "recording": true}})
+- uav_collab_scan (空地协同扫描, 参数: {{"uav_id": "uav_001", "sync_telemetry": true}})
+- auto_dock_charge (自动返坞充电, 参数: {{"dock_id": "DOG_DOCK_01"}})
+- emergency_stop (脱扣急停, 参数: {{}})
+
+请必须且仅返回如下严格的 JSON 字符串（不要附带任何 markdown 标记或解释文字）：
+{{"command": "指令名", "params": {{...}}, "explanation": "解析依据与简短说明"}}"""
+
+        success, llm_reply, _ = await call_llm_api(
+            base_url=llm_cfg.get("base_url", "https://api.deepseek.com/v1"),
+            api_key=llm_cfg.get("api_key", ""),
+            model=llm_cfg.get("model", "deepseek-chat"),
+            system_prompt=system_prompt,
+            user_prompt=f"请解析该指令：{nl}",
+            temperature=0.1,
+            max_tokens=500,
+            timeout=15.0,
+        )
+        if success:
+            try:
+                clean_json = llm_reply.strip()
+                if clean_json.startswith("```json"):
+                    clean_json = clean_json[7:]
+                if clean_json.startswith("```"):
+                    clean_json = clean_json[3:]
+                if clean_json.endswith("```"):
+                    clean_json = clean_json[:-3]
+                parsed = json.loads(clean_json.strip())
+                return api_response(code=200, message="AI 智能解析成功", data=parsed)
+            except Exception:
+                pass
+
+    # 规则引擎兜底
+    cmd = "start_cycle"
+    params = {}
+    explanation = "基于工业规则引擎智能模式匹配"
+
+    if dev_type == "huashu_arm":
+        if any(k in nl for k in ["停", "刹车", "急停", "制动", "stop"]):
+            cmd, params, explanation = "stop", {"reason": "manual_estop"}, "解析为紧急制动停机指令"
+        elif any(k in nl for k in ["复位", "reset", "清除报警"]):
+            cmd, params, explanation = "reset", {}, "解析为伺服驱动与故障复位指令"
+        elif any(k in nl for k in ["上电", "上使能", "使能", "enable"]):
+            cmd, params, explanation = "enable", {"axis_mask": 63}, "解析为伺服电机全轴上使能指令"
+        elif any(k in nl for k in ["下电", "去使能", "disable"]):
+            cmd, params, explanation = "disable", {"axis_mask": 63}, "解析为伺服电机全轴下使能指令"
+        elif any(k in nl for k in ["回零", "原点", "归位", "home"]):
+            cmd, params, explanation = "home", {"speed": 20}, "解析为机械臂安全回零原点指令"
+        elif any(k in nl for k in ["暂停", "pause"]):
+            cmd, params, explanation = "pause", {}, "解析为暂停当前运动工步指令"
+        elif any(k in nl for k in ["继续", "恢复", "resume"]):
+            cmd, params, explanation = "resume", {}, "解析为继续运行暂停工步指令"
+        elif any(k in nl for k in ["夹爪", "气爪", "抓", "gripper"]):
+            cmd, params, explanation = "set_gripper", {"action": "grip", "force": 50, "speed": 80}, "解析为末端夹爪动作控制指令"
+        elif any(k in nl for k in ["倍率", "速度", "override"]):
+            cmd, params, explanation = "set_override", {"override": 80}, "解析为调节全局运行速率百分比指令"
+        elif any(k in nl for k in ["程序", "加载", "select"]):
+            cmd, params, explanation = "select_prog", {"prog_name": "MAIN_LINE_A.PRG"}, "解析为载入加工程序指令"
+        else:
+            cmd, params, explanation = "start_cycle", {"program": "MAIN_LINE_A.PRG", "speed": 80, "cycle_limit": 1000}, "解析为启动自动化生产工步节拍指令"
+    elif dev_type == "luxshare_amr":
+        if any(k in nl for k in ["停", "急停", "stop"]):
+            cmd, params, explanation = "stop", {"reason": "manual_estop"}, "解析为复合机器人急停指令"
+        elif any(k in nl for k in ["充", "电桩", "charge"]):
+            cmd, params, explanation = "auto_charge", {"charger_id": "CHG_BAY_01", "min_battery": 95}, "解析为自动寻找充电桩回充指令"
+        elif any(k in nl for k in ["取", "放", "料", "pick"]):
+            cmd, params, explanation = "pick_and_place", {"source_station": "ST_A01", "target_station": "ST_B03", "tray_id": "T_88"}, "解析为定点取放料调度任务指令"
+        elif any(k in nl for k in ["抓", "夹", "grip"]):
+            cmd, params, explanation = "arm_grip", {"gripper_state": "close", "force_limit": 35}, "解析为协作臂末端抓取指令"
+        elif any(k in nl for k in ["导航", "前往", "工位", "goto", "nav"]):
+            cmd, params, explanation = "nav_to_point", {"target_point": "BAY_04", "x": 12.5, "y": 34.8, "theta": 90.0}, "解析为移动底盘导航至目标站点指令"
+        else:
+            cmd, params, explanation = "pick_and_place", {"source_station": "ST_A01", "target_station": "ST_B03"}, "解析为定点物料转运指令"
+    elif dev_type == "robot_dog":
+        if any(k in nl for k in ["停", "脱扣", "急停", "stop"]):
+            cmd, params, explanation = "emergency_stop", {}, "解析为四足电机紧急脱扣停机指令"
+        elif any(k in nl for k in ["站", "起立", "stand"]):
+            cmd, params, explanation = "stand", {"height": 0.55}, "解析为四足站立待命姿态指令"
+        elif any(k in nl for k in ["蹲", "休眠", "sit", "趴"]):
+            cmd, params, explanation = "sit", {}, "解析为四足蹲伏休眠姿态指令"
+        elif any(k in nl for k in ["测温", "红外", "热成像", "thermal"]):
+            cmd, params, explanation = "start_thermal_scan", {"alert_temp_celsius": 65.0, "recording": True}, "解析为开启双光谱红外热成像测温指令"
+        elif any(k in nl for k in ["无人机", "空地", "搜救", "uav"]):
+            cmd, params, explanation = "uav_collab_scan", {"uav_id": "uav_001", "sync_telemetry": True}, "解析为无人机空地协同搜救扫描指令"
+        elif any(k in nl for k in ["充", "dock", "charge"]):
+            cmd, params, explanation = "auto_dock_charge", {"dock_id": "DOG_DOCK_01"}, "解析为返回专用充电坞站指令"
+        else:
+            cmd, params, explanation = "patrol", {"route": "LOBBY_FLOOR_1", "sensors": ["co2", "voc", "thermal_imaging"]}, "解析为园区/管廊自主巡检指令"
+
+    return api_response(
+        code=200,
+        message="规则引擎解析成功",
+        data={
+            "command": cmd,
+            "params": params,
+            "explanation": explanation,
+        },
+    )
+
 
 
 # ---------------------------------------------------------------------------
