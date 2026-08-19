@@ -17,6 +17,7 @@
     
     <script>
         tailwind.config = {
+            darkMode: 'class',
             theme: {
                 extend: {
                     fontFamily: {
@@ -33,31 +34,67 @@
             background-color: #F8FAFC;
             color: #0F172A;
             -webkit-font-smoothing: antialiased;
+            transition: background-color 0.2s ease, color 0.2s ease;
         }
+
+        .dark body, body.dark, html.dark body {
+            background-color: #0B0F19 !important;
+            color: #F8FAFC !important;
+        }
+
         .clean-card {
             background: #FFFFFF;
             border: 1px solid #E2E8F0;
             box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .dark .clean-card, html.dark .clean-card {
+            background: #111827 !important;
+            border-color: #1F2937 !important;
+            color: #F8FAFC !important;
+            box-shadow: 0 4px 25px -2px rgba(0, 0, 0, 0.4) !important;
+        }
+
+        .dark .bg-slate-50, html.dark .bg-slate-50 {
+            background-color: #0F172A !important;
+        }
+        .dark .border-slate-200, html.dark .border-slate-200 {
+            border-color: #1F2937 !important;
+        }
+        .dark .text-slate-900, html.dark .text-slate-900 {
+            color: #F8FAFC !important;
+        }
+        .dark .text-slate-700, html.dark .text-slate-700 {
+            color: #E2E8F0 !important;
+        }
+        .dark .text-slate-500, html.dark .text-slate-500 {
+            color: #94A3B8 !important;
+        }
+        .dark input, html.dark input {
+            background-color: #1E293B !important;
+            border-color: #334155 !important;
+            color: #F8FAFC !important;
         }
     </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4 sm:p-6 lg:p-8 bg-[#F8FAFC]">
+<body class="min-h-screen flex items-center justify-center p-4 sm:p-6 lg:p-8 bg-[#F8FAFC] dark:bg-[#0B0F19]">
 
     <!-- Main Container Card -->
-    <div class="clean-card rounded-2xl w-full max-w-5xl overflow-hidden grid grid-cols-1 lg:grid-cols-12 shadow-xl border border-slate-200">
+    <div class="clean-card rounded-2xl w-full max-w-5xl overflow-hidden grid grid-cols-1 lg:grid-cols-12 shadow-xl border border-slate-200 relative">
         
         <!-- Left Section: Minimalist China / GBA Map (7 Cols) -->
-        <div class="lg:col-span-7 bg-slate-50 p-6 sm:p-8 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-slate-200 relative">
+        <div class="lg:col-span-7 bg-slate-50 dark:bg-slate-900 p-6 sm:p-8 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-slate-200 dark:border-slate-800 relative">
             <div class="space-y-1 z-10">
                 <div class="flex items-center gap-2">
-                    <div class="w-7 h-7 rounded-lg bg-slate-900 text-white flex items-center justify-center shadow-sm">
+                    <div class="w-7 h-7 rounded-lg bg-slate-900 dark:bg-slate-800 text-white flex items-center justify-center shadow-sm">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
                         </svg>
                     </div>
-                    <h2 class="text-base sm:text-lg font-bold text-slate-900 tracking-tight">昕邦智能装备 · 机器人物联网管控平台</h2>
+                    <h2 class="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight">昕邦智能装备 · 机器人物联网管控平台</h2>
                 </div>
-                <p class="text-xs text-slate-500 font-mono pl-9">XINBANG INDUSTRIAL FLEET MANAGEMENT SYSTEM</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400 font-mono pl-9">XINBANG INDUSTRIAL FLEET MANAGEMENT SYSTEM</p>
             </div>
 
             <!-- ECharts China Map Canvas -->
@@ -65,46 +102,57 @@
                 <div id="loginChinaMap" class="w-full h-full"></div>
             </div>
 
-            <div class="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-200/80">
+            <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-200/80 dark:border-slate-800">
                 <div class="flex items-center gap-4">
-                    <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-slate-900"></span>广州番禺智造中心</span>
+                    <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-slate-900 dark:bg-slate-100"></span>广州番禺智造中心</span>
                     <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-600"></span>广州南沙创新港</span>
                 </div>
-                <span class="font-mono text-[11px] text-slate-400">5G 工业专网互联</span>
+                <span class="font-mono text-[11px] text-slate-400 dark:text-slate-500">5G 工业专网互联</span>
             </div>
         </div>
 
         <!-- Right Section: Clean Form (5 Cols) -->
-        <div class="lg:col-span-5 p-6 sm:p-8 flex flex-col justify-between bg-white">
+        <div class="lg:col-span-5 p-6 sm:p-8 flex flex-col justify-between bg-white dark:bg-slate-900 relative">
+            
+            <!-- Compact Theme Toggle Button in Top Right Corner -->
+            <div class="absolute top-5 right-5">
+                <button id="themeToggleBtn" onclick="toggleTheme()" class="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-amber-400 border border-slate-200 dark:border-slate-700 transition flex items-center justify-center shrink-0" title="切换明暗主题模式">
+                    <!-- Sun icon in dark mode -->
+                    <svg id="themeIconSun" class="w-4 h-4 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                    <!-- Moon icon in light mode -->
+                    <svg id="themeIconMoon" class="w-4 h-4 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                </button>
+            </div>
+
             <div>
-                <div class="mb-6">
-                    <h3 class="text-lg font-bold text-slate-900 tracking-tight">系统登录</h3>
-                    <p class="text-xs text-slate-500 mt-1">请输入授权工号以进入工业机器人物联网管控大屏</p>
+                <div class="mb-6 pr-10">
+                    <h3 class="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight">系统登录</h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">请输入授权工号以进入工业机器人物联网管控大屏</p>
                 </div>
 
                 <!-- Tab Switcher -->
-                <div class="flex items-center gap-6 border-b border-slate-200 pb-2.5 mb-5 text-sm">
-                    <button id="tabBtnLogin" onclick="switchTab('login')" class="font-bold text-slate-900 border-b-2 border-slate-900 pb-2 transition">账号登录</button>
-                    <button id="tabBtnRegister" onclick="switchTab('register')" class="font-medium text-slate-500 hover:text-slate-900 border-b-2 border-transparent pb-2 transition">新用户注册</button>
+                <div class="flex items-center gap-6 border-b border-slate-200 dark:border-slate-800 pb-2.5 mb-5 text-sm">
+                    <button id="tabBtnLogin" onclick="switchTab('login')" class="font-bold text-slate-900 dark:text-slate-100 border-b-2 border-slate-900 dark:border-slate-100 pb-2 transition">账号登录</button>
+                    <button id="tabBtnRegister" onclick="switchTab('register')" class="font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 border-b-2 border-transparent pb-2 transition">新用户注册</button>
                 </div>
 
                 <!-- Login Form -->
                 <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4">
                     <div>
-                        <label class="block text-xs font-medium text-slate-700 mb-1.5">系统账号 (Username)</label>
-                        <input type="text" id="loginUsername" required class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-lg px-3.5 py-2.5 focus:ring-1 focus:ring-slate-900 focus:outline-none" placeholder="输入工号或用户名">
+                        <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">系统账号 (Username)</label>
+                        <input type="text" id="loginUsername" required class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 text-xs rounded-lg px-3.5 py-2.5 focus:ring-1 focus:ring-slate-900 dark:focus:ring-slate-400 focus:outline-none" placeholder="输入工号或用户名">
                     </div>
 
                     <div>
                         <div class="flex justify-between items-center mb-1.5">
-                            <label class="block text-xs font-medium text-slate-700">登录密码 (Password)</label>
+                            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300">登录密码 (Password)</label>
                         </div>
-                        <input type="password" id="loginPassword" required class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-lg px-3.5 py-2.5 focus:ring-1 focus:ring-slate-900 focus:outline-none" placeholder="输入密码">
+                        <input type="password" id="loginPassword" required class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 text-xs rounded-lg px-3.5 py-2.5 focus:ring-1 focus:ring-slate-900 dark:focus:ring-slate-400 focus:outline-none" placeholder="输入密码">
                     </div>
 
-                    <div id="loginErrorBox" class="hidden p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs"></div>
+                    <div id="loginErrorBox" class="hidden p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400 text-xs"></div>
 
-                    <button type="submit" id="btnLoginSubmit" class="w-full py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs shadow-sm transition mt-2">
+                    <button type="submit" id="btnLoginSubmit" class="w-full py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900 text-white font-medium text-xs shadow-sm transition mt-2">
                         进入管控大屏 →
                     </button>
                 </form>
@@ -112,25 +160,25 @@
                 <!-- Register Form -->
                 <form id="registerForm" onsubmit="handleRegister(event)" class="hidden space-y-3.5">
                     <div>
-                        <label class="block text-xs font-medium text-slate-700 mb-1">设置用户名</label>
-                        <input type="text" id="regUsername" required class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-lg px-3.5 py-2 focus:ring-1 focus:ring-slate-900 focus:outline-none" placeholder="至少 3 位字符">
+                        <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">设置用户名</label>
+                        <input type="text" id="regUsername" required class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 text-xs rounded-lg px-3.5 py-2 focus:ring-1 focus:ring-slate-900 dark:focus:ring-slate-400 focus:outline-none" placeholder="至少 3 位字符">
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-slate-700 mb-1">设置密码</label>
-                        <input type="password" id="regPassword" required class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-lg px-3.5 py-2 focus:ring-1 focus:ring-slate-900 focus:outline-none" placeholder="至少 4 位密码">
+                        <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">设置密码</label>
+                        <input type="password" id="regPassword" required class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 text-xs rounded-lg px-3.5 py-2 focus:ring-1 focus:ring-slate-900 dark:focus:ring-slate-400 focus:outline-none" placeholder="至少 4 位密码">
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-slate-700 mb-1">姓名 / 岗位</label>
-                        <input type="text" id="regRealName" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-lg px-3.5 py-2 focus:ring-1 focus:ring-slate-900 focus:outline-none" placeholder="例：张工 / 操作员">
+                        <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">姓名 / 岗位</label>
+                        <input type="text" id="regRealName" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 text-xs rounded-lg px-3.5 py-2 focus:ring-1 focus:ring-slate-900 dark:focus:ring-slate-400 focus:outline-none" placeholder="例：张工 / 操作员">
                     </div>
-                    <div id="regErrorBox" class="hidden p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs"></div>
-                    <button type="submit" id="btnRegSubmit" class="w-full py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs shadow-sm transition mt-2">
+                    <div id="regErrorBox" class="hidden p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400 text-xs"></div>
+                    <button type="submit" id="btnRegSubmit" class="w-full py-2 rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900 text-white font-medium text-xs shadow-sm transition mt-2">
                         完成注册
                     </button>
                 </form>
             </div>
 
-            <div class="pt-4 mt-6 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400 font-mono">
+            <div class="pt-4 mt-6 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-400 dark:text-slate-500 font-mono">
                 <span>安全连接认证</span>
                 <span>v4.2-PRO</span>
             </div>
@@ -139,47 +187,92 @@
 
     <!-- Base Showcase Modal -->
     <div id="baseProfileModal" style="z-index: 9999;" class="hidden fixed inset-0 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm transition-all duration-200">
-        <div class="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl border border-slate-200">
-            <div class="px-6 py-4 bg-white border-b border-slate-200 flex items-center justify-between">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800">
+            <div class="px-6 py-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                 <div>
-                    <h3 class="text-sm font-bold text-slate-900 tracking-tight" id="baseModalTitle">广州番禺智造中心</h3>
-                    <p class="text-xs text-slate-500" id="baseModalSub">华数六轴工业机械臂高精加工与焊接示范产线</p>
+                    <h3 class="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight" id="baseModalTitle">广州番禺智造中心</h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400" id="baseModalSub">华数六轴工业机械臂高精加工与焊接示范产线</p>
                 </div>
-                <button onclick="closeBaseModal()" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 flex items-center justify-center transition">✕</button>
+                <button onclick="closeBaseModal()" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-900 flex items-center justify-center transition">✕</button>
             </div>
             
-            <div class="p-6 overflow-y-auto space-y-4 bg-slate-50">
-                <div class="relative w-full h-64 rounded-xl overflow-hidden border border-slate-200 shadow-sm">
+            <div class="p-6 overflow-y-auto space-y-4 bg-slate-50 dark:bg-slate-950">
+                <div class="relative w-full h-64 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm">
                     <img id="baseModalImage" src="/static/assets/base_panyu.jpg" alt="Base Profile" class="w-full h-full object-cover object-center">
                 </div>
 
                 <div class="grid grid-cols-3 gap-3 text-xs">
-                    <div class="p-3 bg-white rounded-xl border border-slate-200 shadow-sm">
-                        <div class="text-slate-500">规划定位</div>
-                        <div class="font-bold text-slate-900 text-sm mt-1" id="baseModalAttr1">工业机械臂产线</div>
+                    <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                        <div class="text-slate-500 dark:text-slate-400">规划定位</div>
+                        <div class="font-bold text-slate-900 dark:text-slate-100 text-sm mt-1" id="baseModalAttr1">工业机械臂产线</div>
                     </div>
-                    <div class="p-3 bg-white rounded-xl border border-slate-200 shadow-sm">
-                        <div class="text-slate-500">网络设施</div>
-                        <div class="font-bold text-emerald-700 text-sm mt-1 font-mono">5G专网+工业总线</div>
+                    <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                        <div class="text-slate-500 dark:text-slate-400">网络设施</div>
+                        <div class="font-bold text-emerald-600 dark:text-emerald-400 text-sm mt-1 font-mono">5G专网+工业总线</div>
                     </div>
-                    <div class="p-3 bg-white rounded-xl border border-slate-200 shadow-sm">
-                        <div class="text-slate-500">设备规模</div>
-                        <div class="font-bold text-slate-900 text-sm mt-1 font-mono" id="baseModalAttr3">50+ 节点</div>
+                    <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                        <div class="text-slate-500 dark:text-slate-400">设备规模</div>
+                        <div class="font-bold text-slate-900 dark:text-slate-100 text-sm mt-1 font-mono" id="baseModalAttr3">50+ 节点</div>
                     </div>
                 </div>
 
-                <div class="p-4 bg-white rounded-xl border border-slate-200 text-xs text-slate-600 leading-relaxed shadow-sm" id="baseModalDesc"></div>
+                <div class="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 leading-relaxed shadow-sm" id="baseModalDesc"></div>
             </div>
 
-            <div class="px-6 py-3.5 bg-white border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
+            <div class="px-6 py-3.5 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                 <span>数字孪生节点已接入昕邦工业物联网控制中枢</span>
-                <button onclick="closeBaseModal()" class="px-4 py-1.5 rounded-lg bg-slate-900 text-white font-medium hover:bg-slate-800 transition">关闭</button>
+                <button onclick="closeBaseModal()" class="px-4 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900 text-white font-medium transition">关闭</button>
             </div>
         </div>
     </div>
 
     <!-- Scripts -->
     <script>
+        let loginMapChart = null;
+
+        // -------------------------------------------------------------
+        // Theme Management (Default Light, Persistent Dark Toggle)
+        // -------------------------------------------------------------
+        function initTheme() {
+            const savedTheme = localStorage.getItem('app_theme') || 'light';
+            const isDark = (savedTheme === 'dark');
+            if (isDark) {
+                document.documentElement.classList.add('dark');
+                document.body.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+                document.body.classList.remove('dark');
+            }
+            updateLoginMapTheme(isDark);
+        }
+
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            document.body.classList.toggle('dark', isDark);
+            localStorage.setItem('app_theme', isDark ? 'dark' : 'light');
+            updateLoginMapTheme(isDark);
+        }
+
+        function updateLoginMapTheme(isDark) {
+            if (loginMapChart) {
+                loginMapChart.setOption({
+                    geo: {
+                        itemStyle: {
+                            areaColor: isDark ? '#1E293B' : '#F1F5F9',
+                            borderColor: isDark ? '#334155' : '#CBD5E1'
+                        },
+                        emphasis: {
+                            itemStyle: {
+                                areaColor: isDark ? '#334155' : '#CBD5E1',
+                                borderColor: isDark ? '#64748B' : '#94A3B8'
+                            }
+                        }
+                    }
+                });
+            }
+        }
+        initTheme();
+
         const BASE_DATA = {
             'panyu': {
                 title: '广州番禺智造中心',
@@ -212,28 +305,17 @@
 
         function closeBaseModal() { document.getElementById('baseProfileModal').classList.add('hidden'); }
 
-        function quickFill(u, p) {
-            document.getElementById('loginUsername').value = u;
-            document.getElementById('loginPassword').value = p;
-        }
-
         function switchTab(tab) {
-            const tabLogin = document.getElementById('tabBtnLogin');
-            const tabReg = document.getElementById('tabBtnRegister');
-            const formLogin = document.getElementById('loginForm');
-            const formReg = document.getElementById('registerForm');
-
-            if (tab === 'login') {
-                tabLogin.className = 'font-bold text-slate-900 border-b-2 border-slate-900 pb-2 transition';
-                tabReg.className = 'font-medium text-slate-500 hover:text-slate-900 border-b-2 border-transparent pb-2 transition';
-                formLogin.classList.remove('hidden');
-                formReg.classList.add('hidden');
-            } else {
-                tabReg.className = 'font-bold text-slate-900 border-b-2 border-slate-900 pb-2 transition';
-                tabLogin.className = 'font-medium text-slate-500 hover:text-slate-900 border-b-2 border-transparent pb-2 transition';
-                formReg.classList.remove('hidden');
-                formLogin.classList.add('hidden');
-            }
+            const isLogin = tab === 'login';
+            document.getElementById('loginForm').classList.toggle('hidden', !isLogin);
+            document.getElementById('registerForm').classList.toggle('hidden', isLogin);
+            
+            document.getElementById('tabBtnLogin').className = isLogin 
+                ? 'font-bold text-slate-900 dark:text-slate-100 border-b-2 border-slate-900 dark:border-slate-100 pb-2 transition' 
+                : 'font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 border-b-2 border-transparent pb-2 transition';
+            document.getElementById('tabBtnRegister').className = !isLogin 
+                ? 'font-bold text-slate-900 dark:text-slate-100 border-b-2 border-slate-900 dark:border-slate-100 pb-2 transition' 
+                : 'font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 border-b-2 border-transparent pb-2 transition';
         }
 
         async function handleLogin(e) {
@@ -242,8 +324,10 @@
             const p = document.getElementById('loginPassword').value.trim();
             const errBox = document.getElementById('loginErrorBox');
             const btn = document.getElementById('btnLoginSubmit');
+
             errBox.classList.add('hidden');
             btn.disabled = true;
+            btn.innerText = '正在验证安全凭证...';
 
             try {
                 const res = await fetch('/api/auth/login', {
@@ -251,19 +335,21 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username: u, password: p })
                 });
-                const body = await res.json();
-                if (res.ok && body.code === 200) {
-                    localStorage.setItem('xinbang_user', JSON.stringify(body.data));
-                    window.location.href = '/light';
+                const data = await res.json();
+                if (data.code === 200) {
+                    localStorage.setItem('robot_token', data.data.token);
+                    localStorage.setItem('robot_user', JSON.stringify(data.data.user));
+                    window.location.href = '/';
                 } else {
-                    errBox.innerText = body.message || '登录失败，请核对账号密码';
+                    errBox.innerText = data.message || '登录失败，请检查工号或密码';
                     errBox.classList.remove('hidden');
                 }
             } catch (err) {
-                errBox.innerText = '网络异常: ' + err.message;
+                errBox.innerText = '服务器通信失败: ' + err.message;
                 errBox.classList.remove('hidden');
             } finally {
                 btn.disabled = false;
+                btn.innerText = '进入管控大屏 →';
             }
         }
 
@@ -271,73 +357,68 @@
             e.preventDefault();
             const u = document.getElementById('regUsername').value.trim();
             const p = document.getElementById('regPassword').value.trim();
-            const n = document.getElementById('regRealName').value.trim();
+            const name = document.getElementById('regRealName').value.trim();
             const errBox = document.getElementById('regErrorBox');
             const btn = document.getElementById('btnRegSubmit');
+
             errBox.classList.add('hidden');
             btn.disabled = true;
+            btn.innerText = '正在注册...';
 
             try {
                 const res = await fetch('/api/auth/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: u, password: p, real_name: n, role: 'user' })
+                    body: JSON.stringify({ username: u, password: p, real_name: name })
                 });
-                const body = await res.json();
-                if (res.ok && body.code === 200) {
-                    alert('注册成功！请直接登录');
-                    switchTab('login');
-                    quickFill(u, p);
+                const data = await res.json();
+                if (data.code === 200) {
+                    alert('注册成功！已自动为您登录');
+                    localStorage.setItem('robot_token', data.data.token);
+                    localStorage.setItem('robot_user', JSON.stringify(data.data.user));
+                    window.location.href = '/';
                 } else {
-                    errBox.innerText = body.message || '注册失败';
+                    errBox.innerText = data.message || '注册失败';
                     errBox.classList.remove('hidden');
                 }
             } catch (err) {
-                errBox.innerText = '网络异常: ' + err.message;
+                errBox.innerText = '服务器通信失败: ' + err.message;
                 errBox.classList.remove('hidden');
             } finally {
                 btn.disabled = false;
+                btn.innerText = '完成注册';
             }
         }
 
         async function initChinaMap() {
             const chartDom = document.getElementById('loginChinaMap');
             if (!chartDom) return;
+
+            loginMapChart = echarts.init(chartDom);
+            const isDark = document.documentElement.classList.contains('dark');
+
             try {
                 const res = await fetch('/static/china.json');
                 const chinaJson = await res.json();
                 echarts.registerMap('china', chinaJson);
-                const mapChart = echarts.init(chartDom);
 
                 const option = {
                     backgroundColor: 'transparent',
-                    tooltip: {
-                        trigger: 'item',
-                        backgroundColor: '#FFFFFF',
-                        borderColor: '#E2E8F0',
-                        textStyle: { color: '#0F172A', fontSize: 12 },
-                        formatter: function(params) {
-                            if (params.seriesType === 'effectScatter') {
-                                return `<div class="p-1 font-mono font-semibold">${params.name} (点击查看基地)</div>`;
-                            }
-                            return `<div class="p-1">${params.name}</div>`;
-                        }
-                    },
                     geo: {
                         map: 'china',
                         roam: false,
-                        aspectScale: 0.82,
-                        layoutCenter: ['50%', '50%'],
-                        layoutSize: '112%',
+                        zoom: 1.25,
+                        center: [108.5, 33.5],
+                        label: { show: false },
                         itemStyle: {
-                            areaColor: '#E2E8F0',
-                            borderColor: '#CBD5E1',
+                            areaColor: isDark ? '#1E293B' : '#F1F5F9',
+                            borderColor: isDark ? '#334155' : '#CBD5E1',
                             borderWidth: 1
                         },
                         emphasis: {
                             itemStyle: {
-                                areaColor: '#CBD5E1',
-                                borderColor: '#94A3B8',
+                                areaColor: isDark ? '#334155' : '#CBD5E1',
+                                borderColor: isDark ? '#64748B' : '#94A3B8',
                                 borderWidth: 1.5
                             },
                             label: { show: false }
@@ -402,8 +483,8 @@
                     ]
                 };
 
-                mapChart.setOption(option);
-                mapChart.on('click', function(params) {
+                loginMapChart.setOption(option);
+                loginMapChart.on('click', function(params) {
                     if (params.data && params.data.key) {
                         openBaseModal(params.data.key);
                     } else if (params.name.includes('广东') || params.name.includes('广州')) {
@@ -411,13 +492,14 @@
                     }
                 });
 
-                window.addEventListener('resize', () => { mapChart.resize(); });
+                window.addEventListener('resize', () => { if (loginMapChart) loginMapChart.resize(); });
             } catch (err) {
                 console.error(err);
             }
         }
 
         document.addEventListener('DOMContentLoaded', () => {
+            initTheme();
             initChinaMap();
         });
     </script>

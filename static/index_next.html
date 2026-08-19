@@ -58,12 +58,21 @@
             -moz-osx-font-smoothing: grayscale;
             overflow-x: hidden;
             -webkit-overflow-scrolling: touch;
+            transition: background-color 0.2s ease, color 0.2s ease;
+        }
+
+        .dark body, body.dark, html.dark body {
+            background-color: #0B0F19 !important;
+            color: #F8FAFC !important;
         }
 
         ::-webkit-scrollbar { width: 5px; height: 5px; }
         ::-webkit-scrollbar-track { background: #F8FAFC; }
         ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+        .dark ::-webkit-scrollbar-track { background: #0B0F19; }
+        .dark ::-webkit-scrollbar-thumb { background: #334155; }
+        .dark ::-webkit-scrollbar-thumb:hover { background: #475569; }
 
         .clean-card {
             background: #FFFFFF;
@@ -75,11 +84,68 @@
             border-color: #CBD5E1;
             box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.05);
         }
+        .dark .clean-card, html.dark .clean-card {
+            background: #111827 !important;
+            border-color: #1F2937 !important;
+            color: #F8FAFC !important;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3) !important;
+        }
+        .dark .clean-card:hover, html.dark .clean-card:hover {
+            border-color: #374151 !important;
+        }
 
         .clean-modal {
             background: #FFFFFF;
             border: 1px solid #E2E8F0;
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+        }
+        .dark .clean-modal, html.dark .clean-modal {
+            background: #111827 !important;
+            border-color: #1F2937 !important;
+            color: #F8FAFC !important;
+        }
+
+        .dark header, html.dark header {
+            background-color: #0F172A !important;
+            border-color: #1E293B !important;
+        }
+        .dark nav, html.dark nav {
+            background-color: #1E293B !important;
+        }
+        .dark .text-slate-900, html.dark .text-slate-900 {
+            color: #F8FAFC !important;
+        }
+        .dark .text-slate-700, html.dark .text-slate-700 {
+            color: #E2E8F0 !important;
+        }
+        .dark .text-slate-600, html.dark .text-slate-600 {
+            color: #CBD5E1 !important;
+        }
+        .dark .text-slate-500, html.dark .text-slate-500 {
+            color: #94A3B8 !important;
+        }
+        .dark .bg-slate-50, html.dark .bg-slate-50 {
+            background-color: #0B0F19 !important;
+        }
+        .dark .bg-slate-100, html.dark .bg-slate-100 {
+            background-color: #1E293B !important;
+        }
+        .dark .border-slate-100, html.dark .border-slate-100,
+        .dark .border-slate-200, html.dark .border-slate-200 {
+            border-color: #1F2937 !important;
+        }
+        .dark .border-slate-300, html.dark .border-slate-300 {
+            border-color: #334155 !important;
+        }
+        .dark input, .dark select, .dark textarea,
+        html.dark input, html.dark select, html.dark textarea {
+            background-color: #1E293B !important;
+            border-color: #334155 !important;
+            color: #F8FAFC !important;
+        }
+        .dark .divide-slate-100 > * + *, html.dark .divide-slate-100 > * + *,
+        .dark .divide-slate-200 > * + *, html.dark .divide-slate-200 > * + * {
+            border-color: #1F2937 !important;
         }
 
         .pulse-subtle {
@@ -92,7 +158,7 @@
         }
     </style>
 </head>
-<body class="min-h-screen flex flex-col antialiased selection:bg-slate-900 selection:text-white bg-[#F8FAFC] text-slate-900">
+<body class="min-h-screen flex flex-col antialiased selection:bg-slate-900 selection:text-white bg-[#F8FAFC] text-slate-900 dark:bg-[#0B0F19] dark:text-slate-100">
 
     <!-- Top Connection Alert Banner -->
     <div id="connectionBanner" class="hidden bg-rose-50 border-b border-rose-200 text-rose-700 px-4 py-2 text-xs font-medium flex items-center justify-between transition-all duration-300">
@@ -153,11 +219,13 @@
 
             <!-- Right: Actions, AI Copilot & Account Center -->
             <div class="flex items-center gap-2 shrink-0">
-                <!-- Switch to Dark Edition -->
-                <a href="/dark" class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition items-center gap-1.5 border border-slate-200 shadow-sm shrink-0 flex" title="切换至经典暗黑版 SCADA 大屏">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
-                    <span class="hidden sm:inline">暗黑版</span>
-                </a>
+                <!-- Compact Icon-Only Theme Switcher Button -->
+                <button id="themeToggleBtn" onclick="toggleTheme()" class="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-amber-400 border border-slate-200 dark:border-slate-700 transition flex items-center justify-center shrink-0" title="切换明暗主题模式">
+                    <!-- Sun icon in dark mode -->
+                    <svg class="w-4 h-4 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                    <!-- Moon icon in light mode -->
+                    <svg class="w-4 h-4 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                </button>
 
                 <!-- Admin Only: EMQX MQTT Dashboard Button -->
                 <a id="btnEmqxDashboard" href="#" onclick="window.open('http://' + (window.location.hostname || 'localhost') + ':18083', '_blank'); return false;" class="hidden px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition items-center gap-1.5 border border-slate-200 shadow-sm shrink-0" title="打开 EMQX 工业消息中间件管理大屏">
@@ -1041,6 +1109,70 @@
         let mapChartInstance = null;
         let trafficChartInstance = null;
         let rawAuditCache = [];
+
+        // -------------------------------------------------------------
+        // Theme Management (Default Light, Persistent Dark Toggle)
+        // -------------------------------------------------------------
+        function initTheme() {
+            const savedTheme = localStorage.getItem('app_theme') || 'light';
+            const isDark = (savedTheme === 'dark');
+            if (isDark) {
+                document.documentElement.classList.add('dark');
+                document.body.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+                document.body.classList.remove('dark');
+            }
+            updateChartThemes(isDark);
+        }
+
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            document.body.classList.toggle('dark', isDark);
+            localStorage.setItem('app_theme', isDark ? 'dark' : 'light');
+            updateChartThemes(isDark);
+        }
+
+        function updateChartThemes(isDark) {
+            if (trafficChartInstance) {
+                trafficChartInstance.setOption({
+                    tooltip: {
+                        backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+                        borderColor: isDark ? '#334155' : '#E2E8F0',
+                        textStyle: { color: isDark ? '#F8FAFC' : '#0F172A' }
+                    },
+                    legend: {
+                        textStyle: { color: isDark ? '#94A3B8' : '#64748B' }
+                    },
+                    xAxis: {
+                        axisLine: { lineStyle: { color: isDark ? '#334155' : '#E2E8F0' } },
+                        axisLabel: { color: isDark ? '#64748B' : '#94A3B8' }
+                    },
+                    yAxis: {
+                        splitLine: { lineStyle: { color: isDark ? '#1E293B' : '#F1F5F9' } },
+                        axisLabel: { color: isDark ? '#64748B' : '#94A3B8' }
+                    }
+                });
+            }
+
+            if (mapChartInstance) {
+                mapChartInstance.setOption({
+                    geo: {
+                        itemStyle: {
+                            areaColor: isDark ? '#1E293B' : '#F1F5F9',
+                            borderColor: isDark ? '#334155' : '#CBD5E1'
+                        },
+                        emphasis: {
+                            itemStyle: {
+                                areaColor: isDark ? '#334155' : '#CBD5E1',
+                                borderColor: isDark ? '#64748B' : '#94A3B8'
+                            }
+                        }
+                    }
+                });
+            }
+        }
+        initTheme();
 
         const DEVICE_TYPE_NAMES = { 'huashu_arm': '华数 BR610 六轴机械臂', 'luxshare_amr': '珞石 SR3 复合移动 AMR', 'robot_dog': '四足仿生巡检机器狗' };
         const DEVICE_3D_IMAGES = {
