@@ -1,6 +1,6 @@
 {
   "mqtt": {
-    "host": "填入你的云服务器公网IP或穿透域名",
+    "host": "106.55.248.254",
     "port": 1883,
     "username": "device_huashu_arm",
     "password": "Arm_Secure_2026!",
@@ -12,9 +12,9 @@
   "robots": [
     {
       "device_id": "arm_001",
-      "device_name": "华数BR610六轴工业机械臂",
+      "device_name": "华数BR610六轴工业机械臂_A线",
       "ip": "127.0.0.1",
-      "port": 23234,
+      "port": 23333,
       "group_id": 0,
       "axis_count": 6
     }

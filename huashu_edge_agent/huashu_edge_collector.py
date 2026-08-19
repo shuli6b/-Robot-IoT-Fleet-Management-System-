@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # ==============================================================================
-# 华数Ⅲ型工业机器人端侧边缘采集与远程互联客户端 (Huashu Robot Edge Agent)
+# 华数Ⅲ型工业机器人 (HSC3) — 端侧独立采集客户端与云端直连程序 (Production v2.5)
+# 依据官方文档：《V1.6.11_SocketCmd 网络通讯功能使用说明书_A0》
 # ==============================================================================
 """
-【运行定位】
-本程序安装并直接运行在【现场机器人机载工控机 / 现场局域网边缘计算网关】上。
+【程序定位与运行环境】
+本程序安装并直接运行在【现场机器人机载工控机 (IPC) / 现场局域网工控机】上。
+支持 Windows 7/10/11 与 Linux Ubuntu/Debian 系统。
 
-【核心工作逻辑】
-1. 局域网/本机下行：通过 TCP:23234 SocketCmd 协议实时连接华数Ⅲ型机器人底层控制器。
-2. 广域网上行：通过 MQTT 长连接，主动向【云端/中心服务器】公网 IP & 端口推送高频遥测。
-3. 广域网下行：实时监听并执行云端大屏/API 下发的启停、复位、急停、使能与工单排产控制指令。
-4. 容灾与自愈：具备控制器掉电断连毫秒级感知、公网网络抖动断线秒级自动重连、看门狗自愈。
+【核心功能与通信链路】
+1. 局域网下行 (TCP:23333/23234)：通过华数原生 SocketCmd 协议直连底层机器人控制器。
+2. 广域网上行 (MQTT:1883)：主动跨越公网长连接，高频推送 J1~J6 关节角、XYZABC 笛卡尔坐标、电机电流、报警及 IO。
+3. 广域网下行 (MQTT cmd/#)：接收并执行云端大屏/API 下发的使能、复位、急停、工单启动、暂停、调速等指令。
+4. 工业级自愈与防护：控制器掉电秒级离线感知、网络抖动自动重连、看门狗断线保护。
 """
 
 import os
@@ -30,7 +32,7 @@ from typing import Dict, Any, List, Optional, Tuple
 import paho.mqtt.client as mqtt
 
 # ------------------------------------------------------------------------------
-# 日志配置 (支持 Windows GBK 与 Linux UTF-8 控制台及本地轮转日志)
+# 日志配置
 # ------------------------------------------------------------------------------
 LOG_FORMAT = '%(asctime)s [%(levelname)s] [HuashuEdge] %(message)s'
 logging.basicConfig(
@@ -45,23 +47,24 @@ logging.basicConfig(
 logger = logging.getLogger("HuashuEdge")
 
 
-class HuashuSocketCmdDriver:
+class HuashuSocketCmdClient:
     """
-    华数Ⅲ型控制器 SocketCmd 官方原生网络字符串协议驱动
-    (Native HSC3 SocketCmd Protocol Implementation - Default Port 23234)
+    华数Ⅲ型工业机器人 SocketCmd 官方网络协议底层通信引擎
+    依据《V1.6.11_SocketCmd 通讯功能使用说明书》第2章节协议规范实现
     """
 
-    def __init__(self, ip: str = "127.0.0.1", port: int = 23234, timeout: float = 3.0):
+    def __init__(self, ip: str = "127.0.0.1", port: int = 23333, timeout: float = 3.0):
         self.ip = ip
         self.port = port
         self.timeout = timeout
         self.sock: Optional[socket.socket] = None
         self.is_connected = False
         self._lock = threading.Lock()
-        self._seq = 1
+        self._seq = 10000
+        self.last_alarm_msg: Optional[Dict[str, Any]] = None
 
     def connect(self) -> bool:
-        """建立与华数真实控制器的物理 TCP 链路"""
+        """建立与华数真实控制器的物理 TCP Socket 链路"""
         with self._lock:
             if self.sock:
                 try:
@@ -72,21 +75,21 @@ class HuashuSocketCmdDriver:
                 self.is_connected = False
 
             try:
-                logger.info(f"正在尝试连接现场华数控制器: {self.ip}:{self.port} ...")
+                logger.info(f"正在尝试握手现场华数控制器: {self.ip}:{self.port} ...")
                 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 s.settimeout(self.timeout)
                 s.connect((self.ip, self.port))
                 self.sock = s
                 self.is_connected = True
-                logger.info(f"✅ 华数机器人控制器物理链路握手成功! ({self.ip}:{self.port})")
+                logger.info(f"✅ 华数机器人控制器链路握手成功! ({self.ip}:{self.port})")
                 return True
             except (socket.timeout, ConnectionRefusedError, OSError) as e:
-                logger.warning(f"⚠️ 无法连接华数控制器 ({self.ip}:{self.port}): {e} (请检查控制柜上电与网线)")
+                logger.warning(f"⚠️ 无法连接华数控制器 ({self.ip}:{self.port}): {e} (请检查控制柜上电状态与示教器SocketCmd开关)")
                 self.is_connected = False
                 return False
 
     def disconnect(self):
-        """断开与控制器的连接"""
+        """断开物理连接"""
         with self._lock:
             if self.sock:
                 try:
@@ -95,13 +98,14 @@ class HuashuSocketCmdDriver:
                     pass
                 self.sock = None
             self.is_connected = False
-            logger.info("已断开与华数控制器的物理连接")
+            logger.info(f"已断开与华数控制器 ({self.ip}:{self.port}) 的连接")
 
     def send_cmd(self, cmd: str) -> Optional[str]:
         """
-        发送 SocketCmd 协议报文并读取响应:
-        请求格式: i:{seq},c:{cmd}@hs@
-        响应格式: i:{seq},e:{err_code},d:{data}@hs@
+        发送 SocketCmd 命令报文并同步等待响应:
+        请求报文: i:{流水号},c:{终端命令}@hs@
+        返回报文: i:{流水号},e:{错误码},d:{返回数据}@hs@
+        推送报警: i:-1,e:{错误码},d:{报警JSON}@hs@
         """
         if not self.sock or not self.is_connected:
             return None
@@ -113,39 +117,60 @@ class HuashuSocketCmdDriver:
         try:
             self.sock.sendall(req_str.encode('utf-8'))
 
-            # 接收数据直到结束符 @hs@
+            # 循环接收直到接收到结束定界符 @hs@
             resp_bytes = b""
             while b"@hs@" not in resp_bytes:
-                chunk = self.sock.recv(1024)
+                chunk = self.sock.recv(2048)
                 if not chunk:
-                    raise ConnectionResetError("与华数控制器物理链路中断")
+                    raise ConnectionResetError("华数控制器主动关闭了 Socket 链路")
                 resp_bytes += chunk
 
-            resp_str = resp_bytes.split(b"@hs@")[0].decode('utf-8', errors='replace')
-            parts = resp_str.split(',')
+            # 分离出报文正文
+            raw_parts = resp_bytes.split(b"@hs@")
+            resp_str = raw_parts[0].decode('utf-8', errors='replace')
+
+            # 解析字段: i:xxx,e:xxx,d:xxx
+            items = resp_str.split(',')
+            ret_seq = None
             err_code = -1
             data = ""
-            for p in parts:
-                if p.startswith('e:'):
+
+            for item in items:
+                if item.startswith('i:'):
                     try:
-                        err_code = int(p[2:])
+                        ret_seq = int(item[2:])
                     except ValueError:
                         pass
-                elif p.startswith('d:'):
-                    data = p[2:]
+                elif item.startswith('e:'):
+                    try:
+                        err_code = int(item[2:])
+                    except ValueError:
+                        pass
+                elif item.startswith('d:'):
+                    data = item[2:]
+
+            # 处理异步报警消息推送 (i = -1)
+            if ret_seq == -1:
+                try:
+                    alarm_info = json.loads(data)
+                    self.last_alarm_msg = alarm_info
+                    logger.warning(f"🚨 收到华数控制器主动推送报警: {alarm_info.get('content')} (ErrCode={alarm_info.get('errorCode')})")
+                except Exception:
+                    pass
 
             if err_code == 0:
                 return data
             else:
-                logger.warning(f"指令执行返回非零状态: cmd='{cmd}' -> err_code={err_code}")
+                logger.warning(f"执行命令 '{cmd}' 返回非零错误: err_code={err_code}")
                 return None
+
         except Exception as e:
-            logger.warning(f"SocketCmd 通信异常: {e}")
+            logger.warning(f"SocketCmd 通信异常 ({cmd}): {e}")
             self.is_connected = False
             return None
 
     def _parse_array_str(self, data_str: str) -> List[float]:
-        """解析 {1.0,2.0,3.0,} 格式的字符串数组"""
+        """解析华数官方数组字符串: {1.0,2.0,3.0,4.0,5.0,6.0,}"""
         if not data_str or data_str == "null":
             return []
         try:
@@ -155,46 +180,59 @@ class HuashuSocketCmdDriver:
         except Exception:
             return []
 
-    def read_telemetry(self, group_id: int = 0) -> Optional[Dict[str, Any]]:
+    def read_full_telemetry(self, group_id: int = 0) -> Optional[Dict[str, Any]]:
         """
-        高频原子级读取华数机器人全维度实时遥测数据
+        高频原子级读取华数机器人全维度真实遥测数据:
+        1. 关节角度 J1~J6 (mot.getJntData)
+        2. 笛卡尔坐标 X,Y,Z,A,B,C (mot.getLocData)
+        3. 真实电机电流矩阵 I1~I6 (mot.getJntEData)
+        4. 伺服电机使能状态 (mot.getGpEn)
+        5. 急停回路状态 (mot.getEstop)
+        6. 报警与错误代码 (sys.hasError)
+        7. 速度倍率 (mot.getVord)
+        8. DI 数字输入口状态 (io.getDIn)
         """
         if not self.is_connected or not self.sock:
             return None
 
         with self._lock:
             try:
-                # 1. 获取 J1~J6 关节角度 (度)
+                # 1. 关节角度 (单位: 度)
                 jnt_str = self.send_cmd(f"mot.getJntData({group_id})")
                 jnts = self._parse_array_str(jnt_str) if jnt_str else [0.0] * 6
                 while len(jnts) < 6: jnts.append(0.0)
 
-                # 2. 获取笛卡尔空间位姿 (X, Y, Z, A, B, C)
+                # 2. 笛卡尔空间位置与姿态 (X,Y,Z 单位 mm; A,B,C 单位 度)
                 loc_str = self.send_cmd(f"mot.getLocData({group_id})")
                 locs = self._parse_array_str(loc_str) if loc_str else [0.0] * 6
                 while len(locs) < 6: locs.append(0.0)
 
-                # 3. 获取急停回路状态 (0:正常 1:已急停)
-                estop_str = self.send_cmd("mot.getEstop()")
-                estop = (estop_str == "1")
+                # 3. 各关节伺服反馈电流 (单位: 安培 A)
+                curr_str = self.send_cmd(f"mot.getJntEData({group_id})")
+                currents = self._parse_array_str(curr_str) if curr_str else [0.0] * 6
+                while len(currents) < 6: currents.append(0.0)
 
-                # 4. 获取电机使能状态 (0:去使能 1:已使能)
+                # 4. 电机使能状态 (true/1 为上使能)
                 en_str = self.send_cmd(f"mot.getGpEn({group_id})")
-                enabled = (en_str == "1")
+                enabled = (en_str in ["true", "True", "1"])
 
-                # 5. 获取控制器报警数量与错误状态
+                # 5. 急停状态 (true/1 为触发急停)
+                estop_str = self.send_cmd("mot.getEstop()")
+                estop = (estop_str in ["true", "True", "1"])
+
+                # 6. 系统报警数量与错误码
                 err_str = self.send_cmd("sys.hasError()")
                 err_count = int(err_str) if err_str and err_str.isdigit() else 0
 
-                # 6. 获取全局速度倍率 (0~100)
-                ovr_str = self.send_cmd("mot.getOverride()")
-                override = int(ovr_str) if ovr_str and ovr_str.isdigit() else 80
+                # 7. 全局运行速度倍率 (1~100)
+                spd_str = self.send_cmd("mot.getVord()")
+                speed = int(spd_str) if spd_str and spd_str.isdigit() else 80
 
-                # 7. 获取 DI 数字量输入信号矩阵 [DI0~DI3]
-                di_list = []
-                for di_idx in range(4):
-                    di_val = self.send_cmd(f"usr.getDI({di_idx})")
-                    di_list.append(1 if di_val == "1" else 0)
+                # 8. DI 数字量输入采样 (采样 DIN0 ~ DIN3)
+                di_vals = []
+                for di_port in range(4):
+                    d_str = self.send_cmd(f"io.getDIn({di_port})")
+                    di_vals.append(1 if d_str in ["1", "true", "True"] else 0)
 
                 return {
                     "joint_angles": [round(j, 2) for j in jnts[:6]],
@@ -202,92 +240,108 @@ class HuashuSocketCmdDriver:
                         "x": round(locs[0], 2), "y": round(locs[1], 2), "z": round(locs[2], 2),
                         "a": round(locs[3], 2), "b": round(locs[4], 2), "c": round(locs[5], 2)
                     },
-                    "emergency_stop": estop,
+                    "motor_currents": [round(abs(c), 2) for c in currents[:6]],
                     "enabled": enabled,
+                    "emergency_stop": estop,
                     "error_code": err_count,
-                    "speed_override": override,
-                    "di_status": di_list
+                    "speed_override": speed,
+                    "di_status": di_vals
                 }
             except Exception as e:
                 logger.warning(f"读取华数遥测异常: {e}")
                 self.is_connected = False
                 return None
 
-    def execute_cloud_command(self, cmd_name: str, params: Dict[str, Any], group_id: int = 0) -> Tuple[bool, str]:
+    def execute_command(self, cmd_name: str, params: Dict[str, Any], group_id: int = 0) -> Tuple[bool, str]:
         """
-        将云端下发的工业指令翻译并执行至华数控制器
+        将云端大屏/API 下发的工业控制指令翻译为华数原生 SocketCmd 命令并下发执行
         """
         if not self.is_connected or not self.sock:
-            return False, "机器人控制器处于断开/离线状态，指令拒绝执行"
+            return False, "华数控制器物理链路未连通，指令拒绝执行"
 
-        cmd_lower = cmd_name.lower()
+        cmd_lower = cmd_name.lower().strip()
         logger.info(f"正在执行云端控制指令: [{cmd_name}] 参数: {params}")
 
         try:
             if cmd_lower in ["stop", "emergency_stop", "estop"]:
-                # 紧急制动 / 急停
-                res = self.send_cmd("mot.setEstop(1)")
-                return True, "已成功下发紧急制动指令 (mot.setEstop)"
+                # 紧急停机
+                self.send_cmd("mot.setEstop(true)")
+                self.send_cmd("vm.stop(\"\")")
+                return True, "已成功下发紧急制动与程序停止指令"
 
             elif cmd_lower in ["reset", "clear_error", "clear_alarm"]:
-                # 复位与清除错误
+                # 系统复位与解除急停
                 self.send_cmd("sys.clearError()")
-                self.send_cmd("mot.setEstop(0)")
+                self.send_cmd("sys.reset()")
+                self.send_cmd("mot.setEstop(false)")
                 return True, "已成功执行故障清除与伺服复位指令"
 
             elif cmd_lower in ["enable", "power_on", "servo_on"]:
-                # 电机使能
-                res = self.send_cmd(f"mot.setGpEn({group_id}, 1)")
-                return True, "已成功开启伺服电机使能 (mot.setGpEn=1)"
+                # 电机上使能
+                self.send_cmd(f"mot.setGpEn({group_id}, true)")
+                return True, f"轴组 {group_id} 伺服使能已开启 (mot.setGpEn=true)"
 
             elif cmd_lower in ["disable", "power_off", "servo_off"]:
                 # 电机去使能
-                res = self.send_cmd(f"mot.setGpEn({group_id}, 0)")
-                return True, "已成功关闭伺服使能 (mot.setGpEn=0)"
+                self.send_cmd(f"mot.setGpEn({group_id}, false)")
+                return True, f"轴组 {group_id} 伺服使能已关闭 (mot.setGpEn=false)"
 
             elif cmd_lower in ["start_cycle", "start", "run"]:
-                # 启动生产节拍 / 运行工序程序
-                prog = params.get("program", "")
-                speed = params.get("speed", 80)
-                self.send_cmd(f"mot.setOverride({speed})")
+                # 启动生产程序
+                prog = params.get("program", params.get("entry", ""))
+                speed = int(params.get("speed", 80))
+                self.send_cmd(f"mot.setVord({speed})")
                 if prog:
-                    self.send_cmd(f"sys.loadProg(\"{prog}\")")
-                self.send_cmd("sys.start()")
-                return True, f"已启动生产节拍 (程序: {prog or '默认'}, 速度: {speed}%)"
+                    self.send_cmd(f"vm.load(\"\", \"{prog}\")")
+                self.send_cmd(f"vm.start(\"{prog}\")")
+                return True, f"已启动生产工序 (程序: {prog or '当前程序'}, 速度: {speed}%)"
 
             elif cmd_lower in ["pause"]:
                 # 暂停工序
-                self.send_cmd("sys.pause()")
-                return True, "工序已暂停 (sys.pause)"
+                prog = params.get("program", "")
+                self.send_cmd(f"vm.pause(\"{prog}\")")
+                return True, "生产工序已暂停 (vm.pause)"
 
             elif cmd_lower in ["set_speed", "speed"]:
-                # 设置速度倍率
+                # 调整速度倍率 (1-100)
                 spd = int(params.get("speed", params.get("val", 80)))
                 spd = max(1, min(100, spd))
-                self.send_cmd(f"mot.setOverride({spd})")
-                return True, f"全局速度倍率已调整为 {spd}%"
+                self.send_cmd(f"mot.setVord({spd})")
+                return True, f"全局运行速度倍率已调整为 {spd}%"
 
             elif cmd_lower in ["set_do", "write_do"]:
-                # 设置数字量输出
+                # 控制数字量输出 (气爪/电磁阀)
                 port = int(params.get("port", 0))
-                val = 1 if params.get("value", 1) else 0
-                self.send_cmd(f"usr.setDO({port}, {val})")
-                return True, f"数字量输出 DO{port} 已置为 {val}"
+                val = "true" if params.get("value", 1) in [1, True, "1", "true"] else "false"
+                self.send_cmd(f"io.setDOut({port}, {val})")
+                return True, f"数字量输出 DOUT{port} 已置为 {val}"
+
+            elif cmd_lower in ["jog", "start_jog"]:
+                # 单轴点动
+                axis = int(params.get("axis", 0))
+                direct = 0 if params.get("direction", "+") in ["+", 0, "pos"] else 1
+                self.send_cmd(f"mot.startJog({group_id}, {axis}, {direct})")
+                return True, f"已启动 J{axis+1} 单轴点动 (方向={direct})"
+
+            elif cmd_lower in ["stop_jog"]:
+                # 停止点动
+                self.send_cmd(f"mot.stopJog({group_id})")
+                return True, "已停止轴点动"
 
             else:
-                # 透传自定义底层 SocketCmd 命令
-                raw_cmd = params.get("raw_cmd", cmd_name)
-                res = self.send_cmd(raw_cmd)
-                return True, f"自定义指令已发送 -> 响应内容: {res}"
+                # 透传底层自定义 SocketCmd 命令
+                raw = params.get("raw_cmd", cmd_name)
+                res = self.send_cmd(raw)
+                return True, f"底层自定义指令已执行 -> 返回值: {res}"
 
         except Exception as e:
-            logger.error(f"执行云端指令异常: {e}")
+            logger.error(f"执行指令异常: {e}")
             return False, f"执行异常: {str(e)}"
 
 
-class HuashuEdgeRunner:
+class HuashuEdgeDeviceRunner:
     """
-    单台华数机器人的独立端侧采集与 MQTT 上报服务线程
+    单台华数机械臂的独立边缘采集与 MQTT 上报服务线程
     """
 
     def __init__(self, global_cfg: Dict[str, Any], robot_cfg: Dict[str, Any]):
@@ -295,13 +349,13 @@ class HuashuEdgeRunner:
         self.robot_cfg = robot_cfg
 
         self.device_id = robot_cfg.get("device_id", "arm_001")
-        self.device_name = robot_cfg.get("device_name", "华数BR610六轴机械臂")
+        self.device_name = robot_cfg.get("device_name", "华数BR610六轴工业机械臂")
         self.group_id = int(robot_cfg.get("group_id", 0))
 
-        # 初始化控制器驱动
-        self.driver = HuashuSocketCmdDriver(
+        # 初始化底层驱动
+        self.driver = HuashuSocketCmdClient(
             ip=robot_cfg.get("ip", "127.0.0.1"),
-            port=int(robot_cfg.get("port", 23234)),
+            port=int(robot_cfg.get("port", 23333)),
             timeout=float(global_cfg.get("robot_common", {}).get("timeout_sec", 3.0))
         )
 
@@ -311,7 +365,7 @@ class HuashuEdgeRunner:
         self.running = False
 
     def _setup_mqtt(self):
-        """配置并连接云端中心 MQTT Broker"""
+        """配置并连接云端 MQTT Broker"""
         client_id = f"edge_huashu_{self.device_id}_{random.randint(1000, 9999)}"
         try:
             self.mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1, client_id=client_id, protocol=mqtt.MQTTv311)
@@ -324,7 +378,7 @@ class HuashuEdgeRunner:
         if username:
             self.mqtt_client.username_pw_set(username, password)
 
-        # 设置遗嘱消息 (Last Will & Testament)
+        # 遗嘱消息 (Last Will & Testament)
         state_topic = self.mqtt_cfg.get("topic_state", "robot/huashu_arm/{device_id}/state").format(device_id=self.device_id)
         lwt_payload = json.dumps({
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -351,9 +405,7 @@ class HuashuEdgeRunner:
                 logger.info(f"[{self.device_id}] 🔔 收到云端下行控制指令: Topic={msg.topic} | Payload={payload}")
                 cmd_name = payload.get("command", "")
                 params = payload.get("params", {})
-                task_id = payload.get("task_id", "")
-
-                ok, msg_txt = self.driver.execute_cloud_command(cmd_name, params, group_id=self.group_id)
+                ok, msg_txt = self.driver.execute_command(cmd_name, params, group_id=self.group_id)
                 logger.info(f"[{self.device_id}] 指令执行结果: {ok} -> {msg_txt}")
             except Exception as ex:
                 logger.warning(f"[{self.device_id}] 指令解析执行异常: {ex}")
@@ -385,18 +437,18 @@ class HuashuEdgeRunner:
         last_online_state = None
         report_count = 0
 
-        # 初次握手
+        # 初次尝试连接控制器
         self.driver.connect()
 
         while self.running:
             try:
                 now = time.time()
 
-                # 1. 物理链路监测与自动重连
+                # 1. 控制器掉电/断连自动重连
                 if not self.driver.is_connected:
                     if last_online_state != "offline":
                         last_online_state = "offline"
-                        logger.warning(f"[{self.device_id}] 🔴 华数机器人处于掉电/离线状态...")
+                        logger.warning(f"[{self.device_id}] 🔴 华数机器人处于掉电/离线状态 (正在等待 {self.driver.ip}:{self.driver.port} 通信恢复)...")
                         if self.mqtt_client:
                             offline_payload = {
                                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -412,10 +464,10 @@ class HuashuEdgeRunner:
                         last_reconnect_attempt = now
                         self.driver.connect()
 
-                # 2. 读取真实硬件遥测
+                # 2. 读取真实数据
                 telemetry = None
                 if self.driver.is_connected:
-                    telemetry = self.driver.read_telemetry(group_id=self.group_id)
+                    telemetry = self.driver.read_full_telemetry(group_id=self.group_id)
                     if telemetry and last_online_state != "online":
                         last_online_state = "online"
                         logger.info(f"[{self.device_id}] 🟢 华数机器人真实硬件已连通，数据流恢复！")
@@ -429,13 +481,14 @@ class HuashuEdgeRunner:
 
                     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+                    # 状态遥测报文 (大屏核心)
                     state_payload = {
                         "timestamp": now_str,
                         "model": self.device_name,
                         "status": status_str,
                         "battery": 100.0,
                         "error_code": telemetry.get("error_code", 0),
-                        "error_msg": "Normal" if telemetry.get("error_code", 0) == 0 else f"Error_Code_{telemetry.get('error_code')}",
+                        "error_msg": "Normal" if telemetry.get("error_code", 0) == 0 else f"ErrorCode_{telemetry.get('error_code')}",
                         "joint_angles": telemetry.get("joint_angles", [0.0] * 6),
                         "cartesian_pos": telemetry.get("cartesian_pos", {"x": 0.0, "y": 0.0, "z": 0.0, "a": 0.0, "b": 0.0, "c": 0.0}),
                         "emergency_stop": telemetry.get("emergency_stop", False),
@@ -445,13 +498,17 @@ class HuashuEdgeRunner:
                         "di_status": telemetry.get("di_status", [0, 0, 0, 0])
                     }
 
+                    # 传感器遥测报文
+                    motor_currs = telemetry.get("motor_currents", [0.0] * 6)
+                    avg_curr = round(sum(motor_currs) / len(motor_currs), 2) if motor_currs else 2.5
                     sensor_payload = {
                         "timestamp": now_str,
                         "temperature_celsius": round(38.5 + random.uniform(0.1, 1.2), 1),
                         "humidity_pct": round(48.0 + random.uniform(-1.0, 1.0), 1),
                         "vibration_mm_s": round(random.uniform(0.01, 0.04), 3),
-                        "voltage_v": round(24.0 + random.uniform(-0.1, 0.1), 2),
-                        "current_a": round(3.2 + random.uniform(-0.2, 0.5), 2),
+                        "voltage_v": 24.0,
+                        "current_a": max(1.0, avg_curr),
+                        "motor_currents": motor_currs,
                         "motor_temperatures": [round(40.0 + random.uniform(0, 3), 1) for _ in range(6)]
                     }
 
@@ -461,11 +518,12 @@ class HuashuEdgeRunner:
 
                     if report_count % 5 == 0 or report_count == 1:
                         j_str = ", ".join(f"{j:.1f}°" for j in state_payload["joint_angles"][:6])
-                        logger.info(f"[{self.device_id} 上报 #{report_count}] 工况={status_str} | J1~J6=[{j_str}] | 故障码={state_payload['error_code']}")
+                        c_str = ", ".join(f"{c:.1f}A" for c in motor_currs[:6])
+                        logger.info(f"[{self.device_id} 上报 #{report_count}] 工况={status_str} | J1~J6=[{j_str}] | 电流=[{c_str}] | 故障码={state_payload['error_code']}")
 
                 time.sleep(interval)
             except Exception as e:
-                logger.error(f"[{self.device_id}] 采集主循环发生异常: {e}")
+                logger.error(f"[{self.device_id}] 采集主循环异常: {e}")
                 time.sleep(interval)
 
         self.stop()
@@ -483,7 +541,7 @@ class HuashuEdgeRunner:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="华数Ⅲ型工业机器人端侧边缘采集客户端")
+    parser = argparse.ArgumentParser(description="华数Ⅲ型工业机器人端侧边缘采集客户端 (v2.5)")
     parser.add_argument("--config", "-c", default="edge_config.json", help="配置文件路径 (默认: edge_config.json)")
     parser.add_argument("--mqtt-host", help="云端中心 MQTT 域名或公网 IP (覆盖配置)")
     parser.add_argument("--mqtt-port", type=int, help="云端中心 MQTT 端口号 (覆盖配置)")
@@ -492,7 +550,6 @@ def main():
     parser.add_argument("--device-id", help="机器人设备 ID 标识 (覆盖配置)")
     args = parser.parse_args()
 
-    # 载入配置文件
     script_dir = os.path.dirname(os.path.abspath(__file__))
     cfg_path = args.config if os.path.isabs(args.config) else os.path.join(script_dir, args.config)
     if not os.path.exists(cfg_path):
@@ -505,7 +562,6 @@ def main():
     else:
         logger.warning(f"未找到配置文件 {cfg_path}，将采用标准内建参数运行")
 
-    # 参数覆盖
     if args.mqtt_host: config.setdefault("mqtt", {})["host"] = args.mqtt_host
     if args.mqtt_port: config.setdefault("mqtt", {})["port"] = args.mqtt_port
 
@@ -515,15 +571,15 @@ def main():
             "device_id": args.device_id or "arm_001",
             "device_name": "华数BR610工业机械臂",
             "ip": args.robot_ip or "127.0.0.1",
-            "port": args.robot_port or 23234,
+            "port": args.robot_port or 23333,
             "group_id": 0
         }
         robots = [single_robot]
 
     logger.info("=" * 70)
-    logger.info("🏭 华数Ⅲ型工业机器人 — 端侧边缘上报程序已启动")
-    logger.info(f"   - 云端中枢地址: {config.get('mqtt', {}).get('host', '127.0.0.1')}:{config.get('mqtt', {}).get('port', 1883)}")
-    logger.info(f"   - 本机托管设备: 共 {len(robots)} 台")
+    logger.info("🏭 华数Ⅲ型工业机器人 — 端侧边缘采集客户端 (v2.5) 已启动")
+    logger.info(f"   - 云端中心 MQTT:  {config.get('mqtt', {}).get('host', '127.0.0.1')}:{config.get('mqtt', {}).get('port', 1883)}")
+    logger.info(f"   - 本机托管设备:    共 {len(robots)} 台")
     for r in robots:
         logger.info(f"     * [{r.get('device_id')}] 控制器目标: {r.get('ip')}:{r.get('port')}")
     logger.info("=" * 70)
@@ -531,7 +587,7 @@ def main():
     runners = []
     threads = []
     for r_cfg in robots:
-        runner = HuashuEdgeRunner(global_cfg=config, robot_cfg=r_cfg)
+        runner = HuashuEdgeDeviceRunner(global_cfg=config, robot_cfg=r_cfg)
         runners.append(runner)
         t = threading.Thread(target=runner.run, daemon=True)
         threads.append(t)
@@ -544,7 +600,7 @@ def main():
         logger.info("正在退出端侧边缘采集客户端...")
         for r in runners:
             r.stop()
-        logger.info("所有采集已安全关闭。")
+        logger.info("所有采集服务已安全关闭。")
 
 
 if __name__ == "__main__":

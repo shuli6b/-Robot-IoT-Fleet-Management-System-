@@ -1,0 +1,3554 @@
+
+======================================================================
+FILE: C:\Users\32755\Desktop\机器人后台\华数二次开发\二次开发资料\Hsc3ApiDemo\3rdparty\include\CommApi.h
+======================================================================
+﻿/**
+*   Copyright (C) 2018 华数机器人
+*
+*   @file       CommApi.h
+*   @brief      华数III型二次开发接口 - 通信客户端接口
+*   @details    提供了良好封装的CommApi类，适用于华数III型控制器网络通信连接；
+*               另外还提供了华数III型控制器扫描用接口。
+*
+*   @author     
+*   @date       2018/06/15
+*   @version    
+*   
+*/
+
+#pragma once
+/**
+*   @skip DLL_EXPORT
+*/
+#ifdef _LINUX_
+#define DLL_EXPORT __attribute__((visibility("default")))
+#else
+#define DLL_EXPORT _declspec(dllexport) 
+#endif
+
+#include "CommDef.h"
+#include <stdint.h>
+#include <string>
+#include <vector>
+
+namespace Hsc3 {
+namespace Comm {
+
+class CommApp;
+class FtpApi;
+
+/**
+*   @class      CommApi
+*   @brief      通信客户端
+*   @details    提供接口包含：通信连接配置、连接控制、数据操作等。
+*   @date       2018/06/15
+*/
+class DLL_EXPORT CommApi
+{
+public:
+    /**
+     * @brief   构造函数
+     * @param   strLogPath  通信日志文件路径（例："comm_log"，"./log/comm_log"）。注：若输入空串，则不记录通信日志
+     */
+    CommApi(const std::string & strLogPath = "");
+
+    ~CommApi(void);
+
+    /** 
+    *   @brief  获取版本信息
+    *   @return 版本信息字符串
+    */
+    std::string getVersionStr();
+
+    /** 
+    *   @brief  配置自动重连功能
+    *   @details    自动重连模式：使用NetConnect接口触发自动重连，客户端在通信断开后可再次连接，直到使用NetExit接口停止自动重连。
+    *               非自动重连模式：使用NetConnect接口进行连接，客户端在通信断开后不会重连，除非再次调用NetConnect接口。
+    *               注：CommApi构造时默认为自动重连模式。建议在调用NetConnect接口前进行配置。
+    *   @param  en  是否启用
+    */
+    void setAutoConn(bool en);
+
+    /** 
+    *   @brief  配置心跳功能
+    *   @details    若启用心跳功能，在TCP通信已连接后，将自动发送心跳帧。
+    *               注：CommApi构造时默认启用心跳功能。建议在调用NetConnect接口前进行配置。
+    *   @param  en  是否启用
+    */
+    void setUseHeartBeat(bool en);
+
+    /** 
+    *   @brief  配置UDP功能
+    *   @details    若启用UDP功能，在TCP通信已连接后，将尝试UDP通信连接。
+    *               注：CommApi构造时默认不启用UDP功能。建议在调用NetConnect接口前进行配置。
+    *   @param  en  是否启用
+    */
+    void setUseUdp(bool en);
+
+    /** 
+    *   @brief  查询是否已连接
+    *   @details    注：返回值仅表示TCP通信连接的状态，与UDP/FTP无关。
+    *   @return 返回
+    *           <em>true</em>  - 已连接
+    *           <em>false</em> - 未连接
+    */
+    bool isConnected();
+
+    /** 
+    *   @brief  连接
+    *   @details    自动重连模式：使用该接口返回0x0表示成功触发自动重连功能（不能多次触发），不代表通信已连接。
+    *               非自动重连模式：使用该接口会阻塞调用线程，直至连接成功/超时（约3s）失败/其它原因导致的失败。
+    *   @param  strIp    IP
+    *   @param  uPort    端口
+    *   @return 错误码（0x0成功）
+    *   @see        setAutoConn
+    */
+    HMCErrCode connect(const std::string & strIp, uint16_t uPort);
+
+    /** 
+    *   @brief  断开连接
+    *   @details    注：自动重连模式下使用该接口，还会停止自动重连功能。
+    *   @return 错误码（0x0成功）
+    *   @see        setAutoConn
+    */
+    HMCErrCode disconnect();
+
+    /** 
+    *   @brief  执行命令
+    *   @details    注：使用该接口会阻塞调用线程，直至成功/超时（约3s）失败/其它原因导致的失败。
+    *   @param  strCmd      命令内容（参考华数III型控制器业务层接口协议文档填写命令）
+    *   @param  priority    优先级（值越小，优先级越高；建议使用CmdPriority枚举类型）
+    *   @param[out] strRet  返回信息
+    *   @return 错误码（0x0成功）
+    */
+    HMCErrCode execCmd(const std::string & strCmd, std::string & strRet, int priority);
+
+    /**
+    *   @brief  执行命令
+    *   @details    注：使用该接口会阻塞调用线程，直至成功/超时（约3~6s）失败/其它原因导致的失败。
+    *   @param  hmcCmd      命令内容（字符串队列，参考华数III型控制器业务层接口协议文档填写命令）
+    *   @param  priority    优先级（值越小，优先级越高；建议使用CmdPriority枚举类型）
+    *   @param[out] hmcResult   返回信息（HMCResultUnit队列）
+    *   @return 错误码（0x0成功）
+    */
+    HMCErrCode execListCmd(const HMCCmd & hmcCmd, HMCResult & hmcResult, int priority);
+
+    /** 
+    *   @brief  获取异步信息
+    *   @details    异步信息是控制器主动发送到客户端的信息。注：获取到信息后，客户端内部不会再保留该信息。
+    *   @param[out] strMsg  返回信息（无信息时返回空串）
+    *   @return 错误码（0x0成功，总是返回0x0）
+    */
+    HMCErrCode getAsyncMsg(std::string & strMsg);
+
+    /** 
+    *   @brief  清空异步信息
+    *   @details    清空客户端内部所有的异步信息。
+    *   @details    注：获取到信息后，客户端内部不会再保留该信息。
+    *   @return 错误码（0x0成功，总是返回0x0）
+    */
+    HMCErrCode clearAsyncMsg();
+
+
+    /********************************* UDP相关 *********************************/
+
+    /** 
+    *   @brief  获取UDP信息
+    *   @details    UDP信息是控制器通过UDP通信主动发送到客户端的信息。注：获取到信息后，客户端内部不会再保留该信息。
+    *   @param[out] strMsg  返回信息（无信息时返回空串）
+    *   @return 错误码（0x0成功，总是返回0x0）
+    *   @see        setUseUdp
+    */
+    HMCErrCode getUdpMsg(std::string & strMsg);
+
+    /** 
+    *   @brief  获取UDP信息
+    *   @details    UDP信息是控制器通过UDP通信主动发送到客户端的信息。注：获取到信息后，客户端内部不会再保留该信息。
+    *   @param  type      UDP信息类型
+    *   @param[out] strMsg  返回信息（无信息时返回空串）
+    *   @return 错误码（0x0成功，总是返回0x0）
+    *   @see        setUseUdp
+    */
+    HMCErrCode getUdpMsg(UdpDataType type, std::string & strMsg);
+
+    /** 
+    *   @brief  获取UDP对话ID
+    *   @details    注：配置启动UDP功能，TCP通信连接约3s后，待UDP通信已连接，方可获取到正常ID。
+    *   @param[out] id  对话ID（正常为大于0的整数，-1表示不存在UDP通信）
+    *   @return 错误码（0x0成功）
+    *   @see        setUseUdp
+    */
+    HMCErrCode getUdpSessionId(int & id);
+
+    /** 
+    *   @brief  清空缓存的UDP信息
+    *   @details    清空客户端内部所有的UDP信息。
+    *   @return 错误码（0x0成功，总是返回0x0）
+    *   @see        setUseUdp
+    */
+    HMCErrCode clearUdpMsg();
+
+
+    /********************************* FTP相关 *********************************/
+
+    /** 
+    *   @brief  配置FTP
+    *   @param  strUser     用户名
+    *   @param  strPasswd   密码
+    */
+    void configFtp(const std::string & strUser, const std::string & strPasswd);
+
+    /** 
+    *   @brief  下载文件
+    *   @param  strLocalName    本地文件路径名字
+    *   @param  strSrcName      源（服务器）文件路径名字
+    *   @return 错误码（0x0成功）
+    */
+    HMCErrCode getFile(const std::string & strLocalName, const std::string & strSrcName);
+
+    /** 
+    *   @brief  上传文件
+    *   @param  strDstName      目标（服务器）文件路径名字
+    *   @param  strLocalName    本地文件路径名字
+    *   @return 错误码（0x0成功）
+    */
+    HMCErrCode putFile(const std::string & strDstName, const std::string & strLocalName);
+
+    /** 
+    *   @brief  删除文件
+    *   @param  strPath     （服务器）文件路径名字
+    *   @return 错误码（0x0成功）
+    */
+    HMCErrCode delFile(const std::string & strPath);
+
+    /** 
+    *   @brief  删除目录
+    *   @details    注：若目录非空，删除操作将失败，可使用fileListInfo接口检查目录列表信息。
+    *   @param  strPath     （服务器）目录名字
+    *   @return 错误码（0x0成功）
+    *   @see        fileListInfo
+    */
+    HMCErrCode delDir(const std::string & strPath);
+
+    /** 
+    *   @brief  创建目录
+    *   @param  strPath     （服务器）目录名字
+    *   @return 错误码（0x0成功）
+    */
+    HMCErrCode mkDir(const std::string & strPath);
+
+    /** 
+    *   @brief  获取目录列表信息
+    *   @param  strDirPath  （服务器）目录名字
+    *   @param[out] pFileInfo   目录列表信息
+    *   @return 错误码（0x0成功）
+    */
+    HMCErrCode getFileListInfo(const std::string & strDirPath, std::vector<MFileInfo>& pFileInfo);
+
+private:
+    CommApi(CommApi & other);
+    CommApi & operator = (CommApi & other);
+
+private:
+    CommApp * m_pNet;
+    FtpApi * m_pFtp;
+};
+
+
+/** 
+*   @brief  配置扫描目标网络
+*   @details可配置扫描的目标网络，可不调用（不调用则选择默认配置）。注：正在扫描时调用会失败。
+*   @param  strAddr 网络地址（例如“10.0.0.0”）
+*   @param  strMask 网络掩码（例如“255.0.0.0”）
+*   @param  uPort   端口
+*   @return 错误码（0x0成功）
+*   @see        scanHsc3Devices
+*/
+DLL_EXPORT HMCErrCode configScanTargetNetwork(const std::string strAddr, const std::string strMask, uint16_t uPort);
+
+/** 
+*   @brief  扫描华数III型控制器设备
+*   @details接口非阻塞，调用后立即返回。使用getHsc3DevicesInfo接口获取扫描结果。注：在保持侦听时间内再次调用会返回失败。
+*   @param  ulKeepTimeMs    保持侦听的时间（单位：ms），≥1000
+*   @return 错误码（0x0成功）
+*   @see        getHsc3DevicesInfo
+*/
+DLL_EXPORT HMCErrCode scanHsc3Devices(uint64_t ulKeepTimeMs);
+
+/** 
+*   @brief  获取华数III型控制器设备信息
+*   @details调用scanHsc3Devices接口后，调用本接口获取信息。注：不排除有重复的信息；获取到信息后，客户端内部不会再保留该信息。
+*   @param[out] listHsc3Info    网络中华数III型控制器的信息
+*   @see        scanHsc3Devices
+*/
+DLL_EXPORT void getHsc3DevicesInfo(std::vector<Hsc3Info> & listHsc3Info);
+
+}
+}
+
+======================================================================
+FILE: C:\Users\32755\Desktop\机器人后台\华数二次开发\二次开发资料\Hsc3ApiDemo\3rdparty\include\CommDef.h
+======================================================================
+﻿/**
+*   Copyright (C) 2018 华数机器人
+*
+*   @file       CommDef.h
+*   @brief      华数III型控制器通信相关定义
+*   @details    
+*
+*   @author     
+*   @date       2018/06/15
+*   @version    
+*   
+*/
+
+#pragma once
+
+#include <stdint.h>
+#include <string>
+#include <map>
+#include <vector>
+
+namespace Hsc3 {
+namespace Comm {
+
+/********************************* 枚举定义 *********************************/
+
+/**
+*   @brief      命令优先级枚举
+*/
+enum CmdPriority
+{
+    PRIORITY_MIN = 0,
+    PRIORITY_HIGHEST,   ///< 极高
+    PRIORITY_HIGH,      ///< 高
+    PRIORITY_NORMAL,    ///< 普通
+    PRIORITY_LOW,       ///< 低
+    PRIORITY_LOWEST,    ///< 极低
+    PRIORITY_MAX,
+};
+
+/**
+*   @brief      UDP消息类型
+*/
+enum UdpDataType
+{
+    UDP_DATA_TYPE_MIN = 0,
+    UDP_DATA_TYPE_COLL = 4,     ///< 采集
+    UDP_DATA_TYPE_COOP = 6,     ///< 协调
+    UDP_DATA_TYPE_MAX,
+};
+
+/********************************* 数据类型定义 *********************************/
+
+/**
+*   @brief      命令列表
+*/
+typedef std::vector<std::string> HMCCmd;
+
+/**
+*   @brief      错误码（参考ErrDef.h的定义）
+*   @see        ErrDef.h
+*/
+typedef uint64_t HMCErrCode;
+
+/**
+*   @brief      byte
+*/
+typedef unsigned char byte;
+
+/**
+*   @brief      执行命令返回值（包括错误码和返回信息）
+*/
+typedef std::pair<HMCErrCode, std::string> HMCResultUnit;
+
+/**
+*   @brief      执行命令返回值列表
+*/
+typedef std::vector<HMCResultUnit> HMCResult;
+
+
+/********************************* 结构体定义 *********************************/
+
+/**
+*   @brief      文件信息
+*/
+struct MFileInfo
+{
+    std::string strName;        ///< 文件名称
+    unsigned long ulSize;       ///< 大小
+    unsigned char ucType;       ///< 类型，<em>0</em> - 文件，<em>1</em> - 目录
+    std::string strModifyTime;  ///< 修改时间
+};
+
+/**
+*   @brief      控制器信息
+*/
+struct Hsc3Info
+{
+    std::string strIp;      ///< IP
+    std::string strName;    ///< 名字
+    std::string strSn;      ///< SN（唯一识别码）
+};
+
+}
+}
+======================================================================
+FILE: C:\Users\32755\Desktop\机器人后台\华数二次开发\二次开发资料\Hsc3ApiDemo\3rdparty\include\ErrDef.h
+======================================================================
+﻿/**
+*   Copyright (C) 2018 华数机器人
+*
+*   @file       ErrDef.h
+*   @brief      华数III型控制器二次开发接口错误码定义
+*   @details    
+*
+*   @author     
+*   @date       2018/06/15
+*   @version    
+*/
+
+#ifndef ERRDEF_H
+#define ERRDEF_H
+
+/**
+*   @brief      错误码制作宏
+*   @details    二次开发接口公用错误码（32位）构成：
+*               8位 - 预留，
+*               8位 - 模块识别ID，
+*               16位 - 细节错误码。
+*   @param  prod    模块识别ID
+*   @param  num     细节错误码
+*/
+#define MAKE_ERR(prod, num)             ((((unsigned long)(prod))<<16)|(num))
+
+
+/********************************* 模块识别ID定义 *********************************/
+
+// 库级模块
+#define PROD_LOG    (0x70)  ///< 日志库ID
+#define PROD_COMM   (0x80)  ///< 通信库ID
+#define PROD_HSC3   (0xA0)  ///< 接口库ID
+
+// 普通模块
+#define PROD_CLIENT (PROD_COMM | 0x1)   ///< TCP/UDP客户端ID
+#define PROD_FTP    (PROD_COMM | 0x4)   ///< FTP客户端ID
+
+
+/********************************* 错误码定义 *********************************/
+
+#define KM_ERR_OK                       0x000000    ///< 正常
+#define KM_ERR_BAD                      0xFFFFFF    ///< 错误（通用）
+
+#define KM_ERR_TIME_OUT                 MAKE_ERR(PROD_CLIENT,   0x0001)     ///< 发送消息成功，但超时未返回
+#define KM_ERR_INVALID_UUID             MAKE_ERR(PROD_CLIENT,   0x0002)     ///< 无效帧
+#define KM_ERR_FAIL_CONN                MAKE_ERR(PROD_CLIENT,   0x0011)     ///< 连接失败
+#define KM_ERR_BAD_IP                   MAKE_ERR(PROD_CLIENT,   0x0012)     ///< 错误的IP输入
+#define KM_ERR_FAIL_SEND_MSG            MAKE_ERR(PROD_CLIENT,   0x0020)     ///< 发送消息失败
+#define KM_ERR_FAIL_LOSE_MSG            MAKE_ERR(PROD_CLIENT,   0x0021)     ///< 发送时丢失消息
+#define KM_ERR_NET_NOT_READY            MAKE_ERR(PROD_CLIENT,   0x0030)     ///< 网络未连接
+#define KM_ERR_FAIL_PROTOCOL            MAKE_ERR(PROD_CLIENT,   0x0101)     ///< 返回消息的帧格式有问题
+#define KM_ERR_FAIL_DECODE              MAKE_ERR(PROD_CLIENT,   0x0201)     ///< 返回消息的封装格式有问题
+#define KM_ERR_MISMATCH_MSG_CNT         MAKE_ERR(PROD_CLIENT,   0x0202)     ///< 返回消息数量不正确
+#define KM_ERR_FAIL_BROADCAST           MAKE_ERR(PROD_CLIENT,   0x0301)     ///< 广播失败
+#define KM_ERR_FAIL_BC_CONFIG_NET       MAKE_ERR(PROD_CLIENT,   0x0311)     ///< 广播配置网络失败
+#define KM_ERR_INVALID_BC_CONFIG_NET    MAKE_ERR(PROD_CLIENT,   0x0311)     ///< 广播配置网络参数错误
+
+
+#define KM_ERR_FTP_APP_TIME_OUT         MAKE_ERR(PROD_FTP,   0x0001)    ///< FTP通信发送超时
+#define KM_ERR_FTP_APP_REPLY_TIME_OUT   MAKE_ERR(PROD_FTP,   0x0002)    ///< FTP通信接收超时
+#define KM_ERR_FTP_FILE_SERVE           MAKE_ERR(PROD_FTP,   0x0031)    ///< FTP服务端文件存在错误
+#define KM_ERR_FTP_FILE_LOCAL           MAKE_ERR(PROD_FTP,   0x0032)    ///< 本地文件存在错误
+#define KM_ERR_FTP_DATA_OVERFLOW        MAKE_ERR(PROD_FTP,   0x0071)    ///< FTP接收数据过量
+#define KM_ERR_FTP_APP_CONN             MAKE_ERR(PROD_FTP,   0x0072)    ///< 连接失败
+#define KM_ERR_FTP_APP_SEND_ABORT       MAKE_ERR(PROD_FTP,   0x0073)    ///< 上传文件中止
+#define KM_ERR_FTP_APP_WRTE_ABORT       MAKE_ERR(PROD_FTP,   0x0074)    ///< 下载文件写入本地中止
+#define KM_ERR_FTP_APP_PASV             MAKE_ERR(PROD_FTP,   0x0075)    ///< 设置PASV模式失败
+#define KM_ERR_FTP_APP_CHECK_DATA       MAKE_ERR(PROD_FTP,   0x0076)    ///< 检查返回值失败
+#define KM_ERR_FTP_APP_CANNOT_LOGIN     MAKE_ERR(PROD_FTP,   0x0077)    ///< 不允许登录
+
+#define KM_ERR_FTP_CMD_PASS             MAKE_ERR(PROD_FTP,   0x0061)    ///< PASS命令失败
+#define KM_ERR_FTP_CMD_USER             MAKE_ERR(PROD_FTP,   0x0062)    ///< USER命令失败
+#define KM_ERR_FTP_CMD_PWD              MAKE_ERR(PROD_FTP,   0x0063)    ///< PWD命令失败
+#define KM_ERR_FTP_CMD_CWD              MAKE_ERR(PROD_FTP,   0x0064)    ///< CWD命令失败
+#define KM_ERR_FTP_CMD_TRANS            MAKE_ERR(PROD_FTP,   0x0065)    ///< TRANS命令失败
+#define KM_ERR_FTP_CMD_FILE_SIZE        MAKE_ERR(PROD_FTP,   0x0066)    ///< FILE_SIZE命令失败
+#define KM_ERR_FTP_CMD_DELE             MAKE_ERR(PROD_FTP,   0x0067)    ///< DELE命令失败
+#define KM_ERR_FTP_CMD_RMD              MAKE_ERR(PROD_FTP,   0x0068)    ///< RMD命令失败
+#define KM_ERR_FTP_CMD_MKD              MAKE_ERR(PROD_FTP,   0x0069)    ///< MKD命令失败
+
+#define KM_ERR_FTP_SOCKET_ADDR          MAKE_ERR(PROD_FTP,   0x0050)    ///< 错误的IP输入
+#define KM_ERR_FTP_SOCKET_INVALID       MAKE_ERR(PROD_FTP,   0x0051)    ///< 无效的socket
+#define KM_ERR_FTP_SOCKET_CONN          MAKE_ERR(PROD_FTP,   0x0052)    ///< socket连接失败
+#define KM_ERR_FTP_SOCKET_SEND          MAKE_ERR(PROD_FTP,   0x0053)    ///< socket发送失败
+#define KM_ERR_FTP_SOCKET_RECV          MAKE_ERR(PROD_FTP,   0x0054)    ///< socket接收失败
+#define KM_ERR_FTP_SOCKET_SET           MAKE_ERR(PROD_FTP,   0x0055)    ///< socket配置失败
+
+#define KM_ERR_FTP_FAIL_CONNECT         MAKE_ERR(PROD_FTP,   0x0100)    ///< FTP连接失败
+#define KM_ERR_FTP_FAIL_LOGIN           MAKE_ERR(PROD_FTP,   0x0200)    ///< FTP登录失败
+#define KM_ERR_FTP_FAIL_GET             MAKE_ERR(PROD_FTP,   0x0300)    ///< FTP下载文件失败
+#define KM_ERR_FTP_FAIL_PUT             MAKE_ERR(PROD_FTP,   0x0400)    ///< FTP上传文件失败
+#define KM_ERR_FTP_FAIL_DEL             MAKE_ERR(PROD_FTP,   0x0500)    ///< FTP删除文件失败
+#define KM_ERR_FTP_FAIL_RMD             MAKE_ERR(PROD_FTP,   0x0A00)    ///< FTP删除目录失败
+#define KM_ERR_FTP_FAIL_CH_FOLDER       MAKE_ERR(PROD_FTP,   0x0600)    ///< FTP切换目录失败
+#define KM_ERR_FTP_FAIL_MK_FOLDER       MAKE_ERR(PROD_FTP,   0x0800)    ///< FTP新建目录失败
+#define KM_ERR_FTP_FAIL_FILE_LIST       MAKE_ERR(PROD_FTP,   0x0900)    ///< FTP获取目录列表信息失败
+
+#define KM_ERR_INVALID_PARAM			MAKE_ERR(PROD_HSC3,   0x0001)	///< 无效参数
+#define KM_ERR_FAIL_CONVERSION			MAKE_ERR(PROD_HSC3,   0x0002)	///< 数据转换失败
+#define KM_ERR_INVALID_MESSAGE          MAKE_ERR(PROD_HSC3,   0x0008)   ///< 返回消息解析失败
+#define KM_ERR_NO_MESSAGE               MAKE_ERR(PROD_HSC3,   0x000C)   ///< 未收到消息
+#define KM_ERR_RETURN_FALSE             MAKE_ERR(PROD_HSC3,   0x0010)   ///< 不期望的返回消息内容
+
+
+#endif // ERRDEF_H
+
+======================================================================
+FILE: C:\Users\32755\Desktop\机器人后台\华数二次开发\二次开发资料\Hsc3ApiDemo\3rdparty\include\Hsc3Def.h
+======================================================================
+﻿/**
+*   Copyright (C) 2018 华数机器人
+*
+*   @file       Hsc3Def.h
+*   @brief      华数III型控制器业务接口相关定义
+*   @details    
+*
+*   @author     
+*   @date       2018/06/16
+*   @version    
+*   
+*/
+
+#pragma once
+
+#include <stdint.h>
+#include <list>
+#include <vector>
+#include <string>
+
+
+/********************************* 枚举定义 *********************************/
+
+/**
+*   @brief      操作模式
+*/
+enum OpMode
+{
+    OP_NONE = 0,
+    OP_T1,      ///< T1示教模式
+    OP_T2,      ///< T2示教模式
+    OP_AUT,     ///< 自动操作模式
+    OP_EXT,     ///< 外部操作模式
+    OP_DRAG,    ///< 拖动示教模式
+    OP_MAX,
+};
+
+/**
+*   @brief      工作坐标系类型
+*/
+enum FrameType
+{
+    FRAME_NONE = -1,
+    FRAME_JOINT,    ///< 关节坐标系
+    FRAME_WORLD,    ///< 世界坐标系
+    FRAME_BASE,     ///< 用户坐标系
+    FRAME_TOOL,     ///< 工具坐标系
+    FRAME_MAX,
+};
+
+/**
+*   @brief      单轴运动方向
+*/
+enum DirectType
+{
+    POSITIVE = 0,   ///< 正向
+    NEGATIVE        ///< 反向
+};
+
+/**
+*   @brief      手动运行模式
+*/
+enum ManualMode
+{
+    MANUAL_CONTINUE = 0,    ///< 持续模式
+    MANUAL_INCREMENT,       ///< 增量模式
+};
+
+/**
+*   @brief      手动运行状态
+*/
+enum ManState
+{
+    MAN_STATE_WAIT = 0,     ///< <em>0</em> - 等待信号
+    MAN_STATE_GET_PARA,     ///< <em>1</em> - 获取参数
+    MAN_STATE_JOG,          ///< <em>2</em> - 点动运行
+    MAN_STATE_INCH,         ///< <em>3</em> - 寸动运行
+    MAN_STATE_LOCATION,     ///< <em>4</em> - 定位运行
+    MAN_STATE_ERROR,        ///< <em>5</em> - 错误状态
+    MAN_STATE_MAX,
+};
+
+/**
+*   @brief      自动运行模式
+*/
+enum AutoMode
+{
+    AUTO_MODE_CONTINUE = 0,     ///< <em>0</em> - 持续模式
+    AUTO_MODE_STEP,             ///< <em>1</em> - 单步模式
+    AUTO_MODE_DEBUG,            ///< <em>2</em> - 调试模式
+    AUTO_MODE_MAX,
+};
+
+/**
+*   @brief      自动运行状态
+*/
+enum AutoState
+{
+    AUTO_STATE_NONE = 0,
+    AUTO_STATE_UNLOAD,      ///< <em>1</em> - 空闲
+    AUTO_STATE_READY,       ///< <em>2</em> - 就绪
+    AUTO_STATE_RUNNING,     ///< <em>3</em> - 运行
+    AUTO_STATE_PAUSED,      ///< <em>4</em> - 暂停
+    AUTO_STATE_STOPPED,     ///< <em>5</em> - 停止
+    AUTO_STATE_DONE,        ///< <em>6</em> - 完成
+    AUTO_STATE_FAULT,       ///< <em>7</em> - 出错
+    AUTO_STATE_LOADING,     ///< <em>8</em> - 加载中
+    AUTO_STATE_MAX,
+};
+
+/**
+*   @brief      报警等级
+*/
+enum ErrLevel
+{
+    ERR_LEVEL_UNKNOWN = 0,
+    ERR_LEVEL_MIN = 1,
+    ERR_LEVEL_INFO = 1,     ///< <em>1</em> - 信息
+    ERR_LEVEL_NOTE,         ///< <em>2</em> - 提示
+    ERR_LEVEL_WARNING,      ///< <em>3</em> - 警告
+    ERR_LEVEL_ERROR,        ///< <em>4</em> - 错误
+    ERR_LEVEL_FATAL,        ///< <em>5</em> - 严重错误
+    ERR_LEVEL_MAX,
+};
+
+/**
+*   @brief      区域类型
+*/
+enum AreaType
+{
+    AREA_TYPE_MIN = -1,
+    NORMAL_AREA,        ///< <em>0</em> - 普通区
+    BLOCK_AREA,         ///< <em>1</em> - 干涉区
+    WORK_AREA,          ///< <em>2</em> - 安全区
+    SHARE_AREA,         ///< <em>3</em> - 共享区
+    AREA_TYPE_MAX,
+};
+
+/**
+*   @brief      区域形状类型
+*/
+enum AreaShapeType
+{
+    AREA_SHAPE_TYPE_MIN = 0,
+    AREA_SHAPE_TYPE_BOX,        ///< <em>1</em> - 盒状
+    AREA_SHAPE_TYPE_CYLINDER,   ///< <em>2</em> - 柱状
+    AREA_SHAPE_TYPE_MAX,
+};
+
+/**
+*   @brief      共享区处理模式
+*/
+enum ShareAreaMode
+{
+    SHARE_AREA_MODE_MIN = -1,
+    SHARE_AREA_MODE_IGNORE = 0,     ///< <em>0</em> - 忽略
+    SHARE_AREA_MODE_ERR_STOP,       ///< <em>1</em> - 报错停机
+    SHARE_AREA_MODE_WRN_STOP,       ///< <em>2</em> - 警告停机
+    SHARE_AREA_MODE_MAX,
+};
+
+
+/********************************* 数据类型定义 *********************************/
+
+/**
+*   @brief      关节点数据
+*   @details    注：仅包含点数据信息
+*/
+typedef std::vector<double> JntData;
+
+/**
+*   @brief      笛卡尔点数据
+*   @details    注：仅包含点数据信息
+*/
+typedef std::vector<double> LocData;
+
+/**
+*   @brief      附加轴坐标点数据
+*   @details    注：仅包含点数据信息
+*/
+typedef std::vector<double> AuxData;
+
+
+/********************************* 结构体定义 *********************************/
+
+/**
+*   @brief      点数据最大数量
+*/
+const int MAX_PNT_CNT = 9;
+
+/**
+*   @struct     JntPos
+*   @brief      关节点
+*/
+struct JntPos
+{
+    std::vector<double> vecPos; ///< 点数据
+};
+
+/**
+*   @struct     LocPos
+*   @brief      笛卡尔点
+*/
+struct LocPos
+{
+    int8_t ufNum;       ///< 工件号 <em>-1</em> - 默认；<em>0..15</em>可用工件
+    int8_t utNum;       ///< 工具号 <em>-1</em> - 默认；<em>0..15</em>可用工具
+    int32_t config;     ///< config 【注意】参考机器人程序点位定义中的CONFIG定义
+    std::vector<double> vecPos; ///< 点数据
+};
+
+/**
+*   @struct     GeneralPos
+*   @brief      通用点
+*   @details    可表示关节点/笛卡尔点
+*/
+struct GeneralPos
+{
+    bool isJoint;       ///< 是否关节点
+    int8_t ufNum;       ///< 工件号（1..n）
+    int8_t utNum;       ///< 工具号（1..n）
+    int32_t config;     ///< config 【注意】参考机器人程序点位定义中的CONFIG定义
+    std::vector<double> vecPos; ///< 点数据
+};
+
+/**
+*   @struct     GroupData
+*   @brief      轴组数据
+*   @details    包含状态和位置等信息
+*/
+struct GroupData
+{
+    bool en;            ///< 使能状态
+    OpMode mode;        ///< 操作模式
+    FrameType frame;    ///< 坐标系类型
+    int32_t vordJog;    ///< 手动运行倍率
+    int32_t vordAut;    ///< 自动运行倍率
+    double inchLen;     ///< 手动运行增量距离
+    JntData dataJnt;    ///< 关节坐标点数据
+    AuxData dataAux;    ///< 附加轴坐标点数据
+    int8_t ufNum;       ///< 工件号
+    int8_t utNum;       ///< 工具号
+    int32_t config;     ///< 形态 【注意】参考机器人程序点位定义中的CONFIG定义
+    LocData dataLoc;    ///< 笛卡尔坐标点数据
+};
+
+/**
+*   @struct     GroupConfig
+*   @brief      轴组配置
+*   @details    包含配置信息
+*/
+struct GroupConfig
+{
+    int32_t typeRob;            ///< 当前机器人类型
+    std::string strTypeName;    ///< 当前机器人类型名字
+    int32_t cntRob;             ///< 内部轴数
+    int32_t cntAux;             ///< 附加轴数
+    int32_t beginAux;           ///< 附加轴起始轴号
+};
+
+/**
+*   @struct     ProgInfo
+*   @brief      程序信息
+*/
+struct ProgInfo
+{
+    int64_t ret;
+    std::string cur_prog;   ///< 当前程序名
+    int32_t line_no;        ///< 行号
+    std::string back_prog;
+    int32_t line_of_back;
+    AutoState state;        ///< 自动运行状态
+    int32_t uf_num;
+    int32_t ut_num;
+};
+
+/**
+*   @struct     AreaConfigData
+*   @brief      区域配置数据
+*/
+struct AreaConfigData
+{
+    int32_t ufnum;                  ///< 原点工件号
+    std::vector<double> origin;     ///< 原点数据
+    AreaShapeType shapeType;        ///< 形状类型
+    std::vector<double> shapeSize;  ///< 形状数据
+    double offset;                  ///< 伸缩值
+    AreaType type;                  ///< 区域类型
+    bool outReverse;                ///< 输出反转
+    ShareAreaMode mode;             ///< 共享区处理模式
+};
+
+
+/**
+*   @struct     ServoParaInfo
+*   @brief      伺服参数信息
+*/
+struct ServoParaInfo
+{
+    std::string name;               ///< 参数名
+    std::string chName;             ///< 中文名
+    std::string unitName;           ///< 单位
+    double minValue;                ///< 最小值
+    double maxValue;                ///< 最大值
+    double value;                   ///< 当前值
+};
+======================================================================
+FILE: C:\Users\32755\Desktop\机器人后台\华数二次开发\二次开发资料\Hsc3ApiDemo\3rdparty\include\proxy\Entry.h
+======================================================================
+﻿/**
+*   Copyright (C) 2018 华数机器人
+*
+*   @file       Entry.h
+*   @brief      华数III型二次开发接口 - 业务接口 - 入口
+*   @details    提供了III型控制器业务接口的入口。
+*
+*   @author     
+*   @date       2018/10/26
+*   @version    
+*   
+*/
+
+#pragma once
+/**
+*   @skip DLL_EXPORT
+*/
+#ifdef _LINUX_
+#define DLL_EXPORT __attribute__((visibility("default")))
+#else
+#define DLL_EXPORT _declspec(dllexport) 
+#endif
+
+class CommApi;
+
+
+namespace Hsc3 {
+
+    namespace Comm {
+        class CommApi;
+    }
+
+    namespace Proxy {
+
+        struct EntryPrivate;
+        class ProxySys;
+        class ProxyMotion;
+        class ProxyVm;
+        class ProxyVar;
+        class ProxyIO;
+        class ProxyAio;
+
+        /**
+        *   @class      Entry
+        *   @brief      业务接口 - 入口
+        *   @details    提供各具体功能操作接口。
+        *   @date       2018/10/26
+        */
+        class DLL_EXPORT Entry
+        {
+        public:
+            /**
+             * @brief   构造函数
+             * @details 注：确保传入已构造的通信客户端。
+             * @param   pNet    通信客户端
+             */
+            Entry(Hsc3::Comm::CommApi * pNet);
+
+            ~Entry();
+
+            /**
+             * @brief   获取系统功能代理
+             * @see     getProxySys
+             */
+            ProxySys * getProxySys();
+
+            /**
+             * @brief   获取运动功能代理
+             * @see     ProxyMotion
+             */
+            ProxyMotion * getProxyMotion();
+
+            /**
+             * @brief   获取程序运行代理
+             * @see     ProxyVm
+             */
+            ProxyVm * getProxyVm();
+
+            /**
+             * @brief   获取变量操作代理
+             * @see     ProxyVar
+             */
+            ProxyVar * getProxyVar();
+
+            /**
+             * @brief   获取IO操作代理
+             * @see     ProxyIO
+             */
+            ProxyIO * getProxyIO();
+
+            /**
+             * @brief   获取模拟输入操作代理
+             * @see     ProxyAio
+             */
+            ProxyAio * getProxyAin();
+
+            /**
+             * @brief   获取模拟输入操作代理
+             * @see     ProxyAio
+             */
+            ProxyAio * getProxyAout();
+
+        private:
+            EntryPrivate * m_p;
+        };
+
+    }
+
+}
+
+
+======================================================================
+FILE: C:\Users\32755\Desktop\机器人后台\华数二次开发\二次开发资料\Hsc3ApiDemo\3rdparty\include\proxy\ProxyAio.h
+======================================================================
+﻿/**
+*   Copyright (C) 2019 华数机器人
+*
+*   @file       ProxyAio.h
+*   @brief      华数III型二次开发接口 - 业务接口 - 模拟IO操作代理
+*   @details    提供了III型控制器模拟IO相关业务接口。
+*
+*   @author     
+*   @date       2019/06/14
+*   @version    
+*   
+*/
+
+#pragma once
+/**
+*   @skip DLL_EXPORT
+*/
+#ifdef _LINUX_
+#define DLL_EXPORT __attribute__((visibility("default")))
+#else
+#define DLL_EXPORT _declspec(dllexport) 
+#endif
+
+#include "Hsc3Def.h"
+#include "CommDef.h"
+#include <stdint.h>
+
+namespace Hsc3 {
+
+    namespace Comm {
+        class CommApi;
+    }
+
+    namespace Proxy {
+
+        /**
+        *   @class      ProxyAio
+        *   @brief      业务接口 - 模拟IO操作代理
+        *   @details    提供接口包含：模拟IO操作接口。
+        *   @date       2019/06/14
+        */
+        class DLL_EXPORT ProxyAio
+        {
+        public:
+            /**
+             * @brief   构造函数
+             * @details 注：确保传入已构造的通信客户端。
+             * @param   pNet    通信客户端
+             * @param   strProxyName    代理名字（“ain”或“aout”）
+             */
+            ProxyAio(Hsc3::Comm::CommApi * pNet, const std::string & strProxyName);
+
+            ~ProxyAio();
+
+            /**
+             * @brief  获取IO变量数量
+             * @details    注：变量框架支持的最大数量。
+             * @param[out]   num     数量
+             */
+            Hsc3::Comm::HMCErrCode getSize(int32_t & num);
+
+            /**
+             * @brief  获取真实IO端口数量
+             * @param[out]   num     数量
+             */
+            Hsc3::Comm::HMCErrCode getRealSize(int32_t & num);
+
+            /**
+             * @brief  获取模拟IO端口值
+             * @param   portIndex   端口号（0..n-1）
+             * @param[out]   value  值
+             * @see    setValue
+             */
+            Hsc3::Comm::HMCErrCode getValue(int32_t portIndex, float & value);
+
+            /**
+             * @brief  设置模拟IO端口值
+             * @param  portIndex   端口号（0..n-1）
+             * @param  value    数量
+             * @see    getValue
+             */
+            Hsc3::Comm::HMCErrCode setValue(int32_t portIndex, float value);
+
+            /**
+             * @brief   获取模拟IO端口状态
+             * @details 状态为“虚拟”时，通过setValue设置的值存放在进程内存中。
+                        状态为“真实”时，通过setValue设置的值存放在变量框架（共享内存）中。
+             * @param   portIndex   端口号（0..n-1）
+             * @param[out]   stat        状态：<em>true</em> - 虚拟；<em>false</em> - 真实
+             * @see     setMask
+             */
+            Hsc3::Comm::HMCErrCode getMask(int32_t portIndex, bool & stat);
+
+            /**
+             * @brief   设置模拟IO端口状态
+             * @details 状态为“虚拟”时，通过setValue设置的值存放在进程内存中。
+                        状态为“真实”时，通过setValue设置的值存放在变量框架（共享内存）中。
+             * @param   portIndex   端口号（0..n-1）
+             * @param   stat        状态：<em>true</em> - 虚拟；<em>false</em> - 真实
+             * @see     getMask setValue
+             */
+            Hsc3::Comm::HMCErrCode setMask(int32_t portIndex, bool stat);
+
+            /**
+             * @brief   获取模拟IO分组状态
+             * @details 32个端口为1组。
+             * @param   grpIndex    分组号（0..n-1）
+             * @param[out]   grpStat      分组状态（32位无符号整数，最低位代表分组中端口0的状态，最高位代表端口31的状态，状态：<em>true</em> - 虚拟；<em>false</em> - 真实）
+             * @see     setMaskGrp
+             */
+            Hsc3::Comm::HMCErrCode getMaskGrp(int32_t grpIndex, uint32_t & grpStat);
+
+        private:
+            inline Hsc3::Comm::HMCErrCode getGlobalCommand(std::string cmd, std::string & ret);
+            inline Hsc3::Comm::HMCErrCode getGroupCommand(std::string cmd, int8_t gpId, std::string & ret);
+
+        private:
+            Hsc3::Comm::CommApi * m_pNet;
+            std::string m_strProxyName;
+        };
+    }
+
+}
+======================================================================
+FILE: C:\Users\32755\Desktop\机器人后台\华数二次开发\二次开发资料\Hsc3ApiDemo\3rdparty\include\proxy\ProxyIO.h
+======================================================================
+﻿/**
+*   Copyright (C) 2018 华数机器人
+*
+*   @file       ProxyIO.h
+*   @brief      华数III型二次开发接口 - 业务接口 - IO操作代理
+*   @details    提供了III型控制器IO相关业务接口。
+*
+*   @author     
+*   @date       2018/06/16
+*   @version    
+*   
+*/
+
+#pragma once
+/**
+*   @skip DLL_EXPORT
+*/
+#ifdef _LINUX_
+#define DLL_EXPORT __attribute__((visibility("default")))
+#else
+#define DLL_EXPORT _declspec(dllexport) 
+#endif
+
+#include "Hsc3Def.h"
+#include "CommDef.h"
+#include <stdint.h>
+
+namespace Hsc3 {
+
+    namespace Comm {
+        class CommApi;
+    }
+
+    namespace Proxy {
+        /**
+        *   @class      ProxyIO
+        *   @brief      业务接口 - IO操作代理
+        *   @details    提供接口包含：IO操作接口。
+        *   @date       2018/06/16
+        */
+        class DLL_EXPORT ProxyIO
+        {
+        public:
+            /**
+             * @brief   构造函数
+             * @details 注：确保传入已构造的通信客户端。
+             * @param   pNet    通信客户端
+             */
+            ProxyIO(Hsc3::Comm::CommApi * pNet);
+
+            ~ProxyIO();
+
+            /**
+             * @brief   获取数字输入端口数量
+             * @param[out]   num     数量
+             */
+	        Hsc3::Comm::HMCErrCode getMaxDinNum(int32_t & num);
+
+            /**
+             * @brief   获取数字输出端口数量
+             * @param[out]   num     数量
+             */
+	        Hsc3::Comm::HMCErrCode getMaxDoutNum(int32_t & num);
+
+            /**
+             * @brief   获取数字输入分组数量
+             * @details 32个输入为一组（组0包括输入0..31、组1包括输入32..63、...）。
+             * @param[out]   num     数量
+             */
+	        Hsc3::Comm::HMCErrCode getMaxDinGrp(int32_t & num);
+
+            /**
+             * @brief   获取数字输出分组数量
+             * @details 32个输出为一组（组0包括输出0..31、组1包括输出32..63、...）。
+             * @param[out]   num     数量
+             */
+	        Hsc3::Comm::HMCErrCode getMaxDoutGrp(int32_t & num);
+
+            /**
+             * @brief   获取数字输入分组值
+             * @param   grpIndex    分组号（0..n-1）
+             * @param[out]  num     分组值（32位无符号整数，最低位代表分组中数字输入0的值，最高位代表数字输入31的值）
+             */
+	        Hsc3::Comm::HMCErrCode getDinGrp(int32_t grpIndex, uint32_t & num);
+
+             /**
+             * @brief   获取数字输出分组值
+             * @param   grpIndex    分组号（0..n-1）
+             * @param[out]  num     分组值（32位无符号整数，最低位代表分组中数字输出0的值，最高位代表数字输出31的值）
+             */
+	        Hsc3::Comm::HMCErrCode getDoutGrp(int32_t grpIndex, uint32_t & num);
+
+            /**
+             * @brief   获取数字输入分组状态
+             * @param   grpIndex    分组号（0..n-1）
+             * @param[out]  num     分组状态（32位无符号整数，最低位代表分组中数字输入0的状态，最高位代表数字输入31的状态，状态：<em>true</em> - 虚拟；<em>false</em> - 真实）
+             * @see     setDinMaskBit
+             */
+	        Hsc3::Comm::HMCErrCode getDinMaskGrp(int32_t grpIndex, uint32_t & num);
+
+            /**
+             * @brief   获取数字输出分组状态
+             * @param   grpIndex    分组号（0..n-1）
+             * @param[out]  num     分组状态（32位无符号整数，最低位代表分组中数字输出0的状态，最高位代表数字输出31的状态，状态：<em>true</em> - 虚拟；<em>false</em> - 真实）
+             * @see     setDoutMaskBit
+             */
+	        Hsc3::Comm::HMCErrCode getDoutMaskGrp(int32_t grpIndex, uint32_t & num);
+
+            /**
+             * @brief   设置数字输入端口值
+             * @param   portIndex   端口号（0..n-1）
+             * @param   value       值
+             * @see     getDinGrp
+             */
+	        Hsc3::Comm::HMCErrCode setDin(int32_t portIndex, bool value);
+
+            /**
+             * @brief   设置数字输出端口值
+             * @param   portIndex   端口号（0..n-1）
+             * @param   value       值
+             * @see     getDoutGrp
+             */
+	        Hsc3::Comm::HMCErrCode setDout(int32_t portIndex, bool value);
+
+            /**
+             * @brief   获取数字输入端口值
+             * @param   portIndex   端口号（0..n-1）
+             * @param[out]   value  值
+             * @see     getDinGrp
+             */
+	        Hsc3::Comm::HMCErrCode getDin(int32_t portIndex, bool & value);
+
+            /**
+             * @brief   获取数字输出端口值
+             * @param   portIndex   端口号（0..n-1）
+             * @param[out]   value  值
+             * @see     getDoutGrp
+             */
+	        Hsc3::Comm::HMCErrCode getDout(int32_t portIndex, bool & value);
+
+            /**
+             * @brief   设置数字输入状态值
+             * @details 数字输入状态为“虚拟”时，可通过setDin设置值。
+                        数字输入状态为“真实”时，值从IO模块中读取，通过setDin设置值是无效的。
+             * @param   portIndex   端口号（0..n-1）
+             * @param   stat        状态：<em>true</em> - 虚拟；<em>false</em> - 真实
+             * @see     getDinMaskGrp setDin
+             */
+	        Hsc3::Comm::HMCErrCode setDinMaskBit(int32_t portIndex, bool stat);
+
+            /**
+             * @brief   设置数字输出状态值
+             * @details 数字输入状态为“虚拟”时，可通过setDout设置值，但不能触发IO模块输出。
+                        数字输入状态为“真实”时，可通过setDout设置值，并可触发IO模块输出。
+             * @param   portIndex   端口号（0..n-1）
+             * @param   stat        状态：<em>true</em> - 虚拟；<em>false</em> - 真实
+             * @see     getDoutMaskGrp setDout
+             */
+	        Hsc3::Comm::HMCErrCode setDoutMaskBit(int32_t portIndex, bool stat);
+		
+            /**
+             * @brief   钩模块功能文字式交互
+             * @details 注：该接口基于复杂的协议，不建议直接使用。
+             * @param   strIntent   交互意图
+             * @param   strMsg      发送信息
+             * @param[out]  strResponse     控制器回复
+             */
+            Hsc3::Comm::HMCErrCode contactOnHook(const std::string & strIntent, const std::string & strMsg, std::string & strResponse);
+
+        private:
+            inline Hsc3::Comm::HMCErrCode getGlobalCommand(std::string cmd, std::string & ret);
+            inline Hsc3::Comm::HMCErrCode getGroupCommand(std::string cmd, int8_t gpId, std::string & ret);
+
+        private:
+            Hsc3::Comm::CommApi * m_pNet;
+        };
+    }
+
+}
+======================================================================
+FILE: C:\Users\32755\Desktop\机器人后台\华数二次开发\二次开发资料\Hsc3ApiDemo\3rdparty\include\proxy\ProxyMotion.h
+======================================================================
+﻿/**
+*   Copyright (C) 2018 华数机器人
+*
+*   @file       ProxyMotion.h
+*   @brief      华数III型二次开发接口 - 业务接口 - 运动功能代理
+*   @details    提供了III型控制器运动功能相关业务接口。
+*
+*   @author     
+*   @date       2018/06/29
+*   @version    
+*   
+*/
+
+#pragma once
+/**
+*   @skip DLL_EXPORT
+*/
+#ifdef _LINUX_
+#define DLL_EXPORT __attribute__((visibility("default")))
+#else
+#define DLL_EXPORT _declspec(dllexport) 
+#endif
+
+#include "CommDef.h"
+#include "Hsc3Def.h"
+#include <stdint.h>
+
+namespace Hsc3 {
+
+    namespace Comm {
+        class CommApi;
+    }
+
+    namespace Proxy {
+        /**
+        *   @class      ProxyMotion
+        *   @brief      业务接口 - 运动功能代理
+        *   @details    提供接口包含：对安全开关、模式、坐标系等对象的操作，还有单轴运动、运动定位、校准、标定。
+        *   @date       2018/06/29
+        */
+        class DLL_EXPORT ProxyMotion
+        {
+        public:
+            /**
+             * @brief   构造函数
+             * @details 注：确保传入已构造的通信客户端。
+             * @param   pNet    通信客户端
+             */
+            ProxyMotion(Hsc3::Comm::CommApi * pNet);
+
+            ~ProxyMotion();
+
+            // 全局作用域
+
+	        /**
+             * @brief   设置操作模式
+             * @param   mode    模式
+             */
+            Hsc3::Comm::HMCErrCode setOpMode(OpMode mode);
+
+            /**
+             * @brief   获取操作模式
+             * @param[out]  mode    模式
+             */
+            Hsc3::Comm::HMCErrCode getOpMode(OpMode & mode);
+	
+	        /**
+             * @brief   设置手动运行模式
+             * @param   mode    模式
+             */
+	        Hsc3::Comm::HMCErrCode setManualMode(ManualMode mode);
+
+            /**
+             * @brief   获取手动运行模式
+             * @param[out]  mode    模式
+             */
+            Hsc3::Comm::HMCErrCode getManualMode(ManualMode & mode);
+	
+            /**
+             * @brief   设置手动运行增量距离
+             * @param   length  距离大小（单位根据坐标系确定，关节：°；笛卡尔：mm）
+             */
+	        Hsc3::Comm::HMCErrCode setInchLen(double length);
+
+            /**
+             * @brief   获取手动运行增量距离
+             * @param[out]  length  距离大小（单位根据坐标系确定，关节：°；笛卡尔：mm）
+             */
+            Hsc3::Comm::HMCErrCode getInchLen(double & length);
+	
+            /**
+             * @brief   获取手动运行状态
+             * @param[out]  state   状态
+             */
+            Hsc3::Comm::HMCErrCode getManualStat(ManState & state);
+	
+            /**
+             * @brief   设置自动运行模式
+             * @param   mode    模式
+             */
+	        Hsc3::Comm::HMCErrCode setAutoMode(AutoMode mode);
+
+            /**
+             * @brief   获取自动运行模式
+             * @param[out]  mode    模式
+             */
+            Hsc3::Comm::HMCErrCode getAutoMode(AutoMode & mode);
+	
+            /**
+             * @brief   设置自动运行倍率
+             * @param   vord    倍率（1~100，单位：\%）
+             */
+	        Hsc3::Comm::HMCErrCode setVord(int32_t vord);
+
+            /**
+             * @brief   获取自动运行倍率
+             * @param[out]  vord    倍率（1~100，单位：\%）
+             */
+            Hsc3::Comm::HMCErrCode getVord(int32_t & vord);
+	
+	        /**
+             * @brief   设置手动运行倍率
+             * @param   vord    倍率（1~100，单位：\%）
+             */
+	        Hsc3::Comm::HMCErrCode setJogVord(int32_t vord);
+
+            /**
+             * @brief   获取手动运行倍率
+             * @param[out]  vord    倍率（1~100，单位：\%）
+             */
+            Hsc3::Comm::HMCErrCode getJogVord(int32_t & vord);
+	
+	        /**
+             * @brief   操作急停
+             * @param   estop   是否急停
+             */
+	        Hsc3::Comm::HMCErrCode setEstop(bool estop);
+
+            /**
+             * @brief   获取是否处于急停状态
+             * @param[out]  estop   急停状态
+             */
+            Hsc3::Comm::HMCErrCode getEstop(bool & estop);
+	
+
+            // 组作用域
+
+            /**
+             * @brief   组使能
+             * @param   gpId    组号（0..n-1）
+             * @param   en      是否使能
+             */
+	        Hsc3::Comm::HMCErrCode setGpEn(int8_t gpId, bool en);
+
+            /**
+             * @brief   获取是否处于使能状态
+             * @param   gpId    组号（0..n-1）
+             * @param[out]  en      使能状态
+             */
+            Hsc3::Comm::HMCErrCode getGpEn(int8_t gpId, bool & en);
+	 
+            /**
+             * @brief   组复位
+             * @param   gpId    组号（0..n-1）
+             */
+	        Hsc3::Comm::HMCErrCode gpReset(int8_t gpId);
+
+            /**
+             * @brief   零点校准
+             * @param   gpId    组号（0..n-1）
+             * @param   pos     零点设定值
+             * @param   mask    掩码，低9位有效，最低位代表组中第1个轴，第9位代表组中第9个轴。
+             */
+            Hsc3::Comm::HMCErrCode setHomePosition(int8_t gpId, const JntData& pos, int32_t mask);
+
+            /**
+             * @brief   获取零点
+             * @param   gpId    组号（0..n-1）
+	         * @param[out]  pos     零点设定值
+             */
+            Hsc3::Comm::HMCErrCode getHomePosition(int8_t gpId, JntData & pos);
+
+            /**
+             * @brief   设置软限位
+             * @param   gpId    组号（0..n-1）
+             * @param   pos     正向软限位设定值
+	         * @param   neg     负向软限位设定值
+             * @param   mask    使能掩码，低9位有效，最低位代表组中第1个轴，第9位代表组中第9个轴。
+             */
+            Hsc3::Comm::HMCErrCode setJointLimit(int8_t gpId, const JntData & pos, const JntData & neg, int32_t mask);
+	
+	        /**
+             * @brief   获取软限位
+             * @param   gpId    组号（0..n-1）
+             * @param[out]   pos     正向软限位设定值
+             * @param[out]   neg     负向软限位设定值
+             * @param   mask    使能掩码，低9位有效，最低位代表组中第1个轴，第9位代表组中第9个轴。
+             */
+            Hsc3::Comm::HMCErrCode getJointLimit(int8_t gpId, JntData & pos, JntData & neg, int32_t & mask);
+
+	        /**
+             * @brief   单轴手动运动
+	         * @param   gpId    组号（0..n-1）
+	         * @param   axId    轴号（0..5为内部轴，6..8为附加轴）
+	         * @param   direc   方向
+             */
+	        Hsc3::Comm::HMCErrCode startJog(int8_t gpId, int8_t axId, DirectType direc);
+
+            /**
+             * @brief   停止手动运动
+             * @details 注：可停止单轴手动运动、运动定位运动。
+	         * @param   gpId    组号（0..n-1）
+             * @see     startJog moveTo
+             */
+	        Hsc3::Comm::HMCErrCode stopJog(int8_t gpId);
+	
+	        /**
+             * @brief   运动定位
+	         * @param   gpId    组号（0..n-1）
+	         * @param   point   目标点
+	         * @param   isLinear    <em>true</em>  - 直线运动
+             *                      <em>false</em> - 关节运动
+             */
+	        Hsc3::Comm::HMCErrCode moveTo(int8_t gpId, const GeneralPos & point, bool isLinear);
+
+            /**
+             * @brief   设置工作坐标系
+             * @param   gpId    组号（0..n-1）
+             * @param   frame   坐标系
+             */
+	        Hsc3::Comm::HMCErrCode setWorkFrame(int8_t gpId, FrameType frame);
+
+            /**
+             * @brief   获取工作坐标系
+             * @param   gpId    组号（0..n-1）
+             * @param[out]  frame   坐标系
+             */
+            Hsc3::Comm::HMCErrCode getWorkFrame(int8_t gpId, FrameType & frame);
+
+            /**
+             * @brief   获取内部轴数
+             * @param   gpId    组号（0..n-1）
+             * @param[out]  cnt     轴数
+             */
+	        Hsc3::Comm::HMCErrCode getRobAxisCount(int8_t gpId, int32_t & cnt);
+
+            /**
+             * @brief   获取附加轴数
+             * @param   gpId    组号（0..n-1）
+             * @param[out]  cnt     轴数
+             */
+	        Hsc3::Comm::HMCErrCode getAuxAxisCount(int8_t gpId, int32_t & cnt);
+
+            /**
+             * @brief   获取附加轴起始轴号
+             * @param   gpId    组号（0..n-1）
+             * @param[out]  index     起始轴号
+             */
+	        Hsc3::Comm::HMCErrCode getAuxAxisBegin(int8_t gpId, int32_t & index);
+	
+            /**
+             * @brief   获取关节坐标点数据
+             * @param   gpId    组号（0..n-1）
+             * @param[out]  pos     点数据（注：最多6轴数据）
+             */
+            Hsc3::Comm::HMCErrCode getJntData(int8_t gpId, JntData & data);
+
+            /**
+             * @brief   获取附加轴坐标点数据
+             * @param   gpId    组号（0..n-1）
+             * @param[out]  data     点数据
+             */
+	        Hsc3::Comm::HMCErrCode getAuxData(int8_t gpId, AuxData & data);
+
+            /**
+             * @brief   获取笛卡尔坐标点数据
+             * @param   gpId    组号（0..n-1）
+             * @param[out]  pos     点数据（注：XYZABC）
+             */
+	        Hsc3::Comm::HMCErrCode getLocData(int8_t gpId, LocData & data);
+
+            /**
+             * @brief   获取形态
+             * @param   gpId    组号（0..n-1）
+             * @param[out]  config  形态
+             */
+	        Hsc3::Comm::HMCErrCode getConfig(int8_t gpId, int32_t & config);
+
+            /**
+             * @brief   设置工具坐标数据
+             * @param   gpId    组号（0..n-1）
+             * @param   index   工具坐标索引（0..15）
+             * @param   pos     点数据
+             */
+	        Hsc3::Comm::HMCErrCode setTool(int8_t gpId, int8_t index, const LocData & pos);
+
+            /**
+             * @brief   获取工具坐标数据
+             * @param   gpId    组号（0..n-1）
+             * @param   index   工具坐标索引（0..15）
+             * @param[out]  pos     点数据
+             */
+	        Hsc3::Comm::HMCErrCode getTool(int8_t gpId, int8_t index, LocData & pos);
+	
+	        /**
+             * @brief   设置工件坐标数据
+             * @param   gpId    组号（0..n-1）
+             * @param   index   工件坐标索引（0..15）
+             * @param   pos     点数据
+             */
+	        Hsc3::Comm::HMCErrCode setWorkpiece(int8_t gpId, int8_t index, const LocData & pos);
+
+            /**
+             * @brief   获取工件坐标数据
+             * @param   gpId    组号（0..n-1）
+             * @param   index   工件坐标索引（0..15）
+             * @param[out]  pos     点数据
+             */
+	        Hsc3::Comm::HMCErrCode getWorkpiece(int8_t gpId, int8_t index, LocData & pos);
+	
+	        /**
+             * @brief   设置工具号
+             * @param   gpId    组号（0..n-1）
+             * @param   num     工具坐标索引（0..15）
+             */
+	        Hsc3::Comm::HMCErrCode setToolNum(int8_t gpId, int8_t num);
+
+            /**
+             * @brief   获取工具号
+             * @param   gpId    组号（0..n-1）
+             * @param[out]   num     工具坐标索引（0..15）
+             */
+	        Hsc3::Comm::HMCErrCode getToolNum(int8_t gpId, int8_t & num);
+    
+	        /**
+             * @brief   设置工件号
+             * @param   gpId    组号（0..n-1）
+             * @param   num     工件坐标索引（0..15）
+             */
+	        Hsc3::Comm::HMCErrCode setWorkpieceNum(int8_t gpId, int8_t num);
+
+            /**
+             * @brief   获取工件号
+             * @param   gpId    组号（0..n-1）
+             * @param[out]   num     工件坐标索引（0..15）
+             */
+	        Hsc3::Comm::HMCErrCode getWorkpieceNum(int8_t gpId, int8_t & num);
+
+            /**
+             * @brief   获取轴组数据
+             * @param   gpId    组号（0..n-1）
+             * @param[out]   data     轴组数据
+             */
+	        Hsc3::Comm::HMCErrCode getGroupData(int8_t gpId, GroupData & data);
+
+            /**
+             * @brief   设置机型（需重启）
+             * @param   gpId    组号（0..n-1）
+             * @param   strTypeName    机型名字
+             */
+            Hsc3::Comm::HMCErrCode setRobType(int8_t gpId, std::string strTypeName);
+
+            /**
+             * @brief   获取可用机型名字
+             * @param[out]   listName     机型名字列表
+             */
+	        Hsc3::Comm::HMCErrCode getRobTypeNameList(std::vector<std::string> & listName);
+
+            /**
+             * @brief   获取轴组配置
+             * @param   gpId    组号（0..n-1）
+             * @param[out]   config     轴组配置
+             */
+	        Hsc3::Comm::HMCErrCode getGroupConfig(int8_t gpId, GroupConfig & config);
+
+            /**
+             * @brief   标定
+             * @param   what    标定对象（<em>"TOOL"</em> - 工具，<em>"BASE"</em> - 工件）
+             * @param   gpId    组号（0..n-1）
+             * @param   num     工具号/工件号
+             * @param   type    标定方法编号 （注：参考运动层定义）
+             * @param   strData 标定数据（格式：半角分号分隔的点数据队列，例“{1,2,};{3,4,};{5,6,}”）
+             * @param[out]  strResult   标定结果（格式：例“ret=0x0, data={7,8,}”，其中“ret”是标定返回值，“data”是标定结果）
+             */
+	        Hsc3::Comm::HMCErrCode gpCalibrate(const std::string & what, int8_t gpId, int8_t num, int8_t type, const std::string & strData, std::string & strResult);
+
+        private:
+            inline Hsc3::Comm::HMCErrCode getGlobalCommand(std::string cmd, std::string & ret);
+            inline Hsc3::Comm::HMCErrCode getGroupCommand(std::string cmd, int8_t gpId, std::string & ret);
+
+        private:
+            Hsc3::Comm::CommApi * m_pNet;
+        };
+    }
+
+}
+
+======================================================================
+FILE: C:\Users\32755\Desktop\机器人后台\华数二次开发\二次开发资料\Hsc3ApiDemo\3rdparty\include\proxy\ProxySys.h
+======================================================================
+﻿/**
+*   Copyright (C) 2018 华数机器人
+*
+*   @file       ProxySys.h
+*   @brief      华数III型二次开发接口 - 业务接口 - 系统功能代理
+*   @details    提供了III型控制器系统相关业务接口。
+*
+*   @author     
+*   @date       2018/06/16
+*   @version    
+*   
+*/
+
+#pragma once
+/**
+*   @skip DLL_EXPORT
+*/
+#ifdef _LINUX_
+#define DLL_EXPORT __attribute__((visibility("default")))
+#else
+#define DLL_EXPORT _declspec(dllexport) 
+#endif
+
+#include "CommDef.h"
+#include "Hsc3Def.h"
+#include <stdint.h>
+
+namespace Hsc3 {
+
+    namespace Comm {
+        class CommApi;
+    }
+
+    namespace Proxy {
+        /**
+        *   @class      ProxySys
+        *   @brief      业务接口 - 系统功能代理
+        *   @details    提供接口包含：控制器系统操作接口。
+        *   @date       2018/07/03
+        */
+        class DLL_EXPORT ProxySys
+        {
+        public:
+            /**
+             * @brief   构造函数
+             * @details 注：确保传入已构造的通信客户端。
+             * @param   pNet    通信客户端
+             */
+            ProxySys(Hsc3::Comm::CommApi * pNet);
+
+            ~ProxySys();
+
+            /**
+             * @brief   系统复位
+             */
+            Hsc3::Comm::HMCErrCode reset();
+
+            /**
+             * @brief   查询报警详情
+             * @param   errCode     错误码
+             * @param[out]  strReason   错误原因
+             * @param[out]  strElim     排除措施
+             */
+	        Hsc3::Comm::HMCErrCode queryError(uint64_t errCode, std::string & strReason, std::string & strElim);
+
+            /**
+             * @brief   系统是否就绪
+             * @param[out]  ok      已/未就绪
+             */
+	        Hsc3::Comm::HMCErrCode isReady(bool & ok);
+
+            /**
+             * @brief   获取系统报警
+             * @details 使用该接口会阻塞调用线程，直至获取到信息/等待超时。
+             * @param[out]  level   报警级别
+             * @param[out]  code    错误码
+             * @param[out]  strMsg  信息内容
+             * @param   ulWaitTime  等待时间（单位：ms）
+             * @return  <em>0x0</em> - 获取到合法信息（但不排除strMsg为空）；
+                        <em>KM_ERR_INVALID_MESSAGE</em> - 获取到信息但信息无效；
+                        <em>KM_ERR_NO_MESSAGE</em> - 未收到信息（等待超时）
+             */
+            Hsc3::Comm::HMCErrCode getMessage(ErrLevel & level, uint64_t & code, std::string & strMsg, uint32_t ulWaitTime);
+
+            /**
+             * @brief   获取版本信息
+             * @param   key     键
+                                <em>"Release"</em> - 控制器发布版本；
+                                <em>"CL"</em> - 控制器业务层；
+                                <em>"ML"</em> - 控制器运动层；
+                                <em>"Api"</em> - 二次开发接口
+             * @param[out]  value   版本信息
+             */
+            Hsc3::Comm::HMCErrCode getVersion(const std::string & key, std::string & value);
+
+            /**
+             * @brief   系统关机
+             */
+	        Hsc3::Comm::HMCErrCode shutdown();
+	
+	        /**
+             * @brief   系统重启
+             */
+	        Hsc3::Comm::HMCErrCode reboot();
+
+            /**
+             * @brief   设置语言
+	         * @param   strLang     语言名
+             */
+	        Hsc3::Comm::HMCErrCode setLang(const std::string & strLang);
+
+        private:
+            Hsc3::Comm::CommApi * m_pNet;
+        };
+    }
+
+}
+======================================================================
+FILE: C:\Users\32755\Desktop\机器人后台\华数二次开发\二次开发资料\Hsc3ApiDemo\3rdparty\include\proxy\ProxyVar.h
+======================================================================
+﻿/**
+*   Copyright (C) 2018 华数机器人
+*
+*   @file       ProxyVar.h
+*   @brief      华数III型二次开发接口 - 业务接口 - 变量操作代理
+*   @details    提供了III型控制器程序运行相关业务接口。
+*
+*   @author     
+*   @date       2018/06/16
+*   @version    
+*   
+*/
+
+#pragma once
+/**
+*   @skip DLL_EXPORT
+*/
+#ifdef _LINUX_
+#define DLL_EXPORT __attribute__((visibility("default")))
+#else
+#define DLL_EXPORT _declspec(dllexport) 
+#endif
+
+#include "Hsc3Def.h"
+#include "CommDef.h"
+#include <stdint.h>
+
+namespace Hsc3 {
+
+    namespace Comm {
+        class CommApi;
+    }
+
+    namespace Proxy {
+        /**
+        *   @class      ProxyVar
+        *   @brief      业务接口 - 变量操作代理
+        *   @details    提供接口包含：变量操作接口。
+        *   @date       2018/06/16
+        */
+        class DLL_EXPORT ProxyVar
+        {
+        public:
+            /**
+             * @brief   构造函数
+             * @details 注：确保传入已构造的通信客户端。
+             * @param   pNet    通信客户端
+             */
+            ProxyVar(Hsc3::Comm::CommApi * pNet);
+
+            ~ProxyVar();
+
+            /**
+             * @brief   保存轴数据
+             * @param   axId    轴号（0..n-1）
+             * @param   file    数据文件名，选项：
+                                <em>"para"</em> - 参数
+                                <em>"home"</em> - 原点相关参数
+                                <em>"limit"</em> - 软限位相关参数
+             */
+	        Hsc3::Comm::HMCErrCode saveAx(int8_t axId, const std::string & file);
+	
+            /**
+             * @brief   保存组数据
+             * @param   gpId    组号（0..n-1）
+             * @param   file    数据文件名，选项：
+                                <em>"para"</em> - 参数；
+                                <em>"JR"</em> - JR（关节坐标）寄存器值；
+                                <em>"LR"</em> - LR（笛卡尔坐标）寄存器值；
+                                <em>"UT"</em> - UT寄存器值；
+                                <em>"UF"</em> - UF寄存器值；
+                                <em>"area"</em> - 区域相关参数
+                                <em>"track"</em> - 跟踪相关参数
+             */
+	        Hsc3::Comm::HMCErrCode saveGp(int8_t gpId, const std::string & file);
+
+            /**
+             * @brief   保存公共数据
+             * @param   file    数据文件名，选项：
+                                <em>"R"</em> - R（实数）寄存器值
+             */
+	        Hsc3::Comm::HMCErrCode saveCommon(const std::string & file);
+
+            /**
+             * @brief   设置R（实数）寄存器值
+             * @param   index   索引
+             * @param   value   值
+             */
+	        Hsc3::Comm::HMCErrCode setR(int32_t index, double value);
+
+            /**
+             * @brief   获取R（实数）寄存器值
+             * @param   index   索引
+             * @param[out]   value   值
+             */
+	        Hsc3::Comm::HMCErrCode getR(int32_t index, double & value);
+
+            /**
+             * @brief   获取R（实数）寄存器值
+             * @param   index   索引
+             * @param   len     数量
+             * @param[out]   value   值的列表
+             */
+            Hsc3::Comm::HMCErrCode getR(int32_t index, int32_t len, std::vector<double> & value);
+
+            /**
+             * @brief   设置JR（关节坐标）寄存器值
+             * @param   gpId    组号（0..n-1）
+             * @param   index   索引
+             * @param   data    值
+             */
+	        Hsc3::Comm::HMCErrCode setJR(int8_t gpId, int32_t index, const JntPos & data);
+
+            /**
+             * @brief   获取JR（关节坐标）寄存器值
+             * @param   gpId    组号（0..n-1）
+             * @param   index   索引
+             * @param[out]   data    值
+             */
+	        Hsc3::Comm::HMCErrCode getJR(int8_t gpId, int32_t index, JntPos & data);
+
+            /**
+             * @brief   获取JR（关节坐标）寄存器值
+             * @param   gpId    组号（0..n-1）
+             * @param   index   索引
+             * @param   len     数量
+             * @param[out]   listData    值的列表
+             */
+            Hsc3::Comm::HMCErrCode getJR(int8_t gpId, int32_t index, int32_t len, std::vector<JntPos> & listData);
+
+            /**
+             * @brief   设置LR（笛卡尔坐标）寄存器值
+             * @param   gpId    组号（0..n-1）
+             * @param   index   索引
+             * @param   data    值
+             */
+	        Hsc3::Comm::HMCErrCode setLR(int8_t gpId, int32_t index, const LocPos & data);
+
+            /**
+             * @brief   获取LR（笛卡尔坐标）寄存器值
+             * @param   gpId    组号（0..n-1）
+             * @param   index   索引
+             * @param[out]   data    值
+             */
+	        Hsc3::Comm::HMCErrCode getLR(int8_t gpId, int32_t index, LocPos & data);
+
+            /**
+             * @brief   获取LR（笛卡尔坐标）寄存器值
+             * @param   gpId    组号（0..n-1）
+             * @param   index   索引
+             * @param   len     数量
+             * @param[out]   listData    值的列表
+             */
+            Hsc3::Comm::HMCErrCode getLR(int8_t gpId, int32_t index, int32_t len, std::vector<LocPos> & listData);
+
+            /**
+             * @brief   配置区域
+             * @param   gpId    组号（0..n-1）
+             * @param   index   索引
+             * @param   data    值
+             */
+	        Hsc3::Comm::HMCErrCode configArea(int8_t gpId, int32_t index, const AreaConfigData & data);
+
+            /**
+             * @brief   获取区域类型
+             * @param   gpId    组号（0..n-1）
+             * @param   index   索引
+             * @param[out]   type      区域类型
+             */
+            Hsc3::Comm::HMCErrCode getAreaType(int8_t gpId, int8_t index, AreaType & type);
+
+            /**
+             * @brief   获取区域类型
+             * @param   gpId    组号（0..n-1）
+             * @param[out]   listType      区域类型
+             */
+            Hsc3::Comm::HMCErrCode getAreaType(int8_t gpId, std::vector<AreaType> & listType);
+
+            /**
+             * @brief   使能共享区
+             * @param   gpId    组号（0..n-1）
+             * @param   index   索引
+	         * @param   en      是否使能
+             */
+            Hsc3::Comm::HMCErrCode setShareAreaEn(int8_t gpId, int8_t index, bool en);
+	
+	        /**
+             * @brief   获取共享区使能
+             * @param   gpId    组号（0..n-1）
+             * @param   index   索引
+             * @param[out]   en      是否使能
+             */
+            Hsc3::Comm::HMCErrCode getShareAreaEn(int8_t gpId, int8_t index, bool & en);
+
+            /**
+             * @brief   获取共享区使能
+             * @param   gpId    组号（0..n-1）
+             * @param[out]   listEn      是否使能
+             */
+            Hsc3::Comm::HMCErrCode getShareAreaEn(int8_t gpId, std::vector<bool> & listEn);
+
+            /**
+             * @brief   获取区域输出
+             * @param   gpId    组号（0..n-1）
+             * @param   index   索引
+             * @param[out]   en      是否输出
+             */
+            Hsc3::Comm::HMCErrCode getAreaOut(int8_t gpId, int8_t index, bool & en);
+
+            /**
+             * @brief   获取区域输出
+             * @param   gpId    组号（0..n-1）
+             * @param[out]   listEn      是否使能
+             */
+            Hsc3::Comm::HMCErrCode getAreaOut(int8_t gpId, std::vector<bool> & listEn);
+
+            /**
+             * @brief   获取区域配置
+             * @param   gpId    组号（0..n-1）
+             * @param   index   索引
+             * @param[out]   data    值
+             */
+	        Hsc3::Comm::HMCErrCode getAreaConfig(int8_t gpId, int32_t index, AreaConfigData & data);
+
+        private:
+            Hsc3::Comm::CommApi * m_pNet;
+        };
+    }
+
+}
+======================================================================
+FILE: C:\Users\32755\Desktop\机器人后台\华数二次开发\二次开发资料\Hsc3ApiDemo\src\Training_CommApi\CommApiTraining.cpp
+======================================================================
+/************************************************************************/
+/* 
+* @brief ʾͨӿIPCͨӡȡϵͳ汾Ϣ͵ûִӿڡ
+*/
+/************************************************************************/
+#pragma once
+#include <iostream>
+#include <Windows.h>
+#include <vector>
+#include "CommApi.h"
+#include "proxy/ProxyVar.h"
+
+int main()
+{
+    //1.ͨѶͻ
+    Hsc3::Comm::CommApi cmApi("./log/test");
+    //2.÷Զģʽ˽ӿӦǰá
+    cmApi.setAutoConn(false);
+    //3.ӣĬIP"10.10.56.214"  - (std::string)˿ںǹ̶ֵ23234 -int
+    Hsc3::Comm::HMCErrCode ret=cmApi.connect("127.0.0.1",23234);
+    if (ret!=0)
+    {
+        printf("CommApi::connect :ret=%lld\n",ret);
+    }
+    //4.ѯǷ,Ӻͨ˽ӿȷ״̬
+    if(cmApi.isConnected())
+    {
+        std::cout<<"ӳɹ"<<std::endl;
+        std::cout<<"汾Ϣ:"<<cmApi.getVersionStr()<<std::endl;  //ȡ汾Ϣ
+        while(1)
+        {
+            std::string strCmd;
+            std::cout<<":"<<std::endl;
+            std::cin>>strCmd;
+            if (strCmd=="quit")
+            {
+                break;
+            }
+            else
+            {
+                std::string strRet;
+                //ִӿ
+                //һ:strCmd͸ʽͨҵӿĵѯ
+                //ڶִнһ˫Űַ˽ʱҪעַлһ˫š
+                //ȼʹȼöֵ
+                cmApi.execCmd(strCmd,strRet,Hsc3::Comm::PRIORITY_HIGH);
+                std::cout<<strRet<<std::endl;
+            }
+        }
+    }
+    system("pause");
+    return 0;
+}
+
+
+======================================================================
+FILE: C:\Users\32755\Desktop\机器人后台\华数二次开发\二次开发资料\Hsc3ApiDemo\src\Training_Motion\TrainingJog.cpp
+======================================================================
+/************************************************************************/
+/* 
+* @brief ʾƻ˵㶯
+*/
+/************************************************************************/
+#pragma once
+#include <iostream>
+#include <Windows.h>
+#include "CommApi.h"
+#include "proxy/ProxyMotion.h"
+
+bool connectIPC(Hsc3::Comm::CommApi &cmApi,std::string strIP,uint16_t uPort);
+bool disconnectIPC(Hsc3::Comm::CommApi & cmApi);
+void axisJog(Hsc3::Proxy::ProxyMotion & pMot, int8_t axis,DirectType direct);
+bool setEn(Hsc3::Proxy::ProxyMotion & pMot, bool en);
+void waitDone(Hsc3::Proxy::ProxyMotion & pMot);
+
+int main()
+{
+    Hsc3::Comm::CommApi cmApi("");
+    Hsc3::Proxy::ProxyMotion pMot(&cmApi);
+
+    if (connectIPC(cmApi,"10.10.56.214",23234))
+    {
+        //ֶģʽ
+        pMot.setOpMode(OP_T1);
+        //ֶģʽ
+        pMot.setManualMode(MANUAL_CONTINUE);
+        //ϵ
+        pMot.setWorkFrame(0,FRAME_JOINT);
+        if (setEn(pMot,true))
+        {
+            while(1)
+            {
+                std::string strCmd;
+                std::cout<<""<<std::endl;
+                std::cin>>strCmd;
+                if (strCmd=="quit")
+                {
+                    break;
+                }
+                else
+                {
+                    for(int8_t axis=0;axis<6;axis++)
+                    {
+                        axisJog(pMot,axis,POSITIVE);
+                        Sleep(1000);
+                        axisJog(pMot,axis,NEGATIVE);
+                        Sleep(1000);
+                    }
+                }
+            }
+        }
+        else
+        {
+            std::cout<<"ʹʧ"<<std::endl;
+        }
+    }
+    setEn(pMot,false);
+    disconnectIPC(cmApi);
+    system("pause");
+    return 0;
+}
+
+/************************************************************************/
+/*            
+* @brief IPC
+* @param cmApi:ͨſͻ˶󣬽ԶĺҪݿͻ˶󣬶ʹôݡ
+* @param strIP:IPĬIP"10.10.56.214"
+* @param uPort:˿ں,̶˿ں:23234
+*/
+/************************************************************************/
+bool connectIPC(Hsc3::Comm::CommApi &cmApi,std::string strIP,uint16_t uPort)
+{
+    //1.÷Զģʽ,ǰá
+    cmApi.setAutoConn(false);
+    //2.
+    Hsc3::Comm::HMCErrCode ret=cmApi.connect(strIP,uPort);
+    if (ret!=0)
+    {
+        printf("CommApi::connect :ret=%lld\n",ret);
+    }
+    //3.ѯǷ
+    if(cmApi.isConnected())
+    {
+        std::cout<<"ӳɹ"<<std::endl;
+        return true;
+    }
+    else
+    {
+        std::cout<<"ʧ"<<std::endl;
+        return false;
+    }
+}
+
+/************************************************************************/
+/* 
+* @brief ϿIPC
+* @param cmApi:ͨſͻ˶
+*/
+/************************************************************************/
+bool disconnectIPC(Hsc3::Comm::CommApi & cmApi)
+{
+    Hsc3::Comm::HMCErrCode ret=cmApi.disconnect();
+    Sleep(500);
+    if (cmApi.isConnected())
+    {
+        return false;
+    }
+    else
+    {
+        return true;
+    }
+}
+
+/************************************************************************/
+/* 
+* @brief ָָ˶4s,ʾ
+* @param pMot:˶ܴ
+* @param axis:ָ
+* @param direct:ָ
+*/
+/************************************************************************/
+void axisJog(Hsc3::Proxy::ProxyMotion & pMot, int8_t axis,DirectType direct)
+{
+    //1.˶
+    pMot.startJog(0,axis,direct);
+    Sleep(4000);
+    //2.ֹͣ˶,startJog()еstopJog()˽˶ȥ
+    pMot.stopJog(0);
+    waitDone(pMot);
+    Sleep(4000);
+}
+
+/************************************************************************/
+/* 
+* @brief ȴ˶ֶֹֻͣģʽڼǷھֹ״̬״̬
+* @param pMot:˶ܴ
+*/
+/************************************************************************/
+void waitDone(Hsc3::Proxy::ProxyMotion & pMot)
+{
+    ManState manualState=MAN_STATE_MAX;
+    while(1)
+    {
+        pMot.getManualStat(manualState);
+        if (manualState == MAN_STATE_WAIT || manualState == MAN_STATE_ERROR)
+        {
+            break;
+        }
+    }
+}
+
+/************************************************************************/
+/*      
+* @brief ʹ
+* @param pMot:˶ܴ
+* @param en:ʹ״̬
+*/
+/************************************************************************/
+bool setEn(Hsc3::Proxy::ProxyMotion & pMot, bool en)
+{
+    bool gpEn=false;
+    //Ȼȡʹ״̬ʹ״̬Ҫõ״̬ٴá
+    pMot.getGpEn(0,gpEn);
+    if (gpEn == en)
+    {
+        return true;
+    }
+    else
+    {
+        //1.ʹ
+        pMot.setGpEn(0,en);
+        Sleep(500);
+        pMot.getGpEn(0,gpEn);
+        if (gpEn==en)
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+}
+======================================================================
+FILE: C:\Users\32755\Desktop\机器人后台\华数二次开发\二次开发资料\Hsc3ApiDemo\src\Training_Move\TrainingMove.cpp
+======================================================================
+/************************************************************************/
+/* 
+* @brief ʾ˶ƶλ
+*/
+/************************************************************************/
+#pragma once
+
+#include <iostream>
+#include <Windows.h>
+#include "process.h"
+#include "CommApi.h"
+#include "proxy/ProxyMotion.h"
+
+bool connectIPC(Hsc3::Comm::CommApi & cmApi, std::string strIP, uint16_t uPort);
+bool disconnectIPC(Hsc3::Comm::CommApi & cmApi);
+void loadPosData(GeneralPos & generalPos,double axis0, double axis1, double axis2, double axis3, double axis4, double axis5,bool isJoint);
+void waitDone(Hsc3::Proxy::ProxyMotion & pMot);
+
+int main()
+{
+    GeneralPos targetPos1,targetPos2;
+    Hsc3::Comm::CommApi cmApi("");
+    Hsc3::Proxy::ProxyMotion pMot(&cmApi);
+    
+    /************************************************************************/
+    /* 
+    *  {0,-90,180,0,90,0}{27.6,-77.8,197.0,-8.0,73.7,62}
+    *  {376.5,0.0,331.0,130.0,-120.0,30.0}{376.5,0.0,331.0,-50.0,-60.0,-150.0}
+    */
+    /************************************************************************/
+    loadPosData(targetPos1,27.6,-77.8,197.0,-8.0,73.7,62,true);
+    /*loadPosData(targetPos2,376.5,0.0,331.0,-50.0,-60.0,-150.0,false);*/
+
+    if (connectIPC(cmApi,"10.10.56.214",23234))
+    {
+        pMot.setOpMode(OP_T1);
+        /*pMot.setManualMode(MANUAL_INCREMENT);*/
+        pMot.setWorkFrame(0,FRAME_JOINT);
+        pMot.setGpEn(0,true);
+        Sleep(1000);
+        pMot.moveTo(0,targetPos1,false);
+        waitDone(pMot);
+        Sleep(1000);
+        /*pMot.moveTo(0,targetPos2,false);
+        waitDone(pMot);
+        Sleep(1000);*/
+    }
+    else
+    {
+        std::cout<<"ʧ"<<std::endl;
+    }
+    system("pause");
+    return 0;
+}
+
+/************************************************************************/
+/*            
+* @brief IPC
+* @param cmApi:ͨſͻ˶󣬽ԶĺҪݿͻ˶󣬶ʹôݡ
+* @param strIP:IPĬIP"10.10.56.214"
+* @param uPort:˿ں,̶˿ں:23234
+*/
+/************************************************************************/
+bool connectIPC(Hsc3::Comm::CommApi & cmApi, std::string strIP,uint16_t uPort)
+{
+    //1.÷Զģʽ,ǰá
+    cmApi.setAutoConn(false);
+    //2.
+    Hsc3::Comm::HMCErrCode ret = cmApi.connect(strIP,uPort);
+    if (ret!=0)
+    {
+        printf("CommApi::connect() : ret = %lld\n",ret);
+    }
+    //3.ѯǷ
+    if (cmApi.isConnected())
+    {
+        std::cout<<"ӳɹ"<<std::endl;
+        return true;
+    }
+    else
+    {
+        std::cout<<"ʧ"<<std::endl;
+        return false;
+    }
+}
+
+/************************************************************************/
+/* 
+* @brief ϿIPC
+* @param cmApi:ͨſͻ˶
+*/
+/************************************************************************/
+bool disconnectIPC(Hsc3::Comm::CommApi & cmApi)
+{
+    Hsc3::Comm::HMCErrCode ret=cmApi.disconnect();
+    Sleep(500);
+    if (cmApi.isConnected())
+    {
+        return false;
+    }
+    else
+    {
+        return true;
+    }
+}
+
+/************************************************************************/
+/* 
+* @brief װ
+*/
+/************************************************************************/
+void loadPosData(GeneralPos & generalPos,double axis0, double axis1, double axis2, double axis3, double axis4, double axis5,bool isJoint)
+{
+    generalPos.config=1048576;
+    generalPos.isJoint=isJoint;
+    generalPos.ufNum=-1;
+    generalPos.utNum=-1;
+    generalPos.vecPos.push_back(axis0);
+    generalPos.vecPos.push_back(axis1);
+    generalPos.vecPos.push_back(axis2);
+    generalPos.vecPos.push_back(axis3);
+    generalPos.vecPos.push_back(axis4);
+    generalPos.vecPos.push_back(axis5);
+    generalPos.vecPos.push_back(0);
+    generalPos.vecPos.push_back(0);
+    generalPos.vecPos.push_back(0);
+}
+
+/************************************************************************/
+/* 
+* @brief ȴ˶ֶֹֻͣģʽ˶㣬ڼǷھֹ״̬
+* @param pMot:˶ܴ
+*/
+/************************************************************************/
+void waitDone(Hsc3::Proxy::ProxyMotion & pMot)
+{
+    ManState manualState=MAN_STATE_MAX;
+    //ʱΪ˷ֹ˻δ˶״̬
+    Sleep(1000);
+    while(1)
+    {
+        pMot.getManualStat(manualState);
+        if (manualState == MAN_STATE_WAIT || manualState == MAN_STATE_ERROR)
+        {
+            if (manualState == MAN_STATE_ERROR)
+            {
+                std::cout<<""<<std::endl;
+            }
+            break;
+        }
+    }
+}
+======================================================================
+FILE: C:\Users\32755\Desktop\机器人后台\华数二次开发\二次开发资料\Hsc3ApiDemo\src\Training_Sys\Main.cpp
+======================================================================
+﻿/************************************************************************/
+/* 
+* @brief 演示获取系统报警
+*/
+/************************************************************************/
+#pragma once
+
+#include <iostream>
+#include <Windows.h>
+#include "process.h"
+#include "CommApi.h"
+#include "proxy/ProxyMotion.h"
+#include "proxy/ProxySys.h"
+//////////////////////////////////////////////////////////////////////////
+#define IP "10.10.56.214"
+
+/////////////////////////////////函数声明/////////////////////////////////////////
+unsigned int WINAPI messageThread(void *pParam);
+
+bool connectIPC(Hsc3::Comm::CommApi & cmApi, std::string strIP, uint16_t uPort);
+bool disconnectIPC(Hsc3::Comm::CommApi & cmApi);
+void waitDone(Hsc3::Proxy::ProxyMotion & pMot);
+void loadPosData(GeneralPos & generalPos,double axis0, double axis1, double axis2, double axis3, double axis4, double axis5,bool isJoint);
+//////////////////////////////////变量声明////////////////////////////////////////
+std::string Cmd;
+
+//////////////////////////////////////////////////////////////////////////
+
+int main()
+{
+    HANDLE hthread;
+    unsigned int threadId;
+    DWORD dw;
+    Hsc3::Comm::CommApi cmApi("");
+    Hsc3::Proxy::ProxyMotion pMot(&cmApi);
+    GeneralPos targetPos1,targetPod2;
+
+    loadPosData(targetPos1,0,90,-180,0,90,0,true);
+    loadPosData(targetPod2,90,90,-180,0,90,0,true);
+
+    if (connectIPC(cmApi,IP,23234))
+    {
+        //创建子线程来处理系统报警
+        hthread=(HANDLE)_beginthreadex(NULL, NULL, messageThread, NULL, 0, &threadId);
+        if(hthread==0)
+        {
+            std::cout<<"fail to creat a thread"<<std::endl;
+        }
+        pMot.setGpEn(0,true);
+        Sleep(2000);
+        while(Cmd != "quit" || Cmd != "stop")
+        {
+            /*pMot.moveTo(0,targetPos1,false);
+            waitDone(pMot);
+            Sleep(1000);
+            pMot.moveTo(0,targetPod2,false);
+            waitDone(pMot);
+            Sleep(1000);
+            std::cout<<"是否继续"<<std::endl;
+            std::cin>>Cmd;*/
+            Sleep(2000);
+        }
+        dw = WaitForSingleObject(hthread,INFINITE);
+        switch(dw)
+        {
+        case WAIT_OBJECT_0:
+            std::cout<<"线程结束\n";
+            break;
+        case WAIT_TIMEOUT:
+            std::cout<<"等待时间超时\n";
+            break;
+        case WAIT_FAILED:
+            std::cout<<"函数调用失败\n";
+            break;
+        }
+    }
+    disconnectIPC(cmApi);
+    system("pause");
+    return 0;
+}
+
+/************************************************************************/
+/*            
+* @brief 连接IPC
+* @param cmApi:通信客户端对象，建议在自定义的函数中如果需要传递客户端对象，都使用引用传递。
+* @param strIP:IP，控制器默认IP是"10.10.56.214"
+* @param uPort:端口号,固定端口号:23234
+*/
+/************************************************************************/
+bool connectIPC(Hsc3::Comm::CommApi & cmApi, std::string strIP,uint16_t uPort)
+{
+    cmApi.setAutoConn(false);
+    //连接
+    Hsc3::Comm::HMCErrCode ret = cmApi.connect(strIP,uPort);
+    if (ret!=0)
+    {
+        printf("CommApi::connect() : ret = %lld\n",ret);
+    }
+    if (cmApi.isConnected())
+    {
+        std::cout<<"连接成功"<<std::endl;
+        return true;
+    }
+    else
+    {
+        std::cout<<"连接失败"<<std::endl;
+        return false;
+    }
+}
+
+/************************************************************************/
+/* 
+* @brief 断开与IPC的连接
+* @param cmApi:通信客户端对象
+*/
+/************************************************************************/
+bool disconnectIPC(Hsc3::Comm::CommApi & cmApi)
+{
+    Hsc3::Comm::HMCErrCode ret=cmApi.disconnect();
+    Sleep(500);
+    if (cmApi.isConnected())
+    {
+        return false;
+    }
+    else
+    {
+        return true;
+    }
+}
+
+/************************************************************************/
+/* 
+* @brief 等待运动停止，只能用于手动模式下用于检测是否处于静止状态或错误状态。
+* @param pMot:运动功能代理
+*/
+/************************************************************************/
+void waitDone(Hsc3::Proxy::ProxyMotion & pMot)
+{
+    ManState manualState=MAN_STATE_MAX;
+    while(1)
+    {
+        pMot.getManualStat(manualState);
+        if (manualState == MAN_STATE_WAIT || manualState == MAN_STATE_ERROR)
+        {
+            if (manualState == MAN_STATE_ERROR)
+            {
+                std::cout<<"错误"<<std::endl;
+            }
+            break;
+        }
+    }
+}
+
+/************************************************************************/
+/* 
+* @brief 装载数据
+*/
+/************************************************************************/
+void loadPosData(GeneralPos & generalPos,double axis0, double axis1, double axis2, double axis3, double axis4, double axis5,bool isJoint)
+{
+    generalPos.config=0x100000;
+    generalPos.isJoint=isJoint;
+    generalPos.ufNum=-1;
+    generalPos.utNum=-1;
+    generalPos.vecPos.push_back(axis0);
+    generalPos.vecPos.push_back(axis1);
+    generalPos.vecPos.push_back(axis2);
+    generalPos.vecPos.push_back(axis3);
+    generalPos.vecPos.push_back(axis4);
+    generalPos.vecPos.push_back(axis5);
+    generalPos.vecPos.push_back(0);
+    generalPos.vecPos.push_back(0);
+    generalPos.vecPos.push_back(0);
+}
+
+/************************************************************************/
+/* 
+* @brief UTF-8转GBK编码
+* @param src_str:待转UTF-8编码字符串
+*/
+/************************************************************************/
+std::string Utf8ToGbk(const char *src_str)
+{
+    int len = MultiByteToWideChar(CP_UTF8, 0, src_str, -1, NULL, 0);
+    wchar_t* wszGBK = new wchar_t[len + 1];
+    memset(wszGBK, 0, len * 2 + 2);
+    MultiByteToWideChar(CP_UTF8, 0, src_str, -1, wszGBK, len);
+    len = WideCharToMultiByte(CP_ACP, 0, wszGBK, -1, NULL, 0, NULL, NULL);
+    char* szGBK = new char[len + 1];
+    memset(szGBK, 0, len + 1);
+    WideCharToMultiByte(CP_ACP, 0, wszGBK, -1, szGBK, len, NULL, NULL);
+    std::string strTemp(szGBK);
+    if (wszGBK) delete[] wszGBK;
+    if (szGBK) delete[] szGBK;
+    return strTemp;
+}
+
+/************************************************************************/
+/* 
+* @brief 报警信息线程处理函数，建议创建单独的线程来处理报警信息，防止报警信息得不到及时响应和处理。
+*/
+/************************************************************************/
+unsigned int WINAPI messageThread(void *pParam)
+{
+    Hsc3::Comm::CommApi tcmApi("");
+    Hsc3::Proxy::ProxySys pSys(& tcmApi);
+    ErrLevel errLevel;
+    uint64_t errCode;
+    std::string errMessage;
+
+    if (connectIPC(tcmApi,IP,23234))
+    {
+        Hsc3::Comm::HMCErrCode ret=1;
+        while(Cmd != "stop" || Cmd != "quit")
+        {
+            ret=pSys.getMessage(errLevel,errCode,errMessage,2000);
+            if (ret == 0)
+            {
+                printf("errCode = %lld\n",errCode);
+                switch(errLevel)
+                {
+                case ERR_LEVEL_INFO:
+                    std::cout<<"ERR_LEVEL_INFO";
+                    break;
+                case ERR_LEVEL_NOTE:
+                    std::cout<<"ERR_LEVEL_NOTE";
+                    break;
+                case ERR_LEVEL_WARNING:
+                    std::cout<<"ERR_LEVEL_WARNING";
+                    break;
+                case ERR_LEVEL_ERROR:
+                    std::cout<<"ERR_LEVEL_ERROR";
+                    break;
+                case ERR_LEVEL_FATAL:
+                    std::cout<<"ERR_LEVEL_FATAL";
+                    break;
+                default:
+                    std::cout<<"UNKNOWN_ERR_LEVEL";
+                }
+                std::cout<<", ErrCode : "<<errCode<<std::endl;
+                //通过接口获取到的报警信息是UTF-8编码格式
+                std::cout<< Utf8ToGbk(errMessage.c_str()) <<std::endl;
+            }
+        }
+    }
+    disconnectIPC(tcmApi);
+    return 0;
+}
+
+======================================================================
+FILE: C:\Users\32755\Desktop\机器人后台\华数二次开发\二次开发资料\Hsc3Api_cs_dotnet461\HsDemo4_6_2\HsDemo4_6_2\HsDemo4_6_2\Program.cs
+======================================================================
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace HsDemo
+{
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            //demo.ProxyVarDemo proxyVar = new demo.ProxyVarDemo();
+            //proxyVar.TestGetRegister("10.4.0.191");
+            //demo.ProxyMotionDemo proxyMotionDemo = new demo.ProxyMotionDemo ();
+            //proxyMotionDemo.TestProxyMotion("10.4.0.191");
+            demo.ProxyCollectDemo proxy1CollectDemo = new demo.ProxyCollectDemo();
+            proxy1CollectDemo.TestProxyCollect("10.4.0.191");
+        }
+    }
+}
+
+======================================================================
+FILE: C:\Users\32755\Desktop\机器人后台\华数二次开发\二次开发资料\Hsc3Api_cs_dotnet461\HsDemo4_6_2\HsDemo4_6_2\HsDemo4_6_2\ProxyCollectDemo.cs
+======================================================================
+﻿using System;
+using System.Collections.Generic;
+using System.Threading;
+using Hsc3.Comm;
+using Hsc3.Proxy;
+using Newtonsoft.Json;
+namespace demo
+{
+    public class ProxyCollectDemo
+    { 
+        public void TestProxyCollect(string ip)
+        {
+            CommApi cmApi = new CommApi();
+            ProxyCollect proCollect = new ProxyCollect(cmApi);
+            cmApi.SetUseHeartBeat(true);
+            cmApi.SetUseUdp(true);
+            if (connectIPC(cmApi, ip, 23234))
+            {
+                ulong conn;
+
+                //添加采集任务
+                int tid = 1;
+                int iSampleKT = 2;
+                string strVarList = "var.axis[0].pfb,var.axis[1].pfb,";
+                
+                //添加采集任务
+                conn = proCollect.AddTask(tid, iSampleKT, strVarList);
+                Console.WriteLine($"AddTask ret:{conn}");
+
+                //启动采集任务
+                conn = proCollect.Start(tid);
+                Console.WriteLine($"Start ret:{conn}");
+                
+                //获取控制系统当前时间戳
+                int timestamp = 0;
+                conn = proCollect.GetCurTimestamp(ref timestamp);
+                Console.WriteLine($"CurTimestamp:{timestamp}");
+                int count = 0;
+                string msg = null;
+                while (true)
+                {
+                    msg = null;
+                    conn = cmApi.GetUdpClient().getUdpMsg(UdpDataType.UDP_DATA_TYPE_COLL, ref msg);
+                    if (conn != 0)
+                        break;
+                    if (!string.IsNullOrEmpty(msg))
+                        Console.WriteLine(msg);
+                    Thread.Sleep(4);
+                }
+
+                //停止采集任务
+                conn = proCollect.Stop(tid);
+
+                //删除采集任务
+                conn = proCollect.DelTask(tid);
+            }
+            //完成所有操作后，务必断开与控制器的连接
+            disconnectIPC(cmApi);
+        }
+
+        static bool connectIPC(Hsc3.Comm.CommApi cmApi, string strIP, ushort uPort)
+        {
+            ulong conn;
+            conn = cmApi.Connect(strIP, uPort);
+            string backStr = "";
+            conn = cmApi.ExecCmd("mot.getRobTypeName(0)", ref backStr, 0);
+            if (conn != 0)
+            {
+                Console.WriteLine("CommApi::connect() : ret = " + conn);
+            }
+            if (cmApi.IsConnected())
+            {
+                Console.WriteLine("连接成功");
+                return true;
+            }
+            else
+            {
+                Console.WriteLine("连接失败");
+                return false;
+            }
+        }
+
+        static bool disconnectIPC(Hsc3.Comm.CommApi cmApi)
+        {
+            ulong ret = cmApi.Disconnect();
+            Thread.Sleep(500);
+            if (cmApi.IsConnected())
+            {
+                return false;
+            }
+            else
+            {
+                return true;
+            }
+        }
+    }
+}
+
+======================================================================
+FILE: C:\Users\32755\Desktop\机器人后台\华数二次开发\二次开发资料\Hsc3Api_cs_dotnet461\HsDemo4_6_2\HsDemo4_6_2\HsDemo4_6_2\ProxyMotionDemo.cs
+======================================================================
+﻿using System;
+using System.Collections.Generic;
+using System.Threading;
+using Hsc3.Comm;
+using Hsc3.Proxy;
+
+namespace demo
+{
+    public class ProxyMotionDemo
+    {
+        public void TestProxyMotion(string ip)
+        {
+            CommApi cmApi = new CommApi();
+            ProxyMotion proMot = new ProxyMotion(cmApi);
+
+            if (connectIPC(cmApi, ip, 23234))
+            {
+                ulong conn;
+                sbyte gpId = 0;
+                bool en = false;
+
+                //获取运动层版本信息
+                string Var = string.Empty;
+                conn = proMot.GetMotionVer(ref Var);
+
+                //设置操作模式
+                OpMode opMode = OpMode.OP_T1;
+                conn = proMot.SetOpMode(opMode);
+
+                //获取操作模式
+                conn = proMot.GetOpMode(ref opMode);
+                
+
+                //设置手动运行增量距离
+                double length = 0.1;
+                conn = proMot.SetInchLen(length);
+
+                //获取手动运行增量距离
+                conn = proMot.GetInchLen(ref length);
+                
+
+                //设置自动运行倍率
+                int vord = 50;
+                conn = proMot.SetVord(vord);
+
+                //获取自动运行倍率
+                conn = proMot.GetVord(ref vord);
+
+                //设置手动运行倍率
+                vord = 50;
+                conn = proMot.SetJogVord(vord);
+
+                //获取手动运行倍率
+                conn = proMot.GetJogVord(ref vord);
+
+                //获取是否处于使能状态
+                conn = proMot.GetGpEn(gpId, ref en);
+                
+
+                //单轴手动运动
+                //gpId = 0;
+                //sbyte axId = 0;
+                //DirectType direc = DirectType.POSITIVE;
+                //conn = proMot.StartJog(gpId, axId, direc);
+
+                //停止手动运动
+                //conn = proMot.StopJog(gpId);
+
+                
+                gpId = 0;
+                GeneralPos point = new GeneralPos()
+                {
+                    isJoint = true,
+                    ufNum = -1,
+                    utNum = -1,
+                    config = 0,
+                    vecPos = new List<double>(),
+                };
+                //运动到点
+                //point.vecPos.Add(0);
+                //point.vecPos.Add(-90);
+                //point.vecPos.Add(180);
+                //point.vecPos.Add(0);
+                //point.vecPos.Add(90);
+                //point.vecPos.Add(0);
+                //point.vecPos.Add(0);
+                //point.vecPos.Add(0);
+                //point.vecPos.Add(0);
+                //bool isLinear = false;
+                //conn = proMot.MoveTo(gpId, point, isLinear);
+
+
+                //获取工作坐标系
+                FrameType ft = FrameType.FRAME_BASE;
+                conn = proMot.GetWorkFrame(0, ref ft);
+
+                //获取内部轴数
+                gpId = 0;
+                int cnt = 0;
+                conn = proMot.GetRobAxisCount(0, ref cnt);
+
+                //获取附加轴数
+                gpId = 0;
+                cnt = 0;
+                conn = proMot.GetAuxAxisCount(0, ref cnt);
+
+                //获取关节坐标点数据
+                List<double> test = new List<double>();
+                conn = proMot.GetJntData(gpId, ref test);
+                
+
+                //获取笛卡尔坐标点数据
+                conn = proMot.GetLocData(gpId, ref test);
+
+                //获取形态
+                int config = 0;
+                conn = proMot.GetConfig(gpId, ref config);
+
+                //获取工具坐标数据
+                gpId = 0;
+                int index = 0;
+                List<double> data = new List<double>();
+                conn = proMot.GetTool(gpId, index, ref data);
+
+                //获取工件坐标数据
+                var pos = new List<double>();
+                conn = proMot.GetWorkpiece(gpId, 0, ref pos);
+                
+
+                //获取工具号
+                sbyte num = 0;
+                conn = proMot.GetToolNum(0, ref num);
+
+                //获取工件号
+                num = 0;
+                conn = proMot.GetWorkpieceNum(0, ref num);
+                
+                
+            }
+            //完成所有操作后，务必断开与控制器的连接
+            disconnectIPC(cmApi);
+        }
+
+        static bool connectIPC(Hsc3.Comm.CommApi cmApi, string strIP, ushort uPort)
+        {
+            ulong conn;
+            conn = cmApi.Connect(strIP, uPort);
+            if (conn != 0)
+            {
+                Console.WriteLine("CommApi::connect() : ret = " + conn);
+            }
+            //Thread.Sleep(1000);
+            if (cmApi.IsConnected())
+            {
+                Console.WriteLine("连接成功");
+                return true;
+            }
+            else
+            {
+                Console.WriteLine("连接失败");
+                return false;
+            }
+        }
+
+        static bool disconnectIPC(Hsc3.Comm.CommApi cmApi)
+        {
+            ulong ret = cmApi.Disconnect();
+            Thread.Sleep(500);
+            if (cmApi.IsConnected())
+            {
+                return false;
+            }
+            else
+            {
+                return true;
+            }
+        }
+    }
+}
+
+======================================================================
+FILE: C:\Users\32755\Desktop\机器人后台\华数二次开发\二次开发资料\Hsc3Api_cs_dotnet461\HsDemo4_6_2\HsDemo4_6_2\HsDemo4_6_2\ProxyVarDemo.cs
+======================================================================
+﻿using System;
+using System.Collections.Generic;
+using System.Threading;
+using Hsc3.Comm;
+using Hsc3.Proxy;
+using Newtonsoft.Json;
+namespace demo
+{
+    public class ProxyVarDemo
+    {
+	
+		private  CommApi cmApi = new CommApi();
+        public void TestGetRegister(string ip)
+        {
+
+            if (!cmApi.IsConnected())
+                connectIPC(cmApi, ip, 23234);
+
+            if (cmApi.IsConnected())
+            {
+                ProxyVar proVar = new ProxyVar(cmApi);
+                double retr = 0;
+
+                //R寄存器
+                var returnVal = proVar.SetR(100, 5);
+                Console.WriteLine($"ret:{returnVal} set R[100]:{5}");
+
+                returnVal = proVar.GetR(100, ref retr);
+                Console.WriteLine($"ret:{returnVal} get R[100]:{retr}");
+
+                //JR寄存器
+                List<double> Jrlist2 = new List<double>();
+                returnVal=proVar.GetJR(0,5,  ref Jrlist2);
+                Console.WriteLine($"ret:{returnVal} get JR[5]:{JsonConvert.SerializeObject(Jrlist2)}");
+
+                returnVal = proVar.SetJR(0, 5, Jrlist2);
+                Console.WriteLine($"ret:{returnVal} set JR[5]:{JsonConvert.SerializeObject(Jrlist2)}");
+                //LR寄存器
+                LocPos locPos = new LocPos();
+                locPos.config = 0;
+                locPos.ufNum = -1;
+                locPos.utNum = -1;
+                locPos.vecPos.Add(100);
+                locPos.vecPos.Add(101);
+                locPos.vecPos.Add(102);
+                locPos.vecPos.Add(103);
+                locPos.vecPos.Add(104);
+                locPos.vecPos.Add(105);
+                returnVal = proVar.SetLR(0, 5, locPos);
+                Console.WriteLine($"ret:{returnVal} set LR[5]:{JsonConvert.SerializeObject(locPos)}");
+
+                LocPos locPos2 = new LocPos();
+                returnVal = proVar.GetLR(0,5,ref locPos2);
+                Console.WriteLine($"ret:{returnVal} set LR[5]:{JsonConvert.SerializeObject(locPos)}");
+            }
+
+            disconnectIPC(cmApi);
+        }
+
+         bool connectIPC(Hsc3.Comm.CommApi cmApi, string strIP, ushort uPort)
+        {
+            ulong conn;
+            conn = cmApi.Connect(strIP, uPort);
+            if (cmApi.IsConnected())
+            {
+                Console.WriteLine("连接成功");
+                return true;
+            }
+            else
+            {
+                Console.WriteLine("连接失败");
+                return false;
+            }
+        }
+
+         bool disconnectIPC(Hsc3.Comm.CommApi cmApi)
+        {
+            ulong ret = cmApi.Disconnect();
+            Thread.Sleep(500);
+            if (cmApi.IsConnected())
+            {
+                Console.WriteLine("断开失败");
+                return false;
+            }
+            else
+            {
+                Console.WriteLine("断开成功");
+                return true;
+            }
+        }
+    }
+}
+
+======================================================================
+FILE: C:\Users\32755\Desktop\机器人后台\华数二次开发\二次开发资料\Hsc3Api_cs_dotnet461\HsDemo4_6_2\HsDemo4_6_2\HsDemo4_6_2\Properties\AssemblyInfo.cs
+======================================================================
+﻿using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+
+// 有关程序集的一般信息由以下
+// 控制。更改这些特性值可修改
+// 与程序集关联的信息。
+[assembly: AssemblyTitle("HsDemo4_6_2")]
+[assembly: AssemblyDescription("")]
+[assembly: AssemblyConfiguration("")]
+[assembly: AssemblyCompany("")]
+[assembly: AssemblyProduct("HsDemo4_6_2")]
+[assembly: AssemblyCopyright("Copyright ©  2024")]
+[assembly: AssemblyTrademark("")]
+[assembly: AssemblyCulture("")]
+
+// 将 ComVisible 设置为 false 会使此程序集中的类型
+//对 COM 组件不可见。如果需要从 COM 访问此程序集中的类型
+//请将此类型的 ComVisible 特性设置为 true。
+[assembly: ComVisible(false)]
+
+// 如果此项目向 COM 公开，则下列 GUID 用于类型库的 ID
+[assembly: Guid("c9a925dd-c582-4ec8-a64b-f22f08ce0d35")]
+
+// 程序集的版本信息由下列四个值组成: 
+//
+//      主版本
+//      次版本
+//      生成号
+//      修订号
+//
+// 可以指定所有值，也可以使用以下所示的 "*" 预置版本号和修订号
+// 方法是按如下所示使用“*”: :
+// [assembly: AssemblyVersion("1.0.*")]
+[assembly: AssemblyVersion("1.0.0.0")]
+[assembly: AssemblyFileVersion("1.0.0.0")]
+
+======================================================================
+FILE: C:\Users\32755\Desktop\机器人后台\华数二次开发\二次开发资料\Hsc3Api_cs_dotnet461\HsDemo4_7_2\HsDemo\HsDemo\Program.cs
+======================================================================
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace HsDemo
+{
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            //demo.ProxyVarDemo proxyVar = new demo.ProxyVarDemo();
+            //proxyVar.TestGetRegister("10.4.0.191");
+            //demo.ProxyMotionDemo proxyMotionDemo = new demo.ProxyMotionDemo ();
+            //proxyMotionDemo.TestProxyMotion("10.4.0.191");
+            demo.ProxyCollectDemo proxy1CollectDemo = new demo.ProxyCollectDemo();
+            proxy1CollectDemo.TestProxyCollect("10.4.0.191");
+        }
+    }
+}
+
+======================================================================
+FILE: C:\Users\32755\Desktop\机器人后台\华数二次开发\二次开发资料\Hsc3Api_cs_dotnet461\HsDemo4_7_2\HsDemo\HsDemo\ProxyCollectDemo.cs
+======================================================================
+﻿using System;
+using System.Collections.Generic;
+using System.Threading;
+using Hsc3.Comm;
+using Hsc3.Proxy;
+using Newtonsoft.Json;
+namespace demo
+{
+    public class ProxyCollectDemo
+    { 
+        public void TestProxyCollect(string ip)
+        {
+            CommApi cmApi = new CommApi();
+            ProxyCollect proCollect = new ProxyCollect(cmApi);
+            cmApi.SetUseHeartBeat(true);
+            cmApi.SetUseUdp(true);
+            if (connectIPC(cmApi, ip, 23234))
+            {
+                ulong conn;
+
+                //添加采集任务
+                int tid = 1;
+                int iSampleKT = 2;
+                string strVarList = "var.axis[0].pfb,var.axis[1].pfb,";
+                
+                //添加采集任务
+                conn = proCollect.AddTask(tid, iSampleKT, strVarList);
+                Console.WriteLine($"AddTask ret:{conn}");
+
+                //启动采集任务
+                conn = proCollect.Start(tid);
+                Console.WriteLine($"Start ret:{conn}");
+
+
+                //获取存在的采集任务列表
+                int SessionId = 0;
+                cmApi.GetUdpClient().getUdpSessionId(ref SessionId);
+                List<int> listTask = new List<int>();
+                conn = proCollect.GetExistTasks(SessionId, ref listTask);
+                Console.WriteLine($"exist tasks:{JsonConvert.SerializeObject(listTask)}");
+                //获取正在运行的采集任务列表
+                listTask = new List<int>();
+                conn = proCollect.GetRunningTasks(SessionId, ref listTask);
+                Console.WriteLine($"Running tasks:{JsonConvert.SerializeObject(listTask)}");
+                //获取控制系统当前时间戳
+                int timestamp = 0;
+                conn = proCollect.GetCurTimestamp(ref timestamp);
+                Console.WriteLine($"CurTimestamp:{timestamp}");
+                int count = 0;
+                string msg = null;
+                while (true)
+                {
+                    msg = null;
+                    conn = cmApi.GetUdpClient().getUdpMsg(UdpDataType.UDP_DATA_TYPE_COLL, ref msg);
+                    if (conn != 0)
+                        break;
+                    if (!string.IsNullOrEmpty(msg))
+                        Console.WriteLine(msg);
+                    Thread.Sleep(4);
+                }
+
+                //停止采集任务
+                conn = proCollect.Stop(tid);
+
+                //删除采集任务
+                conn = proCollect.DelTask(tid);
+            }
+            //完成所有操作后，务必断开与控制器的连接
+            disconnectIPC(cmApi);
+        }
+
+        static bool connectIPC(Hsc3.Comm.CommApi cmApi, string strIP, ushort uPort)
+        {
+            ulong conn;
+            conn = cmApi.Connect(strIP, uPort);
+            string backStr = "";
+            conn = cmApi.ExecCmd("mot.getRobTypeName(0)", ref backStr, 0);
+            if (conn != 0)
+            {
+                Console.WriteLine("CommApi::connect() : ret = " + conn);
+            }
+            if (cmApi.IsConnected())
+            {
+                Console.WriteLine("连接成功");
+                return true;
+            }
+            else
+            {
+                Console.WriteLine("连接失败");
+                return false;
+            }
+        }
+
+        static bool disconnectIPC(Hsc3.Comm.CommApi cmApi)
+        {
+            ulong ret = cmApi.Disconnect();
+            Thread.Sleep(500);
+            if (cmApi.IsConnected())
+            {
+                return false;
+            }
+            else
+            {
+                return true;
+            }
+        }
+    }
+}
+
+======================================================================
+FILE: C:\Users\32755\Desktop\机器人后台\华数二次开发\二次开发资料\Hsc3Api_cs_dotnet461\HsDemo4_7_2\HsDemo\HsDemo\ProxyMotionDemo.cs
+======================================================================
+﻿using System;
+using System.Collections.Generic;
+using System.Threading;
+using Hsc3.Comm;
+using Hsc3.Proxy;
+
+namespace demo
+{
+    public class ProxyMotionDemo
+    {
+        public void TestProxyMotion(string ip)
+        {
+            CommApi cmApi = new CommApi();
+            ProxyMotion proMot = new ProxyMotion(cmApi);
+
+            if (connectIPC(cmApi, ip, 23234))
+            {
+                ulong conn;
+                sbyte gpId = 0;
+                bool en = false;
+
+                //获取运动层版本信息
+                string Var = string.Empty;
+                conn = proMot.GetMotionVer(ref Var);
+
+                //设置操作模式
+                OpMode opMode = OpMode.OP_T1;
+                conn = proMot.SetOpMode(opMode);
+
+                //获取操作模式
+                conn = proMot.GetOpMode(ref opMode);
+                
+
+                //设置手动运行增量距离
+                double length = 0.1;
+                conn = proMot.SetInchLen(length);
+
+                //获取手动运行增量距离
+                conn = proMot.GetInchLen(ref length);
+                
+
+                //设置自动运行倍率
+                int vord = 50;
+                conn = proMot.SetVord(vord);
+
+                //获取自动运行倍率
+                conn = proMot.GetVord(ref vord);
+
+                //设置手动运行倍率
+                vord = 50;
+                conn = proMot.SetJogVord(vord);
+
+                //获取手动运行倍率
+                conn = proMot.GetJogVord(ref vord);
+
+                //获取是否处于使能状态
+                conn = proMot.GetGpEn(gpId, ref en);
+                
+
+                //单轴手动运动
+                //gpId = 0;
+                //sbyte axId = 0;
+                //DirectType direc = DirectType.POSITIVE;
+                //conn = proMot.StartJog(gpId, axId, direc);
+
+                //停止手动运动
+                //conn = proMot.StopJog(gpId);
+
+                
+                gpId = 0;
+                GeneralPos point = new GeneralPos()
+                {
+                    isJoint = true,
+                    ufNum = -1,
+                    utNum = -1,
+                    config = 0,
+                    vecPos = new List<double>(),
+                };
+                //运动到点
+                //point.vecPos.Add(0);
+                //point.vecPos.Add(-90);
+                //point.vecPos.Add(180);
+                //point.vecPos.Add(0);
+                //point.vecPos.Add(90);
+                //point.vecPos.Add(0);
+                //point.vecPos.Add(0);
+                //point.vecPos.Add(0);
+                //point.vecPos.Add(0);
+                //bool isLinear = false;
+                //conn = proMot.MoveTo(gpId, point, isLinear);
+
+
+                //获取工作坐标系
+                FrameType ft = FrameType.FRAME_BASE;
+                conn = proMot.GetWorkFrame(0, ref ft);
+
+                //获取内部轴数
+                gpId = 0;
+                int cnt = 0;
+                conn = proMot.GetRobAxisCount(0, ref cnt);
+
+                //获取附加轴数
+                gpId = 0;
+                cnt = 0;
+                conn = proMot.GetAuxAxisCount(0, ref cnt);
+
+                //获取关节坐标点数据
+                List<double> test = new List<double>();
+                conn = proMot.GetJntData(gpId, ref test);
+                
+
+                //获取笛卡尔坐标点数据
+                conn = proMot.GetLocData(gpId, ref test);
+
+                //获取形态
+                int config = 0;
+                conn = proMot.GetConfig(gpId, ref config);
+
+                //获取工具坐标数据
+                gpId = 0;
+                int index = 0;
+                List<double> data = new List<double>();
+                conn = proMot.GetTool(gpId, index, ref data);
+
+                //获取工件坐标数据
+                var pos = new List<double>();
+                conn = proMot.GetWorkpiece(gpId, 0, ref pos);
+                
+
+                //获取工具号
+                sbyte num = 0;
+                conn = proMot.GetToolNum(0, ref num);
+
+                //获取工件号
+                num = 0;
+                conn = proMot.GetWorkpieceNum(0, ref num);
+                
+                
+            }
+            //完成所有操作后，务必断开与控制器的连接
+            disconnectIPC(cmApi);
+        }
+
+        static bool connectIPC(Hsc3.Comm.CommApi cmApi, string strIP, ushort uPort)
+        {
+            ulong conn;
+            conn = cmApi.Connect(strIP, uPort);
+            if (conn != 0)
+            {
+                Console.WriteLine("CommApi::connect() : ret = " + conn);
+            }
+            //Thread.Sleep(1000);
+            if (cmApi.IsConnected())
+            {
+                Console.WriteLine("连接成功");
+                return true;
+            }
+            else
+            {
+                Console.WriteLine("连接失败");
+                return false;
+            }
+        }
+
+        static bool disconnectIPC(Hsc3.Comm.CommApi cmApi)
+        {
+            ulong ret = cmApi.Disconnect();
+            Thread.Sleep(500);
+            if (cmApi.IsConnected())
+            {
+                return false;
+            }
+            else
+            {
+                return true;
+            }
+        }
+    }
+}
+
+======================================================================
+FILE: C:\Users\32755\Desktop\机器人后台\华数二次开发\二次开发资料\Hsc3Api_cs_dotnet461\HsDemo4_7_2\HsDemo\HsDemo\ProxyVarDemo.cs
+======================================================================
+﻿using System;
+using System.Collections.Generic;
+using System.Threading;
+using Hsc3.Comm;
+using Hsc3.Proxy;
+using Newtonsoft.Json;
+namespace demo
+{
+    public class ProxyVarDemo
+    {
+	
+		private  CommApi cmApi = new CommApi();
+        public void TestGetRegister(string ip)
+        {
+
+            if (!cmApi.IsConnected())
+                connectIPC(cmApi, ip, 23234);
+
+            if (cmApi.IsConnected())
+            {
+                ProxyVar proVar = new ProxyVar(cmApi);
+                double retr = 0;
+
+                //R寄存器
+                var returnVal = proVar.SetR(100, 5);
+                Console.WriteLine($"ret:{returnVal} set R[100]:{5}");
+
+                returnVal = proVar.GetR(100, ref retr);
+                Console.WriteLine($"ret:{returnVal} get R[100]:{retr}");
+
+                //JR寄存器
+                List<double> Jrlist2 = new List<double>();
+                returnVal=proVar.GetJR(0,5,  ref Jrlist2);
+                Console.WriteLine($"ret:{returnVal} get JR[5]:{JsonConvert.SerializeObject(Jrlist2)}");
+
+                returnVal = proVar.SetJR(0, 5, Jrlist2);
+                Console.WriteLine($"ret:{returnVal} set JR[5]:{JsonConvert.SerializeObject(Jrlist2)}");
+                //LR寄存器
+                LocPos locPos = new LocPos();
+                locPos.config = 0;
+                locPos.ufNum = -1;
+                locPos.utNum = -1;
+                locPos.vecPos.Add(100);
+                locPos.vecPos.Add(101);
+                locPos.vecPos.Add(102);
+                locPos.vecPos.Add(103);
+                locPos.vecPos.Add(104);
+                locPos.vecPos.Add(105);
+                returnVal = proVar.SetLR(0, 5, locPos);
+                Console.WriteLine($"ret:{returnVal} set LR[5]:{JsonConvert.SerializeObject(locPos)}");
+
+                LocPos locPos2 = new LocPos();
+                returnVal = proVar.GetLR(0,5,ref locPos2);
+                Console.WriteLine($"ret:{returnVal} set LR[5]:{JsonConvert.SerializeObject(locPos)}");
+            }
+
+            disconnectIPC(cmApi);
+        }
+
+         bool connectIPC(Hsc3.Comm.CommApi cmApi, string strIP, ushort uPort)
+        {
+            ulong conn;
+            conn = cmApi.Connect(strIP, uPort);
+            if (cmApi.IsConnected())
+            {
+                Console.WriteLine("连接成功");
+                return true;
+            }
+            else
+            {
+                Console.WriteLine("连接失败");
+                return false;
+            }
+        }
+
+         bool disconnectIPC(Hsc3.Comm.CommApi cmApi)
+        {
+            ulong ret = cmApi.Disconnect();
+            Thread.Sleep(500);
+            if (cmApi.IsConnected())
+            {
+                Console.WriteLine("断开失败");
+                return false;
+            }
+            else
+            {
+                Console.WriteLine("断开成功");
+                return true;
+            }
+        }
+    }
+}
+
+======================================================================
+FILE: C:\Users\32755\Desktop\机器人后台\华数二次开发\二次开发资料\Hsc3Api_cs_dotnet461\HsDemo4_7_2\HsDemo\HsDemo\obj\Debug\TemporaryGeneratedFile_036C0B5B-1481-4323-8D20-8F5ADCB23D92.cs
+======================================================================
+
+======================================================================
+FILE: C:\Users\32755\Desktop\机器人后台\华数二次开发\二次开发资料\Hsc3Api_cs_dotnet461\HsDemo4_7_2\HsDemo\HsDemo\obj\Debug\TemporaryGeneratedFile_5937a670-0e60-4077-877b-f7221da3dda1.cs
+======================================================================
+
+======================================================================
+FILE: C:\Users\32755\Desktop\机器人后台\华数二次开发\二次开发资料\Hsc3Api_cs_dotnet461\HsDemo4_7_2\HsDemo\HsDemo\obj\Debug\TemporaryGeneratedFile_E7A71F73-0F8D-4B9B-B56E-8E70B10BC5D3.cs
+======================================================================
+
+======================================================================
+FILE: C:\Users\32755\Desktop\机器人后台\华数二次开发\二次开发资料\Hsc3Api_cs_dotnet461\HsDemo4_7_2\HsDemo\HsDemo\Properties\AssemblyInfo.cs
+======================================================================
+﻿using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+
+// 有关程序集的一般信息由以下
+// 控制。更改这些特性值可修改
+// 与程序集关联的信息。
+[assembly: AssemblyTitle("HsDemo")]
+[assembly: AssemblyDescription("")]
+[assembly: AssemblyConfiguration("")]
+[assembly: AssemblyCompany("")]
+[assembly: AssemblyProduct("HsDemo")]
+[assembly: AssemblyCopyright("Copyright ©  2024")]
+[assembly: AssemblyTrademark("")]
+[assembly: AssemblyCulture("")]
+
+// 将 ComVisible 设置为 false 会使此程序集中的类型
+//对 COM 组件不可见。如果需要从 COM 访问此程序集中的类型
+//请将此类型的 ComVisible 特性设置为 true。
+[assembly: ComVisible(false)]
+
+// 如果此项目向 COM 公开，则下列 GUID 用于类型库的 ID
+[assembly: Guid("1f2c87b5-a289-40ec-bc7b-9a68beef7d18")]
+
+// 程序集的版本信息由下列四个值组成: 
+//
+//      主版本
+//      次版本
+//      生成号
+//      修订号
+//
+// 可以指定所有值，也可以使用以下所示的 "*" 预置版本号和修订号
+// 方法是按如下所示使用“*”: :
+// [assembly: AssemblyVersion("1.0.*")]
+[assembly: AssemblyVersion("1.0.0.0")]
+[assembly: AssemblyFileVersion("1.0.0.0")]
