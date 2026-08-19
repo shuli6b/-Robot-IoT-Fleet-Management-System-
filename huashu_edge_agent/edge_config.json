@@ -1,6 +1,6 @@
 {
   "mqtt": {
-    "host": "106.55.248.254",
+    "host": "YOUR_SERVER_IP",
     "port": 1883,
     "username": "device_huashu_arm",
     "password": "Arm_Secure_2026!",
