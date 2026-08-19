@@ -291,7 +291,7 @@
                         <div class="flex items-center justify-between">
                             <div>
                                 <h3 class="text-sm font-bold text-slate-900 tracking-tight">实时遥测吞吐趋势</h3>
-                                <p class="text-xs text-slate-500">遥测与传感器数据实时吞吐趋势曲线</p>
+                                <p class="text-xs text-slate-500">遥测与传感器数据吞吐曲线</p>
                             </div>
                             <span class="text-xs font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">持续推流中</span>
                         </div>
@@ -383,7 +383,7 @@
                         <div class="flex items-center justify-between pb-2 border-b border-slate-100">
                             <div>
                                 <h3 class="text-sm font-bold text-slate-900 tracking-tight">最新控制与工况事件流</h3>
-                                <p class="text-xs text-slate-500">现场设备遥测心跳与事件记录</p>
+                                <p class="text-xs text-slate-500">现场设备遥测状态与事件记录</p>
                             </div>
                             <button onclick="switchNavTab('audit')" class="text-xs text-slate-600 hover:text-slate-900 font-medium">全量审计 →</button>
                         </div>
@@ -463,7 +463,7 @@
                                 <th class="pb-2.5 pr-2">设备编号 / 品类</th>
                                 <th class="pb-2.5 px-2">运行工况</th>
                                 <th class="pb-2.5 px-2">母线/电池</th>
-                                <th class="pb-2.5 px-2">最后心跳</th>
+                                <th class="pb-2.5 px-2">在线时长</th>
                                 <th class="pb-2.5 pl-2 text-right">操作</th>
                             </tr>
                         </thead>
@@ -1492,7 +1492,7 @@
                             </div>
 
                             <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                                <span class="text-slate-400">心跳: <span class="font-mono text-slate-700">${formatRelativeTime(dev.last_report_time)}</span></span>
+                                <span class="text-slate-400">在线时长: <span class="font-mono text-slate-700">${formatRelativeTime(dev.last_report_time)}</span></span>
                                 <span class="font-medium text-slate-900 group-hover:underline flex items-center gap-1">
                                     <span>工况与控制</span><span>→</span>
                                 </span>
