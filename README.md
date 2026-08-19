@@ -27,6 +27,8 @@
 | **暗黑工业版** | `http://<服务器IP>:8000/` 或 `/dark` | 经典深色界面 |
 | **MQTT 中间件控制台** | `http://<服务器IP>:18083` | EMQX 节点与连接管理 |
 
+> **默认账号**：超级管理员 `admin` / `admin888`，普通操作员 `user` / `123456`
+
 ---
 
 ## 🏗️ 系统架构
@@ -77,69 +79,82 @@
 
 ---
 
-## 🚀 本地运行与测试 (Windows / Linux)
+## 🚀 部署与运行全流程 (从 GitHub 到服务器/本地运行)
 
-### 1. 环境准备
-需要安装 **Python 3.8+**。
+### 第一步：获取源码与安装依赖
 
 ```bash
+# 1. 克隆代码仓库
 git clone https://github.com/shuli6b/-Robot-IoT-Fleet-Management-System-.git
 cd -Robot-IoT-Fleet-Management-System-
 
+# 2. 创建并激活 Python 虚拟环境 (推荐 Python 3.8+)
+python3 -m venv venv
+source venv/bin/activate       # Linux / macOS
+# .\venv\Scripts\activate      # Windows
+
+# 3. 安装依赖包
 pip install -r requirements.txt
 ```
-
-### 2. 本地启动
-```bash
-# 1. 启动微型 MQTT 服务
-python run_broker.py
-
-# 2. 新建终端启动 FastAPI 后端
-python main.py
-
-# 3. 新建终端启动模拟设备数据上报
-python mock_robot.py --num-devices 10
-```
-
-### 3. 打开浏览器访问
-- 浅色版本：`http://127.0.0.1:8000/light`
-- 登录页面：`http://127.0.0.1:8000/login`
-- 暗黑版本：`http://127.0.0.1:8000/`
 
 ---
 
-## 🐧 服务器部署说明 (Ubuntu 22.04 LTS)
+### 第二步：启动运行服务（两种模式任选其一）
 
-### 1. 基础环境
-```bash
-sudo apt update && sudo apt install -y python3 python3-pip python3-venv ufw
-```
+#### 选项 A：Linux 服务器生产部署 (Ubuntu 22.04 LTS)
 
-### 2. 安装 EMQX 中间件
+适用于云服务器或局域网工控服务器长期稳定运行：
+
 ```bash
+# 1. 安装并启动 EMQX 消息中间件
 wget https://www.emqx.com/en/downloads/broker/v5.8.0/emqx-5.8.0-ubuntu22.04-amd64.deb
 sudo dpkg -i emqx-5.8.0-ubuntu22.04-amd64.deb
 sudo systemctl enable emqx --now
-```
 
-### 3. 配置后台服务
-```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-
+# 2. 配置并启动系统后台守护进程
 sudo cp robot-iot.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable robot-iot --now
-```
 
-### 4. 防火墙配置
-```bash
-sudo ufw allow 8000/tcp    # Web 与 API 端口
-sudo ufw allow 1883/tcp    # MQTT 端口
-sudo ufw allow 18083/tcp   # EMQX Dashboard 端口
+# 3. 开放防火墙端口
+sudo ufw allow 8000/tcp    # Web 控制台与 API
+sudo ufw allow 1883/tcp    # MQTT 设备通信端口
+sudo ufw allow 18083/tcp   # EMQX Dashboard (可选)
 sudo ufw reload
 ```
+
+#### 选项 B：本地开发与单机测试 (Windows / Linux)
+
+适用于个人电脑本地开发或快速功能验证，无需安装复杂外部服务：
+
+```bash
+# 1. 终端一：启动系统内置微型 MQTT 服务 (监听 1883 端口)
+python run_broker.py
+
+# 2. 终端二：启动 FastAPI 后端服务 (监听 8000 端口)
+python main.py
+```
+
+---
+
+### 第三步：启动模拟设备上报测试数据（可选）
+
+如现场暂无物理机器人连入，可启动内置多设备模拟器：
+
+```bash
+# 启动 10 台并发模拟设备 (包含机械臂、AMR 与机器狗)
+python mock_robot.py --num-devices 10
+```
+
+---
+
+### 第四步：浏览器访问与使用
+
+在浏览器中打开对应地址即可进入系统：
+
+- **极简浅色管理后台**：`http://<服务器IP或127.0.0.1>:8000/light`
+- **独立登录页面**：`http://<服务器IP或127.0.0.1>:8000/login`
+- **经典暗黑大屏**：`http://<服务器IP或127.0.0.1>:8000/` 或 `/dark`
 
 ---
 
