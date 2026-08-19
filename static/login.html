@@ -260,6 +260,11 @@
         function updateLoginMapTheme(isDark) {
             if (loginMapChart) {
                 loginMapChart.setOption({
+                    tooltip: {
+                        backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+                        borderColor: isDark ? '#334155' : '#E2E8F0',
+                        textStyle: { color: isDark ? '#F8FAFC' : '#0F172A' }
+                    },
                     geo: {
                         itemStyle: {
                             areaColor: isDark ? '#1E293B' : '#F1F5F9',
@@ -269,6 +274,12 @@
                             itemStyle: {
                                 areaColor: isDark ? '#334155' : '#CBD5E1',
                                 borderColor: isDark ? '#64748B' : '#94A3B8'
+                            },
+                            label: {
+                                show: true,
+                                color: isDark ? '#F8FAFC' : '#0F172A',
+                                fontSize: 12,
+                                fontWeight: '600'
                             }
                         }
                     },
@@ -471,6 +482,24 @@
 
                 const option = {
                     backgroundColor: 'transparent',
+                    tooltip: {
+                        show: true,
+                        trigger: 'item',
+                        backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+                        borderColor: isDark ? '#334155' : '#E2E8F0',
+                        borderWidth: 1,
+                        padding: [6, 10],
+                        textStyle: { color: isDark ? '#F8FAFC' : '#0F172A', fontSize: 12 },
+                        formatter: function(params) {
+                            if (params.seriesType === 'effectScatter') {
+                                return `<div class="font-bold text-xs">${params.name}</div><div class="text-[11px] text-slate-400 mt-0.5">点击查看基地详情</div>`;
+                            }
+                            if (params.name && params.name.includes('广东')) {
+                                return `<div class="font-bold text-xs">广东省 (核心智造枢纽)</div><div class="text-[11px] text-slate-400 mt-0.5">广州番禺基地 · 广州南沙基地</div>`;
+                            }
+                            return `<div class="font-medium text-xs">${params.name || '省份节点'}</div>`;
+                        }
+                    },
                     geo: {
                         map: 'china',
                         roam: false,
@@ -488,7 +517,12 @@
                                 borderColor: isDark ? '#64748B' : '#94A3B8',
                                 borderWidth: 1.5
                             },
-                            label: { show: false }
+                            label: {
+                                show: true,
+                                color: isDark ? '#F8FAFC' : '#0F172A',
+                                fontSize: 12,
+                                fontWeight: '600'
+                            }
                         }
                     },
                     series: [
