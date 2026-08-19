@@ -106,10 +106,10 @@
                         </svg>
                     </div>
                     <div>
-                        <h2 class="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight">昕邦智能装备 · 机器人物联网管控平台</h2>
+                        <h2 id="loginHeaderTitle" class="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight">昕邦智能装备 · 机器人物联网管控平台</h2>
                     </div>
                 </div>
-                <p class="text-xs text-slate-500 dark:text-slate-400 font-mono pl-10">XINBANG INDUSTRIAL FLEET MANAGEMENT SYSTEM</p>
+                <p id="loginHeaderSubtitle" class="text-xs text-slate-500 dark:text-slate-400 font-mono pl-10">XINBANG INDUSTRIAL FLEET MANAGEMENT SYSTEM</p>
             </div>
 
             <!-- ECharts China Map Canvas -->
@@ -119,8 +119,8 @@
 
             <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 pt-3 border-t border-slate-200/80 dark:border-slate-800">
                 <div class="flex items-center gap-4">
-                    <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-slate-900 dark:bg-slate-100"></span>广州番禺智造中心</span>
-                    <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-600"></span>广州南沙创新港</span>
+                    <span id="loginPanyuBadge" class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-slate-900 dark:bg-slate-100"></span>广州番禺智造中心</span>
+                    <span id="loginNanshaBadge" class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-600"></span>广州南沙创新港</span>
                 </div>
                 <span class="font-mono text-[11px] text-slate-400 dark:text-slate-500">5G 工业专网互联</span>
             </div>
@@ -599,8 +599,50 @@
             }
         }
 
+        async function initSiteBranding() {
+            try {
+                const res = await fetch('/api/system/site_config');
+                const body = await res.json();
+                if (res.ok && body.code === 200 && body.data) {
+                    const cfg = body.data;
+                    if (cfg.system_title) {
+                        document.title = `${cfg.system_title} - 登录`;
+                        const hTitle = document.getElementById('loginHeaderTitle');
+                        if (hTitle) hTitle.innerText = cfg.system_title;
+                    }
+                    if (cfg.system_subtitle) {
+                        const hSub = document.getElementById('loginHeaderSubtitle');
+                        if (hSub) hSub.innerText = cfg.system_subtitle;
+                    }
+                    if (cfg.panyu_title && BASE_DATA && BASE_DATA.panyu) {
+                        BASE_DATA.panyu.title = cfg.panyu_title;
+                        if (cfg.panyu_sub) BASE_DATA.panyu.sub = cfg.panyu_sub;
+                        if (cfg.panyu_img) BASE_DATA.panyu.img = cfg.panyu_img;
+                        if (cfg.panyu_attr1) BASE_DATA.panyu.attr1 = cfg.panyu_attr1;
+                        if (cfg.panyu_attr3) BASE_DATA.panyu.attr3 = cfg.panyu_attr3;
+                        if (cfg.panyu_desc) BASE_DATA.panyu.desc = cfg.panyu_desc;
+                        const pBadge = document.getElementById('loginPanyuBadge');
+                        if (pBadge) pBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-slate-900 dark:bg-slate-100"></span>${cfg.panyu_title}`;
+                    }
+                    if (cfg.nansha_title && BASE_DATA && BASE_DATA.nansha) {
+                        BASE_DATA.nansha.title = cfg.nansha_title;
+                        if (cfg.nansha_sub) BASE_DATA.nansha.sub = cfg.nansha_sub;
+                        if (cfg.nansha_img) BASE_DATA.nansha.img = cfg.nansha_img;
+                        if (cfg.nansha_attr1) BASE_DATA.nansha.attr1 = cfg.nansha_attr1;
+                        if (cfg.nansha_attr3) BASE_DATA.nansha.attr3 = cfg.nansha_attr3;
+                        if (cfg.nansha_desc) BASE_DATA.nansha.desc = cfg.nansha_desc;
+                        const nBadge = document.getElementById('loginNanshaBadge');
+                        if (nBadge) nBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-600"></span>${cfg.nansha_title}`;
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to init site branding in login page:', e);
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             initTheme();
+            initSiteBranding();
             initChinaMap();
         });
     </script>

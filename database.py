@@ -1121,6 +1121,53 @@ def save_huashu_bridge_config(config: Dict[str, Any], db_path: str = DB_PATH) ->
         return False
 
 
+def get_site_config(db_path: str = DB_PATH) -> Dict[str, Any]:
+    """获取站点品牌与基地/设备图文自定义配置 (支持CMS实时热更新)"""
+    raw_cfg = get_system_config("site_branding_config", default=None, db_path=db_path)
+    default_config = {
+        "system_title": "昕邦智能装备 · 机器人物联网管控平台",
+        "system_subtitle": "XINBANG INDUSTRIAL FLEET DIGITAL TWIN PLATFORM",
+        "company_name": "昕邦智能装备",
+        "panyu_title": "广州番禺智造中心",
+        "panyu_sub": "华数六轴工业机械臂高精加工与焊接示范产线",
+        "panyu_img": "/static/assets/base_panyu.jpg",
+        "panyu_attr1": "工业机械臂产线",
+        "panyu_attr3": "20+ 台六轴高精机械臂",
+        "panyu_desc": "广州番禺智造中心专注于华数 BR610 六轴工业机器人高精加工、打磨、弧焊与码垛工序。产线全面覆盖 5G 工业物联网网关，支持 HSC3 工业总线运动控制与闭环电流遥测。",
+        "nansha_title": "广州南沙创新港",
+        "nansha_sub": "复合移动机器人 (AMR) 与四足仿生机器狗巡检基地",
+        "nansha_img": "/static/assets/base_nansha.jpg",
+        "nansha_attr1": "复合AMR与仿生巡检",
+        "nansha_attr3": "30+ 台协同作业编队",
+        "nansha_desc": "广州南沙创新港集成了激光 SLAM 复合移动机器人与四足仿生机器狗空地协同巡检体系。面向半导体 3C 取放料、管廊智慧巡检与应急搜救场景提供 24 小时自主运载支持。",
+        "robot_arm_name": "华数 BR610 六轴机械臂",
+        "robot_arm_img": "/static/assets/huashu_br610_arm.jpg",
+        "robot_amr_name": "珞石 SR3 复合移动 AMR",
+        "robot_amr_img": "/static/assets/luxshare_amr_sr3.jpg",
+        "robot_dog_name": "四足仿生巡检机器狗",
+        "robot_dog_img": "/static/assets/bionic_robot_dog.jpg"
+    }
+    if raw_cfg:
+        try:
+            saved = json.loads(raw_cfg)
+            if isinstance(saved, dict):
+                default_config.update(saved)
+        except Exception:
+            pass
+    return default_config
+
+
+def save_site_config(config: Dict[str, Any], db_path: str = DB_PATH) -> bool:
+    """保存站点品牌与图文自定义配置 (仅超级管理员可操作)"""
+    try:
+        current = get_site_config(db_path)
+        current.update(config)
+        return set_system_config("site_branding_config", json.dumps(current, ensure_ascii=False), db_path=db_path)
+    except Exception as e:
+        logger.error(f"save_site_config 异常: {e}")
+        return False
+
+
 def delete_device(device_id: str, device_type: Optional[str] = None, db_path: str = DB_PATH) -> bool:
     """
     从数据库中删除指定设备及其所有历史遥测数据

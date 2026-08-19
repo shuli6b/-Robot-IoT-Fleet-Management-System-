@@ -15,8 +15,10 @@ import asyncio
 from datetime import datetime
 from contextlib import asynccontextmanager
 from typing import Optional, Dict, Any, Tuple, List
+import uuid
+import shutil
 
-from fastapi import FastAPI, Request, Query, HTTPException, status, Body
+from fastapi import FastAPI, Request, Query, HTTPException, status, Body, UploadFile, File
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError
@@ -49,6 +51,8 @@ from database import (
     LLM_PROVIDER_PRESETS,
     get_huashu_bridge_config,
     save_huashu_bridge_config,
+    get_site_config,
+    save_site_config,
     delete_device,
     authenticate_user,
     register_user,
@@ -512,14 +516,22 @@ async def api_change_username(body: ChangeUsernameRequest = Body(...)):
     return api_response(code=400, message=msg, status_code=status.HTTP_400_BAD_REQUEST)
 
 
+def is_super_admin(request: Request) -> bool:
+    """判断是否为系统唯一的超级管理员 (admin / root)"""
+    if not request:
+        return False
+    user_name = request.headers.get("X-User-Name", "")
+    user_role = request.headers.get("X-User-Role", "")
+    return user_name == "admin" and user_role == "admin"
+
+
 @app.get("/api/auth/users")
 async def api_get_all_users(request: Request):
-    """管理员获取所有用户列表"""
-    user_role = request.headers.get("X-User-Role", "guest")
-    if user_role != "admin":
+    """管理员获取所有用户列表 (仅超级管理员)"""
+    if not is_super_admin(request):
         return api_response(
             code=403,
-            message="权限不足：仅超级管理员可查看用户列表",
+            message="权限不足：仅系统默认超级管理员 (admin) 拥有查看与管理全员账户的特权",
             status_code=status.HTTP_403_FORBIDDEN
         )
     users = get_all_users()
@@ -528,12 +540,11 @@ async def api_get_all_users(request: Request):
 
 @app.post("/api/auth/admin_reset_pwd")
 async def api_admin_reset_password(body: AdminResetPasswordRequest = Body(...), request: Request = None):
-    """管理员重置用户密码"""
-    user_role = request.headers.get("X-User-Role", "guest") if request else "guest"
-    if user_role != "admin":
+    """超级管理员重置用户密码 (仅超级管理员)"""
+    if not is_super_admin(request):
         return api_response(
             code=403,
-            message="权限不足：仅超级管理员可重置密码",
+            message="权限不足：仅系统默认超级管理员 (admin) 拥有重置他人密码特权",
             status_code=status.HTTP_403_FORBIDDEN
         )
     success, msg = admin_reset_password(body.target_username, body.new_password)
@@ -544,13 +555,18 @@ async def api_admin_reset_password(body: AdminResetPasswordRequest = Body(...), 
 
 @app.post("/api/auth/update_role")
 async def api_update_role(body: UpdateRoleRequest = Body(...), request: Request = None):
-    """管理员修改用户角色权限"""
-    user_role = request.headers.get("X-User-Role", "guest") if request else "guest"
-    if user_role != "admin":
+    """超级管理员修改用户角色权限 (仅超级管理员)"""
+    if not is_super_admin(request):
         return api_response(
             code=403,
-            message="权限不足：仅超级管理员可调整用户角色",
+            message="权限不足：仅系统默认超级管理员 (admin) 拥有调整用户角色的特权",
             status_code=status.HTTP_403_FORBIDDEN
+        )
+    if body.target_username == "admin":
+        return api_response(
+            code=400,
+            message="禁止修改系统内置超级管理员 (admin) 的角色",
+            status_code=status.HTTP_400_BAD_REQUEST
         )
     success, msg = update_user_role(body.target_username, body.new_role)
     if success:
@@ -1075,8 +1091,14 @@ async def get_ai_configuration():
 
 
 @app.post("/api/ai/config")
-async def update_ai_configuration(body: LLMConfigModel = Body(...)):
-    """保存或更新大模型 API 接入配置"""
+async def update_ai_configuration(body: LLMConfigModel = Body(...), request: Request = None):
+    """保存或更新大模型 API 接入配置 (仅超级管理员)"""
+    if not request or not is_super_admin(request):
+        return api_response(
+            code=403,
+            message="权限不足：仅系统默认超级管理员 (admin) 拥有配置大模型 API Key 与参数特权",
+            status_code=status.HTTP_403_FORBIDDEN
+        )
     current = get_llm_config()
     update_data = {k: v for k, v in body.dict().items() if v is not None}
     
@@ -1087,6 +1109,93 @@ async def update_ai_configuration(body: LLMConfigModel = Body(...)):
     save_llm_config(update_data)
     saved_cfg = get_llm_config()
     return api_response(code=200, message="大模型 API 配置保存成功", data={"enabled": saved_cfg.get("enabled", False), "provider": saved_cfg.get("provider"), "model": saved_cfg.get("model")})
+
+
+# ---------------------------------------------------------------------------
+# 站点品牌与基地/设备图文 CMS 定制与图片上传接口 (超级管理员特权)
+# ---------------------------------------------------------------------------
+class SiteConfigModel(BaseModel):
+    system_title: Optional[str] = Field(None, description="系统主标题")
+    system_subtitle: Optional[str] = Field(None, description="系统英文副标题")
+    company_name: Optional[str] = Field(None, description="公司品牌")
+    panyu_title: Optional[str] = Field(None, description="番禺基地名称")
+    panyu_sub: Optional[str] = Field(None, description="番禺基地副标题")
+    panyu_img: Optional[str] = Field(None, description="番禺基地图片URL")
+    panyu_attr1: Optional[str] = Field(None, description="番禺规划定位")
+    panyu_attr3: Optional[str] = Field(None, description="番禺设备规模")
+    panyu_desc: Optional[str] = Field(None, description="番禺详细图文介绍")
+    nansha_title: Optional[str] = Field(None, description="南沙基地名称")
+    nansha_sub: Optional[str] = Field(None, description="南沙基地副标题")
+    nansha_img: Optional[str] = Field(None, description="南沙基地图片URL")
+    nansha_attr1: Optional[str] = Field(None, description="南沙规划定位")
+    nansha_attr3: Optional[str] = Field(None, description="南沙设备规模")
+    nansha_desc: Optional[str] = Field(None, description="南沙详细图文介绍")
+    robot_arm_name: Optional[str] = Field(None, description="机械臂展示名称")
+    robot_arm_img: Optional[str] = Field(None, description="机械臂图片URL")
+    robot_amr_name: Optional[str] = Field(None, description="AMR展示名称")
+    robot_amr_img: Optional[str] = Field(None, description="AMR图片URL")
+    robot_dog_name: Optional[str] = Field(None, description="机器狗展示名称")
+    robot_dog_img: Optional[str] = Field(None, description="机器狗图片URL")
+
+
+@app.get("/api/system/site_config")
+async def api_get_site_config():
+    """获取全站品牌与图文自定义配置 (公开读取)"""
+    cfg = get_site_config()
+    return api_response(code=200, message="success", data=cfg)
+
+
+@app.post("/api/system/site_config")
+async def api_save_site_config(body: SiteConfigModel = Body(...), request: Request = None):
+    """保存全站品牌与图文自定义配置 (仅限超级管理员)"""
+    if not request or not is_super_admin(request):
+        return api_response(
+            code=403,
+            message="权限不足：仅系统默认超级管理员 (admin) 拥有修改全站品牌与图文配置的特权",
+            status_code=status.HTTP_403_FORBIDDEN
+        )
+    update_data = {k: v for k, v in body.dict().items() if v is not None}
+    success = save_site_config(update_data)
+    if success:
+        return api_response(code=200, message="站点品牌与图文配置保存成功，全站已实时生效", data=get_site_config())
+    return api_response(code=500, message="保存站点配置失败", status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@app.post("/api/system/upload_asset")
+async def api_upload_asset(file: UploadFile = File(...), request: Request = None):
+    """上传自定义图片素材 (支持 jpg, png, jpeg, webp, svg，仅限超级管理员)"""
+    if not request or not is_super_admin(request):
+        return api_response(
+            code=403,
+            message="权限不足：仅系统默认超级管理员 (admin) 拥有上传图片素材特权",
+            status_code=status.HTTP_403_FORBIDDEN
+        )
+    
+    if not file or not file.filename:
+        return api_response(code=400, message="未选择上传文件", status_code=status.HTTP_400_BAD_REQUEST)
+    
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in [".jpg", ".jpeg", ".png", ".webp", ".svg"]:
+        return api_response(code=400, message="仅支持上传 JPG、PNG、WEBP 或 SVG 格式图片", status_code=status.HTTP_400_BAD_REQUEST)
+    
+    assets_dir = os.path.join("static", "assets")
+    os.makedirs(assets_dir, exist_ok=True)
+    
+    clean_name = f"custom_{int(time.time())}_{uuid.uuid4().hex[:6]}{ext}"
+    target_path = os.path.join(assets_dir, clean_name)
+    
+    try:
+        with open(target_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        rel_url = f"/static/assets/{clean_name}"
+        return api_response(
+            code=200,
+            message="图片上传成功",
+            data={"url": rel_url, "filename": clean_name}
+        )
+    except Exception as e:
+        logger.error(f"图片上传失败: {e}")
+        return api_response(code=500, message=f"图片上传失败: {e}", status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class LLMTestRequest(BaseModel):
