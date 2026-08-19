@@ -15,8 +15,16 @@ import asyncio
 from datetime import datetime
 from contextlib import asynccontextmanager
 from typing import Optional, Dict, Any, Tuple, List
+from pathlib import Path
 import uuid
 import shutil
+
+BASE_DIR = Path(__file__).resolve().parent
+STATIC_DIR = BASE_DIR / "static"
+INDEX_HTML = STATIC_DIR / "index.html"
+INDEX_NEXT_HTML = STATIC_DIR / "index_next.html"
+LOGIN_HTML = STATIC_DIR / "login.html"
+ASSETS_DIR = STATIC_DIR / "assets"
 
 from fastapi import FastAPI, Request, Query, HTTPException, status, Body, UploadFile, File
 from fastapi.responses import JSONResponse, FileResponse
@@ -1178,7 +1186,7 @@ async def api_upload_asset(file: UploadFile = File(...), request: Request = None
     if ext not in [".jpg", ".jpeg", ".png", ".webp", ".svg"]:
         return api_response(code=400, message="仅支持上传 JPG、PNG、WEBP 或 SVG 格式图片", status_code=status.HTTP_400_BAD_REQUEST)
     
-    assets_dir = os.path.join("static", "assets")
+    assets_dir = str(ASSETS_DIR)
     os.makedirs(assets_dir, exist_ok=True)
     
     clean_name = f"custom_{int(time.time())}_{uuid.uuid4().hex[:6]}{ext}"
@@ -1744,18 +1752,20 @@ async def stop_tunnel_api():
     return api_response(code=200, message="公网穿透已安全关闭", data=res)
 
 
-if os.path.exists("static"):
-    app.mount("/static", StaticFiles(directory="static"), name="static")
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 @app.get("/login", include_in_schema=False)
 async def serve_login_page():
     """纯净极简浅色登录页面"""
-    if os.path.exists("static/login.html"):
-        return FileResponse("static/login.html")
-    if os.path.exists("static/index_next.html"):
-        return FileResponse("static/index_next.html")
-    return FileResponse("static/index.html")
+    if LOGIN_HTML.exists():
+        return FileResponse(str(LOGIN_HTML))
+    if INDEX_NEXT_HTML.exists():
+        return FileResponse(str(INDEX_NEXT_HTML))
+    if INDEX_HTML.exists():
+        return FileResponse(str(INDEX_HTML))
+    return api_response(code=200, message="登录页面正在就绪中...")
 
 
 @app.get("/light", include_in_schema=False)
@@ -1764,19 +1774,21 @@ async def serve_login_page():
 @app.get("/preview", include_in_schema=False)
 async def serve_index_next():
     """全新极简浅白企业版 UI 大屏"""
-    if os.path.exists("static/index_next.html"):
-        return FileResponse("static/index_next.html")
-    if os.path.exists("static/index.html"):
-        return FileResponse("static/index.html")
+    if INDEX_NEXT_HTML.exists():
+        return FileResponse(str(INDEX_NEXT_HTML))
+    if INDEX_HTML.exists():
+        return FileResponse(str(INDEX_HTML))
     return api_response(code=200, message="极简浅白版 UI 正在就绪中...")
 
 
 @app.get("/dark", include_in_schema=False)
 @app.get("/", include_in_schema=False)
 async def serve_index():
-    """经典暗黑 SCADA 工业版 UI 大屏"""
-    if os.path.exists("static/index.html"):
-        return FileResponse("static/index.html")
+    """企业级机器人孪生大屏 UI"""
+    if INDEX_HTML.exists():
+        return FileResponse(str(INDEX_HTML))
+    if INDEX_NEXT_HTML.exists():
+        return FileResponse(str(INDEX_NEXT_HTML))
     return api_response(code=200, message="机器人物联网管理系统 API 服务正常运行中")
 
 
