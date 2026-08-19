@@ -271,7 +271,53 @@
                                 borderColor: isDark ? '#64748B' : '#94A3B8'
                             }
                         }
-                    }
+                    },
+                    series: [
+                        {
+                            data: [
+                                {
+                                    name: '广州番禺智造中心',
+                                    value: [112.2, 23.8, 100],
+                                    key: 'panyu',
+                                    itemStyle: { color: isDark ? '#38BDF8' : '#0F172A' },
+                                    label: {
+                                        show: true,
+                                        position: 'top',
+                                        distance: 6,
+                                        formatter: '{b}',
+                                        color: isDark ? '#F8FAFC' : '#0F172A',
+                                        fontSize: 11,
+                                        fontWeight: 'bold',
+                                        backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+                                        borderColor: isDark ? '#334155' : '#E2E8F0',
+                                        borderWidth: 1,
+                                        padding: [3, 6],
+                                        borderRadius: 4
+                                    }
+                                },
+                                {
+                                    name: '广州南沙创新港',
+                                    value: [114.9, 21.8, 100],
+                                    key: 'nansha',
+                                    itemStyle: { color: isDark ? '#34D399' : '#059669' },
+                                    label: {
+                                        show: true,
+                                        position: 'bottom',
+                                        distance: 6,
+                                        formatter: '{b}',
+                                        color: isDark ? '#34D399' : '#059669',
+                                        fontSize: 11,
+                                        fontWeight: 'bold',
+                                        backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+                                        borderColor: isDark ? '#334155' : '#E2E8F0',
+                                        borderWidth: 1,
+                                        padding: [3, 6],
+                                        borderRadius: 4
+                                    }
+                                }
+                            ]
+                        }
+                    ]
                 });
             }
         }
@@ -438,7 +484,7 @@
                                     name: '广州番禺智造中心',
                                     value: [112.2, 23.8, 100],
                                     key: 'panyu',
-                                    itemStyle: { color: isDark ? '#60A5FA' : '#0F172A' },
+                                    itemStyle: { color: isDark ? '#38BDF8' : '#0F172A' },
                                     label: {
                                         show: true,
                                         position: 'top',
