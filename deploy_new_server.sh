@@ -70,13 +70,16 @@ systemctl daemon-reload
 systemctl enable --now robot-iot
 systemctl restart robot-iot
 
-# 6. 配置 FRP 客户端穿透至腾讯云 VPS
+# 6. 配置 FRP 客户端穿透 (可选)
+FRPS_HOST="${FRPS_SERVER_IP:-127.0.0.1}"
+FRPS_AUTH_TOKEN="${FRPS_AUTH_TOKEN:-YOUR_AUTH_TOKEN}"
+
 echo "[6/6] 配置 FRP 穿透客户端 (frpc)..."
 mkdir -p /usr/local/frp
-cat << 'EOF' > /usr/local/frp/frpc.toml
-serverAddr = "106.55.248.254"
+cat << EOF > /usr/local/frp/frpc.toml
+serverAddr = "$FRPS_HOST"
 serverPort = 7000
-auth.token = "RobotIoT_Secure_Token_2026"
+auth.token = "$FRPS_AUTH_TOKEN"
 
 [[proxies]]
 name = "iot-web"
@@ -135,13 +138,9 @@ EOF
 
 systemctl daemon-reload
 systemctl enable --now frpc
-systemctl restart frpc
+systemctl restart frpc || true
 
 echo "======================================================================"
 echo "✅ 部署全部成功！"
 echo "🌐 本地管控大屏: http://127.0.0.1:8000"
-echo "🌐 公网穿透大屏: http://106.55.248.254:8000"
-echo "📊 EMQX 控制台:  http://106.55.248.254:18083 (admin / public)"
-echo "🔌 MQTT 接入地址: tcp://106.55.248.254:1883"
-echo "🛠️ 远程运维 SSH:  ssh -p 2222 root@106.55.248.254"
 echo "======================================================================"

@@ -1828,7 +1828,7 @@ async def start_tunnel_api(body: TunnelStartRequest = Body(...)):
             custom_url=body.custom_url or "",
         )
         return api_response(code=200, message="穿透启动指令已执行", data=res)
-    return api_response(code=200, message="当前运行环境已具备独立公网 IP，无需额外穿透", data={"url": "http://106.55.248.254:8000"})
+    return api_response(code=200, message="当前运行环境已具备独立服务地址，无需额外穿透", data={"url": "http://127.0.0.1:8000"})
 
 
 @app.post("/api/tunnel/stop")

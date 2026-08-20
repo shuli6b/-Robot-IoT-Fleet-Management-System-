@@ -33,6 +33,13 @@ env/
 ENV/
 .venv/
 
+# Private Handover & Internal Deployment Guides (Local Only)
+HANDOVER_GUIDE.md
+*SOP*.md
+*交接*.md
+*私有*.md
+*运维*.md
+
 # IDE & OS files
 .idea/
 .vscode/
