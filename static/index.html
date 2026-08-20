@@ -1667,6 +1667,8 @@
             }
 
             if (mapChartInstance) {
+                const pTitle = (window.SITE_CONFIG && window.SITE_CONFIG.panyu_title) || (typeof BASE_DATA !== 'undefined' && BASE_DATA.panyu && BASE_DATA.panyu.title) || '广州番禺运营中心';
+                const nTitle = (window.SITE_CONFIG && window.SITE_CONFIG.nansha_title) || (typeof BASE_DATA !== 'undefined' && BASE_DATA.nansha && BASE_DATA.nansha.title) || '广州南沙机器人研发中心';
                 mapChartInstance.setOption({
                     tooltip: {
                         backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
@@ -1695,7 +1697,7 @@
                         {
                             data: [
                                 {
-                                    name: '广州番禺智造中心',
+                                    name: pTitle,
                                     value: [112.2, 23.8, 100],
                                     key: 'panyu',
                                     itemStyle: { color: isDark ? '#38BDF8' : '#0F172A' },
@@ -1715,7 +1717,7 @@
                                     }
                                 },
                                 {
-                                    name: '广州南沙创新港',
+                                    name: nTitle,
                                     value: [114.9, 21.8, 100],
                                     key: 'nansha',
                                     itemStyle: { color: isDark ? '#34D399' : '#059669' },
