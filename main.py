@@ -62,6 +62,7 @@ from database import (
     get_site_config,
     save_site_config,
     delete_device,
+    update_device_info,
     authenticate_user,
     register_user,
     get_user_by_username,
@@ -531,6 +532,14 @@ def is_super_admin(request: Request) -> bool:
     user_name = request.headers.get("X-User-Name", "")
     user_role = request.headers.get("X-User-Role", "")
     return user_name == "admin" and user_role == "admin"
+
+
+def is_admin(request: Request) -> bool:
+    """判断是否具有管理员角色 (admin)"""
+    if not request:
+        return False
+    user_role = request.headers.get("X-User-Role", "")
+    return user_role == "admin"
 
 
 @app.get("/api/auth/users")
@@ -1126,24 +1135,93 @@ class SiteConfigModel(BaseModel):
     system_title: Optional[str] = Field(None, description="系统主标题")
     system_subtitle: Optional[str] = Field(None, description="系统英文副标题")
     company_name: Optional[str] = Field(None, description="公司品牌")
+    footer_text: Optional[str] = Field(None, description="页脚版权文字")
+    modal_twin_footer_badge: Optional[str] = Field(None, description="数字孪生弹窗徽章文字")
+    
+    # 基地 1: 番禺
     panyu_title: Optional[str] = Field(None, description="番禺基地名称")
     panyu_sub: Optional[str] = Field(None, description="番禺基地副标题")
-    panyu_img: Optional[str] = Field(None, description="番禺基地图片URL")
-    panyu_attr1: Optional[str] = Field(None, description="番禺规划定位")
-    panyu_attr3: Optional[str] = Field(None, description="番禺设备规模")
+    panyu_line1_label: Optional[str] = Field(None, description="番禺首行标签")
+    panyu_line1_val: Optional[str] = Field(None, description="番禺首行内容")
+    panyu_line2_label: Optional[str] = Field(None, description="番禺次行标签")
+    panyu_line2_val: Optional[str] = Field(None, description="番禺次行内容")
+    panyu_status: Optional[str] = Field(None, description="番禺状态文本")
     panyu_desc: Optional[str] = Field(None, description="番禺详细图文介绍")
+    panyu_img: Optional[str] = Field(None, description="番禺基地图片URL")
+    
+    # 基地 2: 南沙
     nansha_title: Optional[str] = Field(None, description="南沙基地名称")
     nansha_sub: Optional[str] = Field(None, description="南沙基地副标题")
-    nansha_img: Optional[str] = Field(None, description="南沙基地图片URL")
-    nansha_attr1: Optional[str] = Field(None, description="南沙规划定位")
-    nansha_attr3: Optional[str] = Field(None, description="南沙设备规模")
+    nansha_line1_label: Optional[str] = Field(None, description="南沙首行标签")
+    nansha_line1_val: Optional[str] = Field(None, description="南沙首行内容")
+    nansha_line2_label: Optional[str] = Field(None, description="南沙次行标签")
+    nansha_line2_val: Optional[str] = Field(None, description="南沙次行内容")
+    nansha_status: Optional[str] = Field(None, description="南沙状态文本")
     nansha_desc: Optional[str] = Field(None, description="南沙详细图文介绍")
-    robot_arm_name: Optional[str] = Field(None, description="机械臂展示名称")
-    robot_arm_img: Optional[str] = Field(None, description="机械臂图片URL")
-    robot_amr_name: Optional[str] = Field(None, description="AMR展示名称")
-    robot_amr_img: Optional[str] = Field(None, description="AMR图片URL")
-    robot_dog_name: Optional[str] = Field(None, description="机器狗展示名称")
-    robot_dog_img: Optional[str] = Field(None, description="机器狗图片URL")
+    nansha_img: Optional[str] = Field(None, description="南沙基地图片URL")
+    
+    # 4 大品类
+    cat1_key: Optional[str] = Field(None)
+    cat1_name: Optional[str] = Field(None)
+    cat1_health_sub: Optional[str] = Field(None)
+    cat1_vendor: Optional[str] = Field(None)
+    cat1_specs: Optional[str] = Field(None)
+    cat1_img: Optional[str] = Field(None)
+    
+    cat2_key: Optional[str] = Field(None)
+    cat2_name: Optional[str] = Field(None)
+    cat2_health_sub: Optional[str] = Field(None)
+    cat2_vendor: Optional[str] = Field(None)
+    cat2_specs: Optional[str] = Field(None)
+    cat2_img: Optional[str] = Field(None)
+    
+    cat3_key: Optional[str] = Field(None)
+    cat3_name: Optional[str] = Field(None)
+    cat3_health_sub: Optional[str] = Field(None)
+    cat3_vendor: Optional[str] = Field(None)
+    cat3_specs: Optional[str] = Field(None)
+    cat3_img: Optional[str] = Field(None)
+    
+    cat4_key: Optional[str] = Field(None)
+    cat4_name: Optional[str] = Field(None)
+    cat4_health_sub: Optional[str] = Field(None)
+    cat4_vendor: Optional[str] = Field(None)
+    cat4_specs: Optional[str] = Field(None)
+    cat4_img: Optional[str] = Field(None)
+
+    class Config:
+        extra = "allow"
+
+
+class DeviceUpdateRequest(BaseModel):
+    device_name: Optional[str] = Field(None, description="自定义设备名称")
+    device_type: Optional[str] = Field(None, description="归属设备品类")
+    location: Optional[str] = Field(None, description="归属基地/工位位置")
+    specs: Optional[Dict[str, Any]] = Field(None, description="自定义规格参数键值对")
+    notes: Optional[str] = Field(None, description="管理员备注/说明信息")
+
+
+@app.post("/api/devices/{device_id}/update")
+async def api_update_device(device_id: str, body: DeviceUpdateRequest = Body(...), request: Request = None):
+    """修改单台设备自定义名称、位置、归属品类、规格参数与备注"""
+    if not request or not is_admin(request):
+        return api_response(
+            code=403,
+            message="权限不足：仅管理员拥有修改设备名称与规格参数的权限",
+            status_code=status.HTTP_403_FORBIDDEN
+        )
+    success = update_device_info(
+        device_id=device_id,
+        device_type=body.device_type,
+        device_name=body.device_name,
+        location=body.location,
+        specs=body.specs,
+        notes=body.notes
+    )
+    if success:
+        dev = get_device_by_id(device_id)
+        return api_response(code=200, message=f"设备 [{device_id}] 信息与规格已成功更新", data=dev)
+    return api_response(code=500, message="更新设备信息失败", status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @app.get("/api/system/site_config")

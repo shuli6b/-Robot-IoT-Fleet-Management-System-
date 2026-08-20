@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -235,11 +235,11 @@
         let loginMapChart = null;
 
         // -------------------------------------------------------------
-        // Theme Management (Default Light, Persistent Dark Toggle)
+        // Theme Management (Default Dark, Persistent Toggle)
         // -------------------------------------------------------------
         function initTheme() {
-            const savedTheme = localStorage.getItem('app_theme') || 'light';
-            const isDark = (savedTheme === 'dark');
+            const savedTheme = localStorage.getItem('app_theme') || 'dark';
+            const isDark = (savedTheme !== 'light');
             if (isDark) {
                 document.documentElement.classList.add('dark');
                 document.body.classList.add('dark');
@@ -259,6 +259,8 @@
 
         function updateLoginMapTheme(isDark) {
             if (loginMapChart) {
+                const pTitle = (BASE_DATA && BASE_DATA.panyu && BASE_DATA.panyu.title) ? BASE_DATA.panyu.title : '广州番禺智造中心';
+                const nTitle = (BASE_DATA && BASE_DATA.nansha && BASE_DATA.nansha.title) ? BASE_DATA.nansha.title : '广州南沙创新港';
                 loginMapChart.setOption({
                     tooltip: {
                         backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
@@ -287,7 +289,7 @@
                         {
                             data: [
                                 {
-                                    name: '广州番禺智造中心',
+                                    name: pTitle,
                                     value: [112.2, 23.8, 100],
                                     key: 'panyu',
                                     itemStyle: { color: isDark ? '#38BDF8' : '#0F172A' },
@@ -307,7 +309,7 @@
                                     }
                                 },
                                 {
-                                    name: '广州南沙创新港',
+                                    name: nTitle,
                                     value: [114.9, 21.8, 100],
                                     key: 'nansha',
                                     itemStyle: { color: isDark ? '#34D399' : '#059669' },
@@ -532,7 +534,7 @@
                             coordinateSystem: 'geo',
                             data: [
                                 {
-                                    name: '广州番禺智造中心',
+                                    name: (BASE_DATA && BASE_DATA.panyu && BASE_DATA.panyu.title) ? BASE_DATA.panyu.title : '广州番禺智造中心',
                                     value: [112.2, 23.8, 100],
                                     key: 'panyu',
                                     itemStyle: { color: isDark ? '#38BDF8' : '#0F172A' },
@@ -552,7 +554,7 @@
                                     }
                                 },
                                 {
-                                    name: '广州南沙创新港',
+                                    name: (BASE_DATA && BASE_DATA.nansha && BASE_DATA.nansha.title) ? BASE_DATA.nansha.title : '广州南沙创新港',
                                     value: [114.9, 21.8, 100],
                                     key: 'nansha',
                                     itemStyle: { color: isDark ? '#34D399' : '#059669' },
@@ -634,15 +636,16 @@
                         const nBadge = document.getElementById('loginNanshaBadge');
                         if (nBadge) nBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-600"></span>${cfg.nansha_title}`;
                     }
+                    updateLoginMapTheme(document.documentElement.classList.contains('dark'));
                 }
             } catch (e) {
                 console.error('Failed to init site branding in login page:', e);
             }
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             initTheme();
-            initSiteBranding();
+            await initSiteBranding();
             initChinaMap();
         });
     </script>

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -400,35 +400,35 @@
                     <!-- Dual Bases Overview Cards -->
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div onclick="openBaseModal('panyu')" class="clean-card p-4 rounded-xl cursor-pointer group hover:border-slate-400">
-                            <div class="flex items-center justify-between pb-2 border-b border-slate-100">
-                                <div class="font-bold text-slate-900 text-xs flex items-center gap-1.5">
-                                    <span class="w-2 h-2 rounded-full bg-slate-900"></span>
-                                    <span>广州番禺智造中心</span>
+                            <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                                <div class="font-bold text-slate-900 dark:text-slate-100 text-xs flex items-center gap-1.5">
+                                    <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+                                    <span id="overviewPanyuTitle">广州番禺智造中心</span>
                                 </div>
-                                <span class="text-xs text-slate-400 group-hover:text-slate-700">详情 →</span>
+                                <span class="text-xs text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-300">详情 →</span>
                             </div>
-                            <div class="mt-2.5 text-xs text-slate-600 space-y-1">
-                                <div class="text-[11px] text-slate-500">主产线：华数 BR610 六轴工业机械臂高精加工</div>
+                            <div class="mt-2.5 text-xs text-slate-600 dark:text-slate-400 space-y-1">
+                                <div class="text-[11px] text-slate-500 dark:text-slate-400" id="overviewPanyuLine1"><span id="overviewPanyuLine1Label">主产线</span>：<span id="overviewPanyuLine1Val">华数 BR610 六轴工业机械臂高精加工</span></div>
                                 <div class="flex justify-between text-[11px] pt-1 font-medium">
-                                    <span>设备规模: <strong class="text-slate-900">20+ 节点</strong></span>
-                                    <span class="text-emerald-600">正常运行</span>
+                                    <span><span id="overviewPanyuLine2Label">设备规模</span>: <strong class="text-slate-900 dark:text-slate-100" id="overviewPanyuLine2Val">20+ 节点</strong></span>
+                                    <span class="text-emerald-500 font-medium" id="overviewPanyuStatus">正常运行</span>
                                 </div>
                             </div>
                         </div>
 
                         <div onclick="openBaseModal('nansha')" class="clean-card p-4 rounded-xl cursor-pointer group hover:border-slate-400">
-                            <div class="flex items-center justify-between pb-2 border-b border-slate-100">
-                                <div class="font-bold text-slate-900 text-xs flex items-center gap-1.5">
-                                    <span class="w-2 h-2 rounded-full bg-slate-900"></span>
-                                    <span>广州南沙创新港</span>
+                            <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                                <div class="font-bold text-slate-900 dark:text-slate-100 text-xs flex items-center gap-1.5">
+                                    <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                    <span id="overviewNanshaTitle">广州南沙创新港</span>
                                 </div>
-                                <span class="text-xs text-slate-400 group-hover:text-slate-700">详情 →</span>
+                                <span class="text-xs text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-300">详情 →</span>
                             </div>
-                            <div class="mt-2.5 text-xs text-slate-600 space-y-1">
-                                <div class="text-[11px] text-slate-500">核心装备：复合移动 AMR 与四足仿生机器狗巡检</div>
+                            <div class="mt-2.5 text-xs text-slate-600 dark:text-slate-400 space-y-1">
+                                <div class="text-[11px] text-slate-500 dark:text-slate-400" id="overviewNanshaLine1"><span id="overviewNanshaLine1Label">核心装备</span>：<span id="overviewNanshaLine1Val">复合移动 AMR 与四足仿生机器狗巡检</span></div>
                                 <div class="flex justify-between text-[11px] pt-1 font-medium">
-                                    <span>设备规模: <strong class="text-slate-900">30+ 节点</strong></span>
-                                    <span class="text-emerald-600">正常运行</span>
+                                    <span><span id="overviewNanshaLine2Label">设备规模</span>: <strong class="text-slate-900 dark:text-slate-100" id="overviewNanshaLine2Val">30+ 节点</strong></span>
+                                    <span class="text-emerald-500 font-medium" id="overviewNanshaStatus">正常运行</span>
                                 </div>
                             </div>
                         </div>
@@ -441,37 +441,46 @@
                     <div class="clean-card p-5 rounded-xl space-y-3">
                         <div class="flex items-center justify-between">
                             <div>
-                                <h3 class="text-sm font-bold text-slate-900 tracking-tight">各品类设备健康指数</h3>
-                                <p class="text-xs text-slate-500">基于伺服负载、电机温升与通讯质量分析</p>
+                                <h3 class="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight">各品类设备健康指数</h3>
+                                <p class="text-xs text-slate-500 dark:text-slate-400">基于伺服负载、电机温升与通讯质量分析</p>
                             </div>
-                            <span class="text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">健康状况良好</span>
+                            <span class="text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">健康状况良好</span>
                         </div>
-                        <div class="space-y-3.5 text-xs pt-1">
-                            <div class="space-y-1">
+                        <div class="space-y-3.5 text-xs pt-1" id="overviewHealthList">
+                            <div class="space-y-1" id="healthCatRow1">
                                 <div class="flex justify-between text-[11px]">
-                                    <span class="text-slate-600">华数六轴工业机械臂 (伺服电机负载与温升)</span>
-                                    <span class="font-mono text-slate-900 font-semibold">98.5%</span>
+                                    <span class="text-slate-600 dark:text-slate-300"><span id="overviewHealthCat1Name">华数六轴工业机械臂</span> (<span id="overviewHealthCat1Sub">伺服电机负载与温升</span>)</span>
+                                    <span class="font-mono text-slate-900 dark:text-slate-100 font-semibold" id="overviewHealthCat1Val">98.5%</span>
                                 </div>
-                                <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                                    <div class="bg-slate-900 h-full rounded-full" style="width: 98.5%"></div>
+                                <div class="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                                    <div class="bg-blue-600 h-full rounded-full" style="width: 98.5%"></div>
                                 </div>
                             </div>
-                            <div class="space-y-1">
+                            <div class="space-y-1" id="healthCatRow2">
                                 <div class="flex justify-between text-[11px]">
-                                    <span class="text-slate-600">珞石复合 AMR 移动机器人 (电池健康度与定位精度)</span>
-                                    <span class="font-mono text-slate-900 font-semibold">96.2%</span>
+                                    <span class="text-slate-600 dark:text-slate-300"><span id="overviewHealthCat2Name">珞石复合 AMR 移动机器人</span> (<span id="overviewHealthCat2Sub">电池健康度与定位精度</span>)</span>
+                                    <span class="font-mono text-slate-900 dark:text-slate-100 font-semibold" id="overviewHealthCat2Val">96.2%</span>
                                 </div>
-                                <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                                    <div class="bg-slate-900 h-full rounded-full" style="width: 96.2%"></div>
+                                <div class="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                                    <div class="bg-indigo-600 h-full rounded-full" style="width: 96.2%"></div>
                                 </div>
                             </div>
-                            <div class="space-y-1">
+                            <div class="space-y-1" id="healthCatRow3">
                                 <div class="flex justify-between text-[11px]">
-                                    <span class="text-slate-600">四足仿生机器狗 (关节扭矩与红外测温模组)</span>
-                                    <span class="font-mono text-slate-900 font-semibold">97.8%</span>
+                                    <span class="text-slate-600 dark:text-slate-300"><span id="overviewHealthCat3Name">四足仿生机器狗</span> (<span id="overviewHealthCat3Sub">关节扭矩与红外测温模组</span>)</span>
+                                    <span class="font-mono text-slate-900 dark:text-slate-100 font-semibold" id="overviewHealthCat3Val">97.8%</span>
                                 </div>
-                                <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                                    <div class="bg-slate-900 h-full rounded-full" style="width: 97.8%"></div>
+                                <div class="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                                    <div class="bg-emerald-600 h-full rounded-full" style="width: 97.8%"></div>
+                                </div>
+                            </div>
+                            <div class="space-y-1" id="healthCatRow4">
+                                <div class="flex justify-between text-[11px]">
+                                    <span class="text-slate-600 dark:text-slate-300"><span id="overviewHealthCat4Name">四足狗+无人机协同系统</span> (<span id="overviewHealthCat4Sub">空地协同遥感与应急通讯链路</span>)</span>
+                                    <span class="font-mono text-slate-900 dark:text-slate-100 font-semibold" id="overviewHealthCat4Val">99.1%</span>
+                                </div>
+                                <div class="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                                    <div class="bg-amber-600 h-full rounded-full" style="width: 99.1%"></div>
                                 </div>
                             </div>
                         </div>
@@ -524,11 +533,12 @@
 
                 <div class="flex items-center gap-2.5 flex-wrap">
                     <!-- Category Filter -->
-                    <select id="fleetFilterType" onchange="renderActiveFleetView()" class="bg-white border border-slate-300 text-slate-700 text-xs rounded-lg px-3 py-1.5 focus:ring-1 focus:ring-slate-900 focus:outline-none font-medium">
+                    <select id="fleetFilterType" onchange="renderActiveFleetView()" class="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs rounded-lg px-3 py-1.5 focus:ring-1 focus:ring-slate-900 focus:outline-none font-medium">
                         <option value="">全部品类 (All Types)</option>
-                        <option value="huashu_arm">华数 BR610 六轴机械臂</option>
-                        <option value="luxshare_amr">珞石 SR3 复合移动 AMR</option>
-                        <option value="robot_dog">四足仿生巡检机器狗</option>
+                        <option value="huashu_arm" id="optCat1">华数 BR610 六轴机械臂</option>
+                        <option value="luxshare_amr" id="optCat2">珞石 SR3 复合移动 AMR</option>
+                        <option value="robot_dog" id="optCat3">四足仿生巡检机器狗</option>
+                        <option value="uav_rescue" id="optCat4">四足狗+无人机协同系统</option>
                     </select>
 
                     <!-- Layout Switcher (Grid vs List) -->
@@ -692,25 +702,32 @@
     <!-- MODAL 2: 3D DIGITAL TWIN & COMMAND CONSOLE MODAL              -->
     <!-- ============================================================= -->
     <div id="robot3DModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm transition-all duration-200">
-        <div class="clean-modal rounded-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
+        <div class="clean-modal rounded-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
             
             <!-- Top Modal Header -->
-            <div class="px-6 py-4 bg-white border-b border-slate-200 flex items-center justify-between">
-                <div>
-                    <h3 class="text-sm font-bold text-slate-900 tracking-tight" id="modalDevTitle">华数 BR610 六轴工业机器人</h3>
-                    <p class="text-xs text-slate-500" id="modalDevSubTitle">ID: arm_001 | 实时 3D 运动学、伺服状态与任务工步指令控制</p>
+            <div class="px-6 py-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h3 class="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight" id="modalDevTitle">华数 BR610 六轴工业机器人</h3>
+                            <button id="btnOpenEditDevFrom3D" onclick="openEditDeviceModalFrom3D()" class="px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 text-[11px] font-medium hover:bg-blue-100 transition flex items-center gap-1" title="修改该设备自定义名称、安装位置及规格参数">
+                                <span>✏️ 编辑设备信息</span>
+                            </button>
+                        </div>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 font-mono" id="modalDevSubTitle">ID: arm_001 | 实时 3D 运动学、伺服状态与任务工步指令控制</p>
+                    </div>
                 </div>
-                <button onclick="closeRobot3DModal()" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 flex items-center justify-center transition">✕</button>
+                <button onclick="closeRobot3DModal()" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 flex items-center justify-center transition">✕</button>
             </div>
 
             <!-- Scrollable Body -->
-            <div class="p-6 overflow-y-auto flex-1 space-y-5 bg-slate-50">
+            <div class="p-6 overflow-y-auto flex-1 space-y-5 bg-slate-50 dark:bg-slate-950">
                 
                 <!-- 1. 3D Digital Twin Visual Banner -->
-                <div class="relative w-full h-64 sm:h-72 rounded-xl overflow-hidden border border-slate-200 shadow-sm bg-white">
+                <div class="relative w-full h-64 sm:h-72 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900">
                     <img id="modalRobotImage" src="/static/assets/huashu_br610_arm.jpg" alt="3D Robot" class="w-full h-full object-cover object-center">
                     <div class="absolute top-3 left-3">
-                        <span class="px-3 py-1 rounded-lg bg-white/90 backdrop-blur-sm border border-slate-200 text-xs font-mono text-slate-800 flex items-center gap-1.5 shadow-sm">
+                        <span class="px-3 py-1 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border border-slate-200 dark:border-slate-700 text-xs font-mono text-slate-800 dark:text-slate-200 flex items-center gap-1.5 shadow-sm">
                             <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
                             <span id="modalBannerType">华数 BR610 六轴工业机械臂</span>
                         </span>
@@ -720,112 +737,119 @@
                 <!-- 2. Specifications, Kinematics & Health Gauges -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
                     <!-- Specs -->
-                    <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm space-y-3">
-                        <div class="flex items-center justify-between pb-2 border-b border-slate-100">
-                            <span class="font-bold text-slate-900">规格参数</span>
-                            <span class="text-[10px] text-slate-400 font-mono" id="modalSpecBrand">华数机器人</span>
+                    <div class="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3 flex flex-col justify-between">
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                                <span class="font-bold text-slate-900 dark:text-slate-100">规格参数</span>
+                                <span class="text-[10px] text-slate-500 dark:text-slate-400 font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" id="modalSpecBrand">华数机器人</span>
+                            </div>
+                            <div class="space-y-2 text-slate-600 dark:text-slate-300 text-[11px]" id="modalSpecList"></div>
                         </div>
-                        <div class="space-y-2 text-slate-600 text-[11px]" id="modalSpecList"></div>
+                        <div class="pt-2 border-t border-slate-100 dark:border-slate-800 text-right">
+                            <button onclick="openEditDeviceModalFrom3D()" class="text-[10px] text-blue-600 dark:text-blue-400 hover:underline font-medium">
+                                ➕ 管理员自定义参数/备注 →
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Kinematics -->
-                    <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm space-y-3">
-                        <div class="flex items-center justify-between pb-2 border-b border-slate-100">
-                            <span class="font-bold text-slate-900">运动学姿态</span>
-                            <span class="text-[10px] text-slate-500 font-mono">1.0s 周期</span>
+                    <div class="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+                        <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                            <span class="font-bold text-slate-900 dark:text-slate-100">运动学姿态</span>
+                            <span class="text-[10px] text-slate-500 dark:text-slate-400 font-mono">1.0s 周期</span>
                         </div>
-                        <div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80 space-y-1">
-                            <span class="text-[10px] text-slate-500">末端空间坐标 (mm/°)</span>
-                            <div class="font-mono text-xs text-slate-900 font-bold truncate" id="modalCartesianPos">X: 450.2 | Y: 200.1 | Z: 350.0</div>
-                            <div class="font-mono text-[10px] text-slate-500 truncate" id="modalEulerAngles">A: 180.0° | B: 0.0° | C: 45.0°</div>
+                        <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700 space-y-1">
+                            <span class="text-[10px] text-slate-500 dark:text-slate-400">末端空间坐标 (mm/°)</span>
+                            <div class="font-mono text-xs text-slate-900 dark:text-slate-100 font-bold truncate" id="modalCartesianPos">X: 450.2 | Y: 200.1 | Z: 350.0</div>
+                            <div class="font-mono text-[10px] text-slate-500 dark:text-slate-400 truncate" id="modalEulerAngles">A: 180.0° | B: 0.0° | C: 45.0°</div>
                         </div>
                         <div class="space-y-1.5" id="modalJointsContainer"></div>
                     </div>
 
                     <!-- Currents & Health -->
-                    <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm space-y-3">
-                        <div class="flex items-center justify-between pb-2 border-b border-slate-100">
-                            <span class="font-bold text-slate-900">伺服电流与工况</span>
-                            <span class="text-[10px] text-emerald-700 font-bold font-mono">98 分</span>
+                    <div class="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+                        <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                            <span class="font-bold text-slate-900 dark:text-slate-100">伺服电流与工况</span>
+                            <span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold font-mono">98 分</span>
                         </div>
-                        <div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80 space-y-1.5">
-                            <span class="text-[10px] text-slate-500">伺服电机电流 (A)</span>
+                        <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700 space-y-1.5">
+                            <span class="text-[10px] text-slate-500 dark:text-slate-400">伺服电机电流 (A)</span>
                             <div class="grid grid-cols-3 gap-1.5 font-mono text-[11px]" id="modalMotorCurrentsGrid"></div>
                         </div>
-                        <div class="space-y-1.5 text-[11px] text-slate-600">
-                            <div class="flex justify-between"><span>循环工步计数:</span><span class="font-mono text-slate-900 font-medium" id="modalCycleCount">1,420 次</span></div>
-                            <div class="flex justify-between"><span>累计运行工时:</span><span class="font-mono text-slate-900 font-medium" id="modalRunHours">152.4 小时</span></div>
-                            <div class="flex justify-between"><span>下次保养周期:</span><span class="font-mono text-slate-700" id="modalMaintRemain">剩余 347.6 小时</span></div>
+                        <div class="space-y-1.5 text-[11px] text-slate-600 dark:text-slate-400">
+                            <div class="flex justify-between"><span>循环工步计数:</span><span class="font-mono text-slate-900 dark:text-slate-100 font-medium" id="modalCycleCount">1,420 次</span></div>
+                            <div class="flex justify-between"><span>累计运行工时:</span><span class="font-mono text-slate-900 dark:text-slate-100 font-medium" id="modalRunHours">152.4 小时</span></div>
+                            <div class="flex justify-between"><span>下次保养周期:</span><span class="font-mono text-slate-700 dark:text-slate-300" id="modalMaintRemain">剩余 347.6 小时</span></div>
                         </div>
                     </div>
                 </div>
 
                 <!-- 3. Integrated Command Dispatch Console (Downwards Scroll Section) -->
-                <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm space-y-4">
-                    <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-                        <h4 class="text-sm font-bold text-slate-900 tracking-tight">任务控制指令下发中心 (工业二次开发指令集)</h4>
-                        <span class="text-xs font-mono text-slate-500" id="modalCmdTopicTarget">cmd/--/--</span>
+                <div class="bg-white dark:bg-slate-900 rounded-xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                    <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                        <h4 class="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight">任务控制指令下发中心 (工业二次开发指令集)</h4>
+                        <span class="text-xs font-mono text-slate-500 dark:text-slate-400" id="modalCmdTopicTarget">cmd/--/--</span>
                     </div>
 
                     <!-- Admin Command Panel -->
                     <div id="modalAdminCmdPanel" class="space-y-3.5">
                         
                         <!-- AI Natural Language Command Parser Row -->
-                        <div class="p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-2">
+                        <div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-2">
                             <div class="flex items-center justify-between text-[11px]">
-                                <span class="font-bold text-slate-800 flex items-center gap-1.5">
-                                    <svg class="w-3.5 h-3.5 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                <span class="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                                    <svg class="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                                     <span>AI 自然语言指令编译器</span>
                                 </span>
-                                <span class="text-slate-500 text-[10px]">支持中英文口语化指令</span>
+                                <span class="text-slate-500 dark:text-slate-400 text-[10px]">支持中英文口语化指令</span>
                             </div>
                             <div class="flex gap-2">
-                                <input type="text" id="modalNlCommandInput" placeholder="输入口语，如：“启动焊接工步速度80” 或 “去A01取料并送往B03”" class="flex-1 bg-white border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-2 focus:ring-1 focus:ring-slate-900 focus:outline-none">
-                                <button type="button" onclick="parseNaturalLanguageCommand()" id="btnNlParse" class="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs shadow-sm transition flex items-center gap-1 shrink-0">
+                                <input type="text" id="modalNlCommandInput" placeholder="输入口语，如：“启动焊接工步速度80” 或 “去A01取料并送往B03”" class="flex-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 text-xs rounded-lg px-3 py-2 focus:ring-1 focus:ring-slate-900 dark:focus:ring-blue-500 focus:outline-none">
+                                <button type="button" onclick="parseNaturalLanguageCommand()" id="btnNlParse" class="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-700 text-white font-medium text-xs shadow-sm transition flex items-center gap-1 shrink-0">
                                     <span>一键解析</span>
                                 </button>
                             </div>
-                            <div id="nlParseResultHint" class="hidden text-[11px] text-slate-700 font-mono"></div>
+                            <div id="nlParseResultHint" class="hidden text-[11px] text-slate-700 dark:text-slate-300 font-mono"></div>
                         </div>
 
                         <!-- Manual & Preset Selector Row -->
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                             <div>
-                                <label class="block text-[11px] text-slate-500 mb-1">标准工业控制工步指令预设</label>
-                                <select id="modalCmdPresetSelect" onchange="onModalCmdPresetChange()" class="w-full bg-white border border-slate-300 text-slate-800 rounded-lg px-3 py-2 focus:outline-none"></select>
+                                <label class="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">标准工业控制工步指令预设</label>
+                                <select id="modalCmdPresetSelect" onchange="onModalCmdPresetChange()" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-lg px-3 py-2 focus:outline-none"></select>
                             </div>
                             <div>
-                                <label class="block text-[11px] text-slate-500 mb-1">指令标识 (Command Tag)</label>
-                                <input type="text" id="modalCmdCustomInput" placeholder="输入控制指令" class="w-full bg-white border border-slate-300 text-slate-800 rounded-lg px-3 py-2 font-mono focus:outline-none">
+                                <label class="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">指令标识 (Command Tag)</label>
+                                <input type="text" id="modalCmdCustomInput" placeholder="输入控制指令" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-lg px-3 py-2 font-mono focus:outline-none">
                             </div>
                         </div>
 
                         <!-- JSON Payload Editor with Format/Validate Button -->
                         <div>
-                            <div class="flex items-center justify-between text-[11px] text-slate-500 mb-1">
+                            <div class="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mb-1">
                                 <span>指令参数 (JSON Payload)</span>
-                                <button type="button" onclick="formatAndValidateModalJson()" class="text-slate-700 hover:underline font-medium">格式化 & 校验 JSON</button>
+                                <button type="button" onclick="formatAndValidateModalJson()" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">格式化 & 校验 JSON</button>
                             </div>
-                            <textarea id="modalCmdParamsEditor" rows="3" class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-xs font-mono rounded-lg p-3 focus:outline-none" placeholder='{"speed": 80}'></textarea>
+                            <textarea id="modalCmdParamsEditor" rows="3" class="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 text-xs font-mono rounded-lg p-3 focus:outline-none" placeholder='{"speed": 80}'></textarea>
                         </div>
 
                         <!-- MQTT Dispatch Button -->
-                        <button onclick="dispatchModalCommand()" class="w-full py-3 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs shadow-sm transition flex items-center justify-center gap-2">
+                        <button onclick="dispatchModalCommand()" class="w-full py-3 rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-700 text-white font-medium text-xs shadow-sm transition flex items-center justify-center gap-2">
                             <span>下发指令至现场设备 (MQTT)</span>
                         </button>
                     </div>
 
                     <!-- User Readonly Banner -->
-                    <div id="modalUserReadonlyBanner" class="hidden p-4 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-between text-xs text-slate-600">
+                    <div id="modalUserReadonlyBanner" class="hidden p-4 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs text-slate-600 dark:text-slate-300">
                         <span>当前账号为操作员角色，仅开放状态监控，指令下发功能已受控保护。</span>
-                        <span class="text-[10px] px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-medium">需管理员权限</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium">需管理员权限</span>
                     </div>
                 </div>
             </div>
 
-            <div class="px-6 py-3.5 bg-white border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
-                <span>广州番禺示范线 · 昕邦工业机器人数字孪生接入点</span>
-                <button onclick="closeRobot3DModal()" class="px-4 py-1.5 rounded-lg bg-slate-900 text-white font-medium hover:bg-slate-800 transition">完成查看</button>
+            <div class="px-6 py-3.5 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                <span id="modalTwinFooterBadge">广州番禺示范线 · 昕邦工业机器人数字孪生接入点</span>
+                <button onclick="closeRobot3DModal()" class="px-4 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 font-medium transition">完成查看</button>
             </div>
         </div>
     </div>
@@ -1039,19 +1063,19 @@
                     <div id="setPaneCms" class="hidden space-y-6">
                         <div class="flex items-center justify-between">
                             <div>
-                                <h4 class="font-bold text-sm text-slate-900 dark:text-slate-100">品牌与网页内容实时定制 (CMS)</h4>
+                                <h4 class="font-bold text-sm text-slate-900 dark:text-slate-100">品牌与网页内容全量定制中心 (CMS)</h4>
                                 <p class="text-slate-500 dark:text-slate-400 text-[11px] mt-0.5">超级管理员可在线修改文字与上传替换图片，点击保存后全站即刻生效！</p>
                             </div>
-                            <button onclick="saveSiteBrandingCms()" class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md transition flex items-center gap-1.5">
-                                <span>⚡ 保存并全站实时生效</span>
+                            <button onclick="saveSiteBrandingCms()" class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5">
+                                <span>⚡ 保存全站品牌与图文定制 (立即生效)</span>
                             </button>
                         </div>
 
-                        <!-- 1. System Branding Title -->
+                        <!-- 1. System Branding & Footer -->
                         <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-3">
                             <h5 class="font-bold text-xs text-slate-900 dark:text-slate-100 flex items-center gap-2">
                                 <span class="w-2 h-2 rounded-full bg-slate-900 dark:bg-slate-100"></span>
-                                <span>系统大屏与品牌标识</span>
+                                <span>系统大屏标头与全局标识</span>
                             </h5>
                             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div>
@@ -1067,36 +1091,56 @@
                                     <input type="text" id="cmsCompanyName" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-xs">
                                 </div>
                             </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                <div>
+                                    <label class="block text-slate-600 dark:text-slate-400 mb-1">页脚版权文字 (Footer)</label>
+                                    <input type="text" id="cmsFooterText" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-xs">
+                                </div>
+                                <div>
+                                    <label class="block text-slate-600 dark:text-slate-400 mb-1">3D 数字孪生接入点标识 (Twin Modal Badge)</label>
+                                    <input type="text" id="cmsModalTwinBadge" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-xs">
+                                </div>
+                            </div>
                         </div>
 
                         <!-- 2. Panyu Base CMS -->
                         <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-3">
                             <h5 class="font-bold text-xs text-slate-900 dark:text-slate-100 flex items-center gap-2">
                                 <span class="w-2 h-2 rounded-full bg-blue-500"></span>
-                                <span>广州番禺智造中心 (基地 1)</span>
+                                <span>广州番禺智造中心 (基地 1) 全部图文配置</span>
                             </h5>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
-                                    <label class="block text-slate-600 dark:text-slate-400 mb-1">基地名称</label>
+                                    <label class="block text-slate-600 dark:text-slate-400 mb-1">基地名称 (Title)</label>
                                     <input type="text" id="cmsPanyuTitle" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-xs">
                                 </div>
                                 <div>
-                                    <label class="block text-slate-600 dark:text-slate-400 mb-1">产线定位副标题</label>
+                                    <label class="block text-slate-600 dark:text-slate-400 mb-1">产线定位副标题 (Sub)</label>
                                     <input type="text" id="cmsPanyuSub" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-xs">
                                 </div>
                             </div>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div>
-                                    <label class="block text-slate-600 dark:text-slate-400 mb-1">规划定位标签</label>
-                                    <input type="text" id="cmsPanyuAttr1" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-xs">
+                                    <label class="block text-slate-600 dark:text-slate-400 mb-1">首行标签与内容 (主产线)</label>
+                                    <div class="flex gap-1">
+                                        <input type="text" id="cmsPanyuLine1Label" placeholder="标签" class="w-24 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-2 py-2 text-xs">
+                                        <input type="text" id="cmsPanyuLine1Val" placeholder="详细内容" class="flex-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-2 py-2 text-xs">
+                                    </div>
                                 </div>
                                 <div>
-                                    <label class="block text-slate-600 dark:text-slate-400 mb-1">设备规模标签</label>
-                                    <input type="text" id="cmsPanyuAttr3" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-xs">
+                                    <label class="block text-slate-600 dark:text-slate-400 mb-1">次行标签与内容 (设备规模)</label>
+                                    <div class="flex gap-1">
+                                        <input type="text" id="cmsPanyuLine2Label" placeholder="标签" class="w-24 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-2 py-2 text-xs">
+                                        <input type="text" id="cmsPanyuLine2Val" placeholder="如 20+ 节点" class="flex-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-2 py-2 text-xs">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-slate-600 dark:text-slate-400 mb-1">运行状态文本 (Status)</label>
+                                    <input type="text" id="cmsPanyuStatus" placeholder="正常运行" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-xs">
                                 </div>
                             </div>
                             <div>
-                                <label class="block text-slate-600 dark:text-slate-400 mb-1">详细介绍文本</label>
+                                <label class="block text-slate-600 dark:text-slate-400 mb-1">详细介绍文本 (Description)</label>
                                 <textarea id="cmsPanyuDesc" rows="2" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg p-2.5 text-xs"></textarea>
                             </div>
                             <div class="flex items-center gap-4 pt-1">
@@ -1116,30 +1160,40 @@
                         <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-3">
                             <h5 class="font-bold text-xs text-slate-900 dark:text-slate-100 flex items-center gap-2">
                                 <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-                                <span>广州南沙创新港 (基地 2)</span>
+                                <span>广州南沙创新港 (基地 2) 全部图文配置</span>
                             </h5>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
-                                    <label class="block text-slate-600 dark:text-slate-400 mb-1">基地名称</label>
+                                    <label class="block text-slate-600 dark:text-slate-400 mb-1">基地名称 (Title)</label>
                                     <input type="text" id="cmsNanshaTitle" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-xs">
                                 </div>
                                 <div>
-                                    <label class="block text-slate-600 dark:text-slate-400 mb-1">产线定位副标题</label>
+                                    <label class="block text-slate-600 dark:text-slate-400 mb-1">产线定位副标题 (Sub)</label>
                                     <input type="text" id="cmsNanshaSub" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-xs">
                                 </div>
                             </div>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div>
-                                    <label class="block text-slate-600 dark:text-slate-400 mb-1">规划定位标签</label>
-                                    <input type="text" id="cmsNanshaAttr1" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-xs">
+                                    <label class="block text-slate-600 dark:text-slate-400 mb-1">首行标签与内容 (核心装备)</label>
+                                    <div class="flex gap-1">
+                                        <input type="text" id="cmsNanshaLine1Label" placeholder="标签" class="w-24 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-2 py-2 text-xs">
+                                        <input type="text" id="cmsNanshaLine1Val" placeholder="详细内容" class="flex-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-2 py-2 text-xs">
+                                    </div>
                                 </div>
                                 <div>
-                                    <label class="block text-slate-600 dark:text-slate-400 mb-1">设备规模标签</label>
-                                    <input type="text" id="cmsNanshaAttr3" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-xs">
+                                    <label class="block text-slate-600 dark:text-slate-400 mb-1">次行标签与内容 (设备规模)</label>
+                                    <div class="flex gap-1">
+                                        <input type="text" id="cmsNanshaLine2Label" placeholder="标签" class="w-24 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-2 py-2 text-xs">
+                                        <input type="text" id="cmsNanshaLine2Val" placeholder="如 30+ 节点" class="flex-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-2 py-2 text-xs">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-slate-600 dark:text-slate-400 mb-1">运行状态文本 (Status)</label>
+                                    <input type="text" id="cmsNanshaStatus" placeholder="正常运行" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-xs">
                                 </div>
                             </div>
                             <div>
-                                <label class="block text-slate-600 dark:text-slate-400 mb-1">详细介绍文本</label>
+                                <label class="block text-slate-600 dark:text-slate-400 mb-1">详细介绍文本 (Description)</label>
                                 <textarea id="cmsNanshaDesc" rows="2" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg p-2.5 text-xs"></textarea>
                             </div>
                             <div class="flex items-center gap-4 pt-1">
@@ -1155,39 +1209,151 @@
                             </div>
                         </div>
 
-                        <!-- 4. 3 Robots CMS -->
-                        <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-3">
-                            <h5 class="font-bold text-xs text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                                <span class="w-2 h-2 rounded-full bg-purple-500"></span>
-                                <span>三大多品类工业机器人展示</span>
-                            </h5>
-                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                <!-- Robot 1: Arm -->
-                                <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
-                                    <div class="font-semibold text-slate-700 dark:text-slate-300">六轴工业机械臂</div>
-                                    <input type="text" id="cmsRobotArmName" placeholder="华数 BR610 六轴机械臂" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs">
-                                    <img id="cmsRobotArmPreview" src="/static/assets/huashu_br610_arm.jpg" class="w-full h-20 object-cover rounded-lg border border-slate-200 dark:border-slate-700">
-                                    <input type="file" id="cmsRobotArmFile" accept="image/*" class="hidden" onchange="handleCmsImageUpload(event, 'arm')">
-                                    <button type="button" onclick="document.getElementById('cmsRobotArmFile').click()" class="w-full py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-[11px]">📁 上传新图</button>
-                                    <input type="hidden" id="cmsRobotArmImgUrl" value="/static/assets/huashu_br610_arm.jpg">
+                        <!-- 4. 4 Robot Categories CMS -->
+                        <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-4">
+                            <div class="flex items-center justify-between">
+                                <h5 class="font-bold text-xs text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                                    <span class="w-2 h-2 rounded-full bg-purple-500"></span>
+                                    <span>四大品类工业机器人档案与健康指标配置</span>
+                                </h5>
+                                <span class="text-[11px] text-slate-500 dark:text-slate-400">修改后将同步大屏健康指数、品类筛选器与 3D 档案</span>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <!-- Cat 1: Arm -->
+                                <div class="p-3.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2.5">
+                                    <div class="font-semibold text-xs text-blue-600 dark:text-blue-400 flex items-center justify-between">
+                                        <span>品类 1: 六轴工业机械臂</span>
+                                        <span class="font-mono text-[10px] text-slate-400">huashu_arm</span>
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] text-slate-500 mb-0.5">品类显示名</label>
+                                        <input type="text" id="cmsCat1Name" placeholder="华数 BR610 六轴工业机械臂" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs font-medium">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] text-slate-500 mb-0.5">健康指标分析说明 (健康板块显示)</label>
+                                        <input type="text" id="cmsCat1HealthSub" placeholder="伺服电机负载与温升" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs">
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label class="block text-[10px] text-slate-500 mb-0.5">制造厂商/品牌</label>
+                                            <input type="text" id="cmsCat1Vendor" placeholder="华数机器人" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs">
+                                        </div>
+                                        <div>
+                                            <label class="block text-[10px] text-slate-500 mb-0.5">出厂默认规格摘要</label>
+                                            <input type="text" id="cmsCat1Specs" placeholder="负载 10kg | 臂展 1450mm" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs">
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-3 pt-1">
+                                        <img id="cmsRobotArmPreview" src="/static/assets/huashu_br610_arm.jpg" class="w-20 h-14 object-cover rounded-lg border border-slate-200 dark:border-slate-700 shrink-0">
+                                        <div class="flex-1">
+                                            <input type="file" id="cmsRobotArmFile" accept="image/*" class="hidden" onchange="handleCmsImageUpload(event, 'arm')">
+                                            <button type="button" onclick="document.getElementById('cmsRobotArmFile').click()" class="w-full py-1.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-[11px] font-medium">📁 上传实物/孪生图</button>
+                                            <input type="hidden" id="cmsRobotArmImgUrl" value="/static/assets/huashu_br610_arm.jpg">
+                                        </div>
+                                    </div>
                                 </div>
-                                <!-- Robot 2: AMR -->
-                                <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
-                                    <div class="font-semibold text-slate-700 dark:text-slate-300">复合移动 AMR</div>
-                                    <input type="text" id="cmsRobotAmrName" placeholder="珞石 SR3 复合移动 AMR" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs">
-                                    <img id="cmsRobotAmrPreview" src="/static/assets/luxshare_amr_sr3.jpg" class="w-full h-20 object-cover rounded-lg border border-slate-200 dark:border-slate-700">
-                                    <input type="file" id="cmsRobotAmrFile" accept="image/*" class="hidden" onchange="handleCmsImageUpload(event, 'amr')">
-                                    <button type="button" onclick="document.getElementById('cmsRobotAmrFile').click()" class="w-full py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-[11px]">📁 上传新图</button>
-                                    <input type="hidden" id="cmsRobotAmrImgUrl" value="/static/assets/luxshare_amr_sr3.jpg">
+
+                                <!-- Cat 2: AMR -->
+                                <div class="p-3.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2.5">
+                                    <div class="font-semibold text-xs text-indigo-600 dark:text-indigo-400 flex items-center justify-between">
+                                        <span>品类 2: 复合移动 AMR 机器人</span>
+                                        <span class="font-mono text-[10px] text-slate-400">luxshare_amr</span>
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] text-slate-500 mb-0.5">品类显示名</label>
+                                        <input type="text" id="cmsCat2Name" placeholder="珞石 SR3 复合移动 AMR" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs font-medium">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] text-slate-500 mb-0.5">健康指标分析说明 (健康板块显示)</label>
+                                        <input type="text" id="cmsCat2HealthSub" placeholder="电池健康度与定位精度" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs">
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label class="block text-[10px] text-slate-500 mb-0.5">制造厂商/品牌</label>
+                                            <input type="text" id="cmsCat2Vendor" placeholder="珞石智能" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs">
+                                        </div>
+                                        <div>
+                                            <label class="block text-[10px] text-slate-500 mb-0.5">出厂默认规格摘要</label>
+                                            <input type="text" id="cmsCat2Specs" placeholder="载重 200kg | 激光SLAM" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs">
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-3 pt-1">
+                                        <img id="cmsRobotAmrPreview" src="/static/assets/luxshare_amr_sr3.jpg" class="w-20 h-14 object-cover rounded-lg border border-slate-200 dark:border-slate-700 shrink-0">
+                                        <div class="flex-1">
+                                            <input type="file" id="cmsRobotAmrFile" accept="image/*" class="hidden" onchange="handleCmsImageUpload(event, 'amr')">
+                                            <button type="button" onclick="document.getElementById('cmsRobotAmrFile').click()" class="w-full py-1.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-[11px] font-medium">📁 上传实物/孪生图</button>
+                                            <input type="hidden" id="cmsRobotAmrImgUrl" value="/static/assets/luxshare_amr_sr3.jpg">
+                                        </div>
+                                    </div>
                                 </div>
-                                <!-- Robot 3: Dog -->
-                                <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
-                                    <div class="font-semibold text-slate-700 dark:text-slate-300">四足仿生机器狗</div>
-                                    <input type="text" id="cmsRobotDogName" placeholder="四足仿生巡检机器狗" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs">
-                                    <img id="cmsRobotDogPreview" src="/static/assets/bionic_robot_dog.jpg" class="w-full h-20 object-cover rounded-lg border border-slate-200 dark:border-slate-700">
-                                    <input type="file" id="cmsRobotDogFile" accept="image/*" class="hidden" onchange="handleCmsImageUpload(event, 'dog')">
-                                    <button type="button" onclick="document.getElementById('cmsRobotDogFile').click()" class="w-full py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-[11px]">📁 上传新图</button>
-                                    <input type="hidden" id="cmsRobotDogImgUrl" value="/static/assets/bionic_robot_dog.jpg">
+
+                                <!-- Cat 3: Dog -->
+                                <div class="p-3.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2.5">
+                                    <div class="font-semibold text-xs text-emerald-600 dark:text-emerald-400 flex items-center justify-between">
+                                        <span>品类 3: 四足仿生巡检机器狗</span>
+                                        <span class="font-mono text-[10px] text-slate-400">robot_dog</span>
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] text-slate-500 mb-0.5">品类显示名</label>
+                                        <input type="text" id="cmsCat3Name" placeholder="四足仿生巡检机器狗" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs font-medium">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] text-slate-500 mb-0.5">健康指标分析说明 (健康板块显示)</label>
+                                        <input type="text" id="cmsCat3HealthSub" placeholder="关节扭矩与红外测温模组" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs">
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label class="block text-[10px] text-slate-500 mb-0.5">制造厂商/品牌</label>
+                                            <input type="text" id="cmsCat3Vendor" placeholder="仿生机器人" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs">
+                                        </div>
+                                        <div>
+                                            <label class="block text-[10px] text-slate-500 mb-0.5">出厂默认规格摘要</label>
+                                            <input type="text" id="cmsCat3Specs" placeholder="12自由度 | IP67全天候" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs">
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-3 pt-1">
+                                        <img id="cmsRobotDogPreview" src="/static/assets/bionic_robot_dog.jpg" class="w-20 h-14 object-cover rounded-lg border border-slate-200 dark:border-slate-700 shrink-0">
+                                        <div class="flex-1">
+                                            <input type="file" id="cmsRobotDogFile" accept="image/*" class="hidden" onchange="handleCmsImageUpload(event, 'dog')">
+                                            <button type="button" onclick="document.getElementById('cmsRobotDogFile').click()" class="w-full py-1.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-[11px] font-medium">📁 上传实物/孪生图</button>
+                                            <input type="hidden" id="cmsRobotDogImgUrl" value="/static/assets/bionic_robot_dog.jpg">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Cat 4: Collab / UAV -->
+                                <div class="p-3.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2.5">
+                                    <div class="font-semibold text-xs text-amber-600 dark:text-amber-400 flex items-center justify-between">
+                                        <span>品类 4: 四足狗+无人机协同系统</span>
+                                        <span class="font-mono text-[10px] text-slate-400">uav_rescue</span>
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] text-slate-500 mb-0.5">品类显示名</label>
+                                        <input type="text" id="cmsCat4Name" placeholder="四足狗+无人机协同系统" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs font-medium">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] text-slate-500 mb-0.5">健康指标分析说明 (健康板块显示)</label>
+                                        <input type="text" id="cmsCat4HealthSub" placeholder="空地协同遥感与应急通讯链路" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs">
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label class="block text-[10px] text-slate-500 mb-0.5">制造厂商/品牌</label>
+                                            <input type="text" id="cmsCat4Vendor" placeholder="昕邦智能联合研制" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs">
+                                        </div>
+                                        <div>
+                                            <label class="block text-[10px] text-slate-500 mb-0.5">出厂默认规格摘要</label>
+                                            <input type="text" id="cmsCat4Specs" placeholder="5G自组网 | 多源传感融合" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs">
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-3 pt-1">
+                                        <img id="cmsRobotCollabPreview" src="/static/assets/huashu_br610_arm.jpg" class="w-20 h-14 object-cover rounded-lg border border-slate-200 dark:border-slate-700 shrink-0">
+                                        <div class="flex-1">
+                                            <input type="file" id="cmsRobotCollabFile" accept="image/*" class="hidden" onchange="handleCmsImageUpload(event, 'collab')">
+                                            <button type="button" onclick="document.getElementById('cmsRobotCollabFile').click()" class="w-full py-1.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-[11px] font-medium">📁 上传实物/孪生图</button>
+                                            <input type="hidden" id="cmsRobotCollabImgUrl" value="/static/assets/huashu_br610_arm.jpg">
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1350,6 +1516,72 @@
         </div>
     </div>
 
+    <!-- ============================================================= -->
+    <!-- MODAL 6: EDIT SINGLE DEVICE METADATA & SPECS MODAL            -->
+    <!-- ============================================================= -->
+    <div id="editDeviceModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm transition-all duration-200">
+        <div class="clean-modal rounded-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+            <div class="px-6 py-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center text-sm font-bold shadow-sm">✏️</div>
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-900 dark:text-slate-100">编辑单台设备信息与规格参数</h3>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 font-mono" id="editDevModalSub">Device ID: --</p>
+                    </div>
+                </div>
+                <button onclick="closeEditDeviceModal()" class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 flex items-center justify-center transition">✕</button>
+            </div>
+
+            <div class="p-6 overflow-y-auto space-y-4 text-xs bg-slate-50 dark:bg-slate-950">
+                <input type="hidden" id="editDevId">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-medium text-slate-700 dark:text-slate-300 mb-1">设备自定义名称 (Alias)</label>
+                        <input type="text" id="editDevName" placeholder="如：番禺 1 号打磨机械臂" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-xs">
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-700 dark:text-slate-300 mb-1">归属品类</label>
+                        <select id="editDevType" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-xs font-medium">
+                            <!-- Populated dynamically -->
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-medium text-slate-700 dark:text-slate-300 mb-1">归属示范基地 / 安装工位</label>
+                        <input type="text" id="editDevLocation" placeholder="如：广州番禺智造中心 · A01工位" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-xs">
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-700 dark:text-slate-300 mb-1">管理员说明 / 备注信息</label>
+                        <input type="text" id="editDevNotes" placeholder="如：5G网络切片保障，已加装力矩传感器" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-xs">
+                    </div>
+                </div>
+
+                <!-- Dynamic Custom Specs Key-Value Table -->
+                <div class="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1">
+                            <span>规格参数 (Key-Value)</span>
+                            <span class="text-[10px] text-slate-400 font-normal">(管理员可自由增删改)</span>
+                        </span>
+                        <button type="button" onclick="addEditSpecRow('', '')" class="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 text-[11px] font-medium hover:bg-blue-100 dark:hover:bg-blue-900 transition">
+                            ➕ 添加参数项
+                        </button>
+                    </div>
+                    <div id="editSpecRowsContainer" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+                        <!-- Dynamic spec rows -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-6 py-3.5 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-3">
+                <button onclick="closeEditDeviceModal()" class="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium transition">取消</button>
+                <button onclick="saveEditDeviceModal()" class="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md transition">保存设备信息与参数</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Notification Container -->
     <div id="toastContainer" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
@@ -1368,11 +1600,11 @@
         let rawAuditCache = [];
 
         // -------------------------------------------------------------
-        // Theme Management (Default Light, Persistent Dark Toggle)
+        // Theme Management (Default Dark, Persistent Toggle)
         // -------------------------------------------------------------
         function initTheme() {
-            const savedTheme = localStorage.getItem('app_theme') || 'light';
-            const isDark = (savedTheme === 'dark');
+            const savedTheme = localStorage.getItem('app_theme') || 'dark';
+            const isDark = (savedTheme !== 'light');
             if (isDark) {
                 document.documentElement.classList.add('dark');
                 document.body.classList.add('dark');
@@ -1510,11 +1742,29 @@
         }
         initTheme();
 
-        const DEVICE_TYPE_NAMES = { 'huashu_arm': '华数 BR610 六轴机械臂', 'luxshare_amr': '珞石 SR3 复合移动 AMR', 'robot_dog': '四足仿生巡检机器狗' };
-        const DEVICE_3D_IMAGES = {
+        let DEVICE_TYPE_NAMES = {
+            'huashu_arm': '华数 BR610 六轴机械臂',
+            'luxshare_amr': '珞石 SR3 复合移动 AMR',
+            'robot_dog': '四足仿生巡检机器狗',
+            'uav_rescue': '四足狗+无人机协同系统'
+        };
+        let DEVICE_3D_IMAGES = {
             'huashu_arm': '/static/assets/huashu_br610_arm.jpg',
             'luxshare_amr': '/static/assets/luxshare_amr_sr3.jpg',
-            'robot_dog': '/static/assets/bionic_robot_dog.jpg'
+            'robot_dog': '/static/assets/bionic_robot_dog.jpg',
+            'uav_rescue': '/static/assets/huashu_br610_arm.jpg'
+        };
+        let DEVICE_TYPE_VENDORS = {
+            'huashu_arm': '华数机器人',
+            'luxshare_amr': '珞石智能',
+            'robot_dog': '仿生机器人',
+            'uav_rescue': '昕邦智能联合研制'
+        };
+        let DEVICE_DEFAULT_SPECS = {
+            'huashu_arm': { '结构形式': '六轴垂直多关节', '额定负载': '6.0 ~ 10.0 kg', '最大半径': '1440 mm', '重复定位': '±0.05 mm', '防护等级': 'IP65 / IP67' },
+            'luxshare_amr': { '导航方式': '激光 SLAM 导航', '机械臂': '6 轴柔性协作臂', '平台载重': '200 kg (底盘)', '最高航速': '1.5 m/s' },
+            'robot_dog': { '关节自由度': '12 自由度高扭矩', '越障能力': '跨越 25cm / 35°', '感知吊舱': '双光谱热成像', '防护等级': 'IP67 全天候' },
+            'uav_rescue': { '协同链路': '5G 工业自组网', '空巡续航': '45 min / 5km', '狗机联动': '地面基站自动起降/充电', '遥感精度': '厘米级 RTK 测绘' }
         };
 
         const BASE_DATA = {
@@ -1959,7 +2209,7 @@
                             </div>
 
                             <div class="absolute bottom-2.5 left-3 right-3 flex items-center justify-between">
-                                <div class="font-mono font-bold text-slate-900 dark:text-slate-100 text-sm tracking-tight bg-white/85 dark:bg-slate-900/85 px-2 py-0.5 rounded backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 shadow-sm">${dev.device_id}</div>
+                                <div class="font-mono font-bold text-slate-900 dark:text-slate-100 text-sm tracking-tight bg-white/85 dark:bg-slate-900/85 px-2 py-0.5 rounded backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 shadow-sm">${dev.device_name ? `${dev.device_name} (${dev.device_id})` : dev.device_id}</div>
                                 <div class="text-[10px] text-slate-700 dark:text-slate-300 font-medium bg-white/85 dark:bg-slate-900/85 px-2 py-0.5 rounded backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 shadow-sm">${typeName}</div>
                             </div>
                         </div>
@@ -1995,14 +2245,15 @@
             tbody.innerHTML = list.map(dev => {
                 const isOnline = dev.status === 'online';
                 const typeName = dev.device_type_display || DEVICE_TYPE_NAMES[dev.device_type] || dev.device_type;
+                const devDisplayName = dev.device_name ? `${dev.device_name} (${dev.device_id})` : dev.device_id;
 
                 return `
                     <tr onclick="selectDevice('${dev.device_type}', '${dev.device_id}'); openRobot3DModal();" 
                         class="hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer transition">
                         <td class="py-3 pr-2">
                             <div>
-                                <div class="font-mono font-bold text-slate-900 dark:text-slate-100 text-xs">${dev.device_id}</div>
-                                <div class="text-[10px] text-slate-500 dark:text-slate-400">${typeName}</div>
+                                <div class="font-mono font-bold text-slate-900 dark:text-slate-100 text-xs">${devDisplayName}</div>
+                                <div class="text-[10px] text-slate-500 dark:text-slate-400">${typeName} · ${dev.location || '示范产线'}</div>
                             </div>
                         </td>
                         <td class="py-3">
@@ -2068,6 +2319,11 @@
                 { label: '空地协同搜救扫描 (uav_collab_scan)', cmd: 'uav_collab_scan', params: { uav_id: "uav_001", sync_telemetry: true } },
                 { label: '自动返回专用充电坞站 (auto_dock_charge)', cmd: 'auto_dock_charge', params: { dock_id: "DOG_DOCK_01" } },
                 { label: '电机动力紧急脱扣停机 (emergency_stop)', cmd: 'emergency_stop', params: {} }
+            ],
+            'uav_rescue': [
+                { label: '空地协同搜救航线巡航 (collab_patrol)', cmd: 'collab_patrol', params: { radius_m: 500, altitude_m: 35 } },
+                { label: '全景红外多光谱测绘 (multispectral_scan)', cmd: 'multispectral_scan', params: { resolution: "4k", sensor: "thermal+optical" } },
+                { label: '自动返航并降落充电舱 (auto_land_recharge)', cmd: 'auto_land_recharge', params: { nest_id: "NEST_01" } }
             ]
         };
 
@@ -2187,35 +2443,51 @@
                 else return;
             }
             const { type, id } = selectedDevice;
-            document.getElementById('modalRobotImage').src = DEVICE_3D_IMAGES[type] || '/static/assets/huashu_br610_arm.jpg';
-            document.getElementById('modalDevTitle').innerText = `${DEVICE_TYPE_NAMES[type] || type} (${id})`;
-            document.getElementById('modalDevSubTitle').innerText = `ID: ${id} | 工业总线实时遥测档案与控制下发`;
+            const dev = currentDevices.find(d => d.device_id === id) || { device_id: id, device_type: type };
+            const typeDisplay = dev.device_type_display || DEVICE_TYPE_NAMES[type] || type;
+            const devDisplayName = dev.device_name ? `${dev.device_name} (${id})` : `${typeDisplay} (${id})`;
+            
+            const cfg = window.SITE_CONFIG || {};
+            const devVendor = (
+                type === 'huashu_arm' ? cfg.cat1_vendor :
+                type === 'luxshare_amr' ? cfg.cat2_vendor :
+                type === 'robot_dog' ? cfg.cat3_vendor :
+                cfg.cat4_vendor
+            ) || DEVICE_TYPE_VENDORS[type] || '昕邦工业装备';
 
+            document.getElementById('modalRobotImage').src = DEVICE_3D_IMAGES[type] || '/static/assets/huashu_br610_arm.jpg';
+            document.getElementById('modalDevTitle').innerText = devDisplayName;
+            document.getElementById('modalDevSubTitle').innerText = `ID: ${id} | 安装工位: ${dev.location || '智能制造示范产线'} | 实时 3D 姿态与控制下发`;
+            document.getElementById('modalBannerType').innerText = `${typeDisplay} · ${dev.device_name || id}`;
+            document.getElementById('modalSpecBrand').innerText = devVendor;
+
+            const twinBadge = cfg.modal_twin_footer_badge || '广州番禺示范线 · 昕邦工业机器人数字孪生接入点';
+            const twinBadgeEl = document.getElementById('modalTwinFooterBadge');
+            if (twinBadgeEl) twinBadgeEl.innerText = twinBadge;
+
+            // Render specs: default specs + device custom specs
             const specList = document.getElementById('modalSpecList');
-            if (type === 'huashu_arm') {
-                specList.innerHTML = `
-                    <div class="flex justify-between"><span>结构形式:</span><span class="font-mono text-slate-900">六轴垂直多关节</span></div>
-                    <div class="flex justify-between"><span>额定负载:</span><span class="font-mono text-slate-900">6.0 ~ 10.0 kg</span></div>
-                    <div class="flex justify-between"><span>最大半径:</span><span class="font-mono text-slate-900">1440 mm</span></div>
-                    <div class="flex justify-between"><span>重复定位:</span><span class="font-mono text-slate-900">±0.05 mm</span></div>
-                    <div class="flex justify-between"><span>防护等级:</span><span class="font-mono text-slate-900">IP65 / IP67</span></div>
-                `;
-            } else if (type === 'luxshare_amr') {
-                specList.innerHTML = `
-                    <div class="flex justify-between"><span>导航方式:</span><span class="font-mono text-slate-900">激光 SLAM 导航</span></div>
-                    <div class="flex justify-between"><span>机械臂:</span><span class="font-mono text-slate-900">6 轴柔性协作臂</span></div>
-                    <div class="flex justify-between"><span>平台载重:</span><span class="font-mono text-slate-900">200 kg (底盘)</span></div>
-                    <div class="flex justify-between"><span>最高航速:</span><span class="font-mono text-slate-900">1.5 m/s</span></div>
-                `;
-            } else {
-                specList.innerHTML = `
-                    <div class="flex justify-between"><span>关节自由度:</span><span class="font-mono text-slate-900">12 自由度高扭矩</span></div>
-                    <div class="flex justify-between"><span>越障能力:</span><span class="font-mono text-slate-900">跨越 25cm / 35°</span></div>
-                    <div class="flex justify-between"><span>感知吊舱:</span><span class="font-mono text-slate-900">双光谱热成像</span></div>
-                    <div class="flex justify-between"><span>防护等级:</span><span class="font-mono text-slate-900">IP67 全天候</span></div>
+            const defaultSpecs = DEVICE_DEFAULT_SPECS[type] || {};
+            const customSpecs = dev.specs || {};
+            const allSpecs = { ...defaultSpecs, ...customSpecs };
+
+            let specHtml = Object.entries(allSpecs).map(([k, v]) => `
+                <div class="flex justify-between py-0.5 border-b border-slate-50 dark:border-slate-800/50">
+                    <span class="text-slate-500 dark:text-slate-400">${k}:</span>
+                    <span class="font-mono text-slate-800 dark:text-slate-200 font-medium">${v}</span>
+                </div>
+            `).join('');
+
+            if (dev.notes) {
+                specHtml += `
+                    <div class="pt-1.5 text-[10px] text-slate-400 dark:text-slate-500 italic">
+                        说明: ${dev.notes}
+                    </div>
                 `;
             }
+            specList.innerHTML = specHtml;
 
+            // Joint angles & currents
             document.getElementById('modalJointsContainer').innerHTML = [
                 { j: 'J1 基座', v: '+15.2°', p: 55 },
                 { j: 'J2 大臂', v: '-30.5°', p: 40 },
@@ -2224,19 +2496,19 @@
                 { j: 'J5 俯仰', v: '+45.0°', p: 65 },
                 { j: 'J6 旋转', v: '-12.8°', p: 45 }
             ].map(i => `
-                <div class="flex items-center justify-between text-[11px] text-slate-600">
-                    <span class="w-16 font-mono text-slate-500">${i.j}</span>
-                    <div class="flex-1 mx-2 bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                        <div class="bg-slate-900 h-full" style="width:${i.p}%"></div>
+                <div class="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-300">
+                    <span class="w-16 font-mono text-slate-500 dark:text-slate-400">${i.j}</span>
+                    <div class="flex-1 mx-2 bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                        <div class="bg-blue-600 h-full" style="width:${i.p}%"></div>
                     </div>
-                    <span class="font-mono text-slate-900 w-12 text-right">${i.v}</span>
+                    <span class="font-mono text-slate-900 dark:text-slate-100 w-12 text-right">${i.v}</span>
                 </div>
             `).join('');
 
             document.getElementById('modalMotorCurrentsGrid').innerHTML = [2.3, 3.1, 2.8, 1.2, 0.9, 0.6].map((c, i) => `
-                <div class="bg-white p-2 rounded-lg border border-slate-200 text-center">
+                <div class="bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-center">
                     <div class="text-[9px] text-slate-400">M${i+1} 伺服</div>
-                    <div class="text-slate-900 font-bold">${c}A</div>
+                    <div class="text-slate-900 dark:text-slate-100 font-bold">${c}A</div>
                 </div>
             `).join('');
 
@@ -2247,15 +2519,135 @@
 
         function closeRobot3DModal() { document.getElementById('robot3DModal').classList.add('hidden'); }
 
+        function openEditDeviceModalFrom3D() {
+            if (!selectedDevice) return;
+            openEditDeviceModal(selectedDevice.id);
+        }
+
+        // -------------------------------------------------------------
+        // Single Device Metadata & Custom Specs Editor
+        // -------------------------------------------------------------
+        function openEditDeviceModal(deviceId) {
+            if (!currentUser || currentUser.role !== 'admin') {
+                showToast('权限不足：仅管理员可修改设备信息与规格参数', '❌');
+                return;
+            }
+            const dev = currentDevices.find(d => d.device_id === deviceId) || { device_id: deviceId, device_type: 'huashu_arm' };
+            document.getElementById('editDevId').value = dev.device_id;
+            document.getElementById('editDevModalSub').innerText = `Device ID: ${dev.device_id}`;
+            document.getElementById('editDevName').value = dev.device_name || '';
+            document.getElementById('editDevLocation').value = dev.location || '';
+            document.getElementById('editDevNotes').value = dev.notes || '';
+
+            // Category select options
+            const typeSelect = document.getElementById('editDevType');
+            typeSelect.innerHTML = Object.entries(DEVICE_TYPE_NAMES).map(([k, v]) => `
+                <option value="${k}" ${dev.device_type === k ? 'selected' : ''}>${v} (${k})</option>
+            `).join('');
+
+            // Dynamic specs rows
+            const container = document.getElementById('editSpecRowsContainer');
+            container.innerHTML = '';
+            const specs = dev.specs || {};
+            const entries = Object.entries(specs);
+            if (entries.length === 0) {
+                const defs = DEVICE_DEFAULT_SPECS[dev.device_type] || {};
+                Object.entries(defs).forEach(([k, v]) => addEditSpecRow(k, v));
+            } else {
+                entries.forEach(([k, v]) => addEditSpecRow(k, v));
+            }
+
+            document.getElementById('editDeviceModal').classList.remove('hidden');
+        }
+
+        function closeEditDeviceModal() {
+            document.getElementById('editDeviceModal').classList.add('hidden');
+        }
+
+        function addEditSpecRow(key = '', val = '') {
+            const container = document.getElementById('editSpecRowsContainer');
+            const row = document.createElement('div');
+            row.className = 'flex items-center gap-2 spec-row';
+            row.innerHTML = `
+                <input type="text" placeholder="参数名 (如: 额定负载)" value="${key}" class="spec-key w-1/3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs font-medium">
+                <input type="text" placeholder="参数值 (如: 10kg)" value="${val}" class="spec-val flex-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs">
+                <button type="button" onclick="this.closest('.spec-row').remove()" class="px-2 py-1 text-xs text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950 rounded transition" title="删除此参数">✕</button>
+            `;
+            container.appendChild(row);
+        }
+
+        async function saveEditDeviceModal() {
+            const devId = document.getElementById('editDevId').value;
+            if (!devId) return;
+
+            const devName = document.getElementById('editDevName').value.trim();
+            const devType = document.getElementById('editDevType').value;
+            const location = document.getElementById('editDevLocation').value.trim();
+            const notes = document.getElementById('editDevNotes').value.trim();
+
+            const specs = {};
+            document.querySelectorAll('#editSpecRowsContainer .spec-row').forEach(row => {
+                const k = row.querySelector('.spec-key').value.trim();
+                const v = row.querySelector('.spec-val').value.trim();
+                if (k) specs[k] = v;
+            });
+
+            try {
+                showToast('正在更新设备档案与参数...', '⏳');
+                const res = await fetch(`/api/devices/${encodeURIComponent(devId)}/update`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-Name': currentUser ? currentUser.username : 'admin',
+                        'X-User-Role': currentUser ? currentUser.role : 'admin'
+                    },
+                    body: JSON.stringify({
+                        device_type: devType,
+                        device_name: devName,
+                        location: location,
+                        specs: specs,
+                        notes: notes
+                    })
+                });
+                const body = await res.json();
+                if (res.ok && body.code === 200) {
+                    showToast('设备信息与自定义规格已成功保存！', '✅');
+                    closeEditDeviceModal();
+                    
+                    const idx = currentDevices.findIndex(d => d.device_id === devId);
+                    if (idx !== -1) {
+                        currentDevices[idx].device_name = devName;
+                        currentDevices[idx].device_type = devType;
+                        currentDevices[idx].device_type_display = DEVICE_TYPE_NAMES[devType] || devType;
+                        currentDevices[idx].location = location;
+                        currentDevices[idx].specs = specs;
+                        currentDevices[idx].notes = notes;
+                    }
+                    renderActiveFleetView();
+                    if (selectedDevice && selectedDevice.id === devId) {
+                        selectedDevice.type = devType;
+                        openRobot3DModal();
+                    }
+                } else {
+                    showToast(body.message || '更新设备失败', '❌');
+                }
+            } catch (err) {
+                showToast('请求异常: ' + err.message, '❌');
+            }
+        }
+
         function applyModalRoleUI() {
             const adminCmdPanel = document.getElementById('modalAdminCmdPanel');
             const userReadonlyBanner = document.getElementById('modalUserReadonlyBanner');
+            const btnOpenEdit = document.getElementById('btnOpenEditDevFrom3D');
             if (currentUser && currentUser.role === 'admin') {
                 if (adminCmdPanel) adminCmdPanel.classList.remove('hidden');
                 if (userReadonlyBanner) userReadonlyBanner.classList.add('hidden');
+                if (btnOpenEdit) btnOpenEdit.classList.remove('hidden');
             } else {
                 if (adminCmdPanel) adminCmdPanel.classList.add('hidden');
                 if (userReadonlyBanner) userReadonlyBanner.classList.remove('hidden');
+                if (btnOpenEdit) btnOpenEdit.classList.add('hidden');
             }
         }
 
@@ -2279,52 +2671,98 @@
 
         function applySiteConfigToUI(cfg) {
             if (!cfg) return;
+            const setText = (id, val) => { const el = document.getElementById(id); if (el && val !== undefined) el.innerText = val; };
+
             // Page title & headers
             if (cfg.system_title) {
                 document.title = cfg.system_title;
-                const hTitle = document.getElementById('siteHeaderTitle');
-                if (hTitle) hTitle.innerText = cfg.system_title;
+                setText('siteHeaderTitle', cfg.system_title);
             }
             if (cfg.company_name) {
-                const mobTitle = document.getElementById('siteHeaderMobTitle');
-                if (mobTitle) mobTitle.innerText = cfg.company_name;
+                setText('siteHeaderMobTitle', cfg.company_name);
             }
             if (cfg.system_subtitle) {
-                const subTitle = document.getElementById('siteHeaderSubtitle');
-                if (subTitle) subTitle.innerText = `${cfg.panyu_title || '广州番禺智造中心'} · ${cfg.nansha_title || '广州南沙创新港'}`;
+                setText('siteHeaderSubtitle', `${cfg.panyu_title || '广州番禺智造中心'} · ${cfg.nansha_title || '广州南沙创新港'}`);
             }
 
-            // Bases Data
+            // Footer
+            if (cfg.site_footer_text) {
+                setText('siteFooterText', cfg.site_footer_text);
+            } else {
+                setText('siteFooterText', `© 2026 ${cfg.company_name || '昕邦智能装备'} · 机器人物联网管控平台 (${cfg.panyu_title || '广州番禺'} · ${cfg.nansha_title || '广州南沙'})`);
+            }
+
+            // Overview 2 base cards
+            setText('overviewPanyuTitle', cfg.panyu_title || '广州番禺智造中心');
+            setText('overviewPanyuLine1Label', cfg.panyu_line1_label || '主产线');
+            setText('overviewPanyuLine1Val', cfg.panyu_line1_val || '华数 BR610 六轴工业机械臂高精加工');
+            setText('overviewPanyuLine2Label', cfg.panyu_line2_label || '设备规模');
+            setText('overviewPanyuLine2Val', cfg.panyu_line2_val || '20+ 节点');
+            setText('overviewPanyuStatus', cfg.panyu_status || '正常运行');
+
+            setText('overviewNanshaTitle', cfg.nansha_title || '广州南沙创新港');
+            setText('overviewNanshaLine1Label', cfg.nansha_line1_label || '核心装备');
+            setText('overviewNanshaLine1Val', cfg.nansha_line1_val || '复合移动 AMR 与四足仿生机器狗巡检');
+            setText('overviewNanshaLine2Label', cfg.nansha_line2_label || '设备规模');
+            setText('overviewNanshaLine2Val', cfg.nansha_line2_val || '30+ 节点');
+            setText('overviewNanshaStatus', cfg.nansha_status || '正常运行');
+
+            // Overview Health Index
+            setText('overviewHealthCat1Name', cfg.cat1_name || cfg.robot_arm_name || '华数六轴工业机械臂');
+            setText('overviewHealthCat1Sub', cfg.cat1_health_sub || '伺服电机负载与温升');
+            setText('overviewHealthCat2Name', cfg.cat2_name || cfg.robot_amr_name || '珞石复合 AMR 移动机器人');
+            setText('overviewHealthCat2Sub', cfg.cat2_health_sub || '电池健康度与定位精度');
+            setText('overviewHealthCat3Name', cfg.cat3_name || cfg.robot_dog_name || '四足仿生巡检机器狗');
+            setText('overviewHealthCat3Sub', cfg.cat3_health_sub || '关节扭矩与红外测温模组');
+            setText('overviewHealthCat4Name', cfg.cat4_name || cfg.robot_collab_name || '四足狗+无人机协同系统');
+            setText('overviewHealthCat4Sub', cfg.cat4_health_sub || '空地协同遥感与应急通讯链路');
+
+            // Category Filter Dropdown
+            setText('optCat1', cfg.cat1_name || cfg.robot_arm_name || '华数 BR610 六轴机械臂');
+            setText('optCat2', cfg.cat2_name || cfg.robot_amr_name || '珞石 SR3 复合移动 AMR');
+            setText('optCat3', cfg.cat3_name || cfg.robot_dog_name || '四足仿生巡检机器狗');
+            setText('optCat4', cfg.cat4_name || cfg.robot_collab_name || '四足狗+无人机协同系统');
+
+            // Base Modal Showcase Data
             if (typeof BASE_DATA !== 'undefined') {
                 if (BASE_DATA.panyu) {
                     if (cfg.panyu_title) BASE_DATA.panyu.title = cfg.panyu_title;
                     if (cfg.panyu_sub) BASE_DATA.panyu.sub = cfg.panyu_sub;
                     if (cfg.panyu_img) BASE_DATA.panyu.img = cfg.panyu_img;
-                    if (cfg.panyu_attr1) BASE_DATA.panyu.attr1 = cfg.panyu_attr1;
-                    if (cfg.panyu_attr3) BASE_DATA.panyu.attr3 = cfg.panyu_attr3;
+                    if (cfg.panyu_line1_val) BASE_DATA.panyu.attr1 = cfg.panyu_line1_val;
+                    if (cfg.panyu_line2_val) BASE_DATA.panyu.attr3 = cfg.panyu_line2_val;
                     if (cfg.panyu_desc) BASE_DATA.panyu.desc = cfg.panyu_desc;
                 }
                 if (BASE_DATA.nansha) {
                     if (cfg.nansha_title) BASE_DATA.nansha.title = cfg.nansha_title;
                     if (cfg.nansha_sub) BASE_DATA.nansha.sub = cfg.nansha_sub;
                     if (cfg.nansha_img) BASE_DATA.nansha.img = cfg.nansha_img;
-                    if (cfg.nansha_attr1) BASE_DATA.nansha.attr1 = cfg.nansha_attr1;
-                    if (cfg.nansha_attr3) BASE_DATA.nansha.attr3 = cfg.nansha_attr3;
+                    if (cfg.nansha_line1_val) BASE_DATA.nansha.attr1 = cfg.nansha_line1_val;
+                    if (cfg.nansha_line2_val) BASE_DATA.nansha.attr3 = cfg.nansha_line2_val;
                     if (cfg.nansha_desc) BASE_DATA.nansha.desc = cfg.nansha_desc;
                 }
             }
 
-            // Robot Display Names and Images
+            // Categories Dictionary update
             if (typeof DEVICE_TYPE_NAMES !== 'undefined') {
-                if (cfg.robot_arm_name) DEVICE_TYPE_NAMES['huashu_arm'] = cfg.robot_arm_name;
-                if (cfg.robot_amr_name) DEVICE_TYPE_NAMES['luxshare_amr'] = cfg.robot_amr_name;
-                if (cfg.robot_dog_name) DEVICE_TYPE_NAMES['robot_dog'] = cfg.robot_dog_name;
+                if (cfg.cat1_name || cfg.robot_arm_name) DEVICE_TYPE_NAMES['huashu_arm'] = cfg.cat1_name || cfg.robot_arm_name;
+                if (cfg.cat2_name || cfg.robot_amr_name) DEVICE_TYPE_NAMES['luxshare_amr'] = cfg.cat2_name || cfg.robot_amr_name;
+                if (cfg.cat3_name || cfg.robot_dog_name) DEVICE_TYPE_NAMES['robot_dog'] = cfg.cat3_name || cfg.robot_dog_name;
+                if (cfg.cat4_name || cfg.robot_collab_name) DEVICE_TYPE_NAMES['uav_rescue'] = cfg.cat4_name || cfg.robot_collab_name;
             }
 
             if (typeof DEVICE_3D_IMAGES !== 'undefined') {
-                if (cfg.robot_arm_img) DEVICE_3D_IMAGES['huashu_arm'] = cfg.robot_arm_img;
-                if (cfg.robot_amr_img) DEVICE_3D_IMAGES['luxshare_amr'] = cfg.robot_amr_img;
-                if (cfg.robot_dog_img) DEVICE_3D_IMAGES['robot_dog'] = cfg.robot_dog_img;
+                if (cfg.cat1_img || cfg.robot_arm_img) DEVICE_3D_IMAGES['huashu_arm'] = cfg.cat1_img || cfg.robot_arm_img;
+                if (cfg.cat2_img || cfg.robot_amr_img) DEVICE_3D_IMAGES['luxshare_amr'] = cfg.cat2_img || cfg.robot_amr_img;
+                if (cfg.cat3_img || cfg.robot_dog_img) DEVICE_3D_IMAGES['robot_dog'] = cfg.cat3_img || cfg.robot_dog_img;
+                if (cfg.cat4_img || cfg.robot_collab_img) DEVICE_3D_IMAGES['uav_rescue'] = cfg.cat4_img || cfg.robot_collab_img;
+            }
+
+            if (typeof DEVICE_TYPE_VENDORS !== 'undefined') {
+                if (cfg.cat1_vendor) DEVICE_TYPE_VENDORS['huashu_arm'] = cfg.cat1_vendor;
+                if (cfg.cat2_vendor) DEVICE_TYPE_VENDORS['luxshare_amr'] = cfg.cat2_vendor;
+                if (cfg.cat3_vendor) DEVICE_TYPE_VENDORS['robot_dog'] = cfg.cat3_vendor;
+                if (cfg.cat4_vendor) DEVICE_TYPE_VENDORS['uav_rescue'] = cfg.cat4_vendor;
             }
 
             if (currentDevices && currentDevices.length > 0) {
@@ -2340,34 +2778,58 @@
             setVal('cmsSystemTitle', cfg.system_title || '昕邦智能装备 · 机器人物联网管控平台');
             setVal('cmsSystemSubtitle', cfg.system_subtitle || 'XINBANG INDUSTRIAL FLEET DIGITAL TWIN PLATFORM');
             setVal('cmsCompanyName', cfg.company_name || '昕邦智能装备');
+            setVal('cmsFooterText', cfg.site_footer_text || '© 2026 昕邦智能装备 · 机器人物联网管控平台 (广州番禺 · 广州南沙)');
+            setVal('cmsModalTwinBadge', cfg.modal_twin_footer_badge || '广州番禺示范线 · 昕邦工业机器人数字孪生接入点');
 
             setVal('cmsPanyuTitle', cfg.panyu_title || '广州番禺智造中心');
             setVal('cmsPanyuSub', cfg.panyu_sub || '华数六轴工业机械臂高精加工与焊接示范产线');
-            setVal('cmsPanyuAttr1', cfg.panyu_attr1 || '工业机械臂自动化产线');
-            setVal('cmsPanyuAttr3', cfg.panyu_attr3 || '20+ 台六轴高精机械臂');
+            setVal('cmsPanyuLine1Label', cfg.panyu_line1_label || '主产线');
+            setVal('cmsPanyuLine1Val', cfg.panyu_line1_val || '华数 BR610 六轴工业机械臂高精加工');
+            setVal('cmsPanyuLine2Label', cfg.panyu_line2_label || '设备规模');
+            setVal('cmsPanyuLine2Val', cfg.panyu_line2_val || '20+ 节点');
+            setVal('cmsPanyuStatus', cfg.panyu_status || '正常运行');
             setVal('cmsPanyuDesc', cfg.panyu_desc || '广州番禺智造中心专注于华数 BR610 六轴工业机器人高精加工、打磨、弧焊与码垛工序。产线全面覆盖 5G 工业物联网网关，支持 HSC3 工业总线运动控制与闭环电流遥测。');
             setVal('cmsPanyuImgUrl', cfg.panyu_img || '/static/assets/base_panyu.jpg');
             setSrc('cmsPanyuPreview', cfg.panyu_img || '/static/assets/base_panyu.jpg');
 
             setVal('cmsNanshaTitle', cfg.nansha_title || '广州南沙创新港');
             setVal('cmsNanshaSub', cfg.nansha_sub || '复合移动机器人 (AMR) 与四足仿生机器狗巡检基地');
-            setVal('cmsNanshaAttr1', cfg.nansha_attr1 || '复合AMR与仿生巡检');
-            setVal('cmsNanshaAttr3', cfg.nansha_attr3 || '30+ 台协同作业编队');
+            setVal('cmsNanshaLine1Label', cfg.nansha_line1_label || '核心装备');
+            setVal('cmsNanshaLine1Val', cfg.nansha_line1_val || '复合移动 AMR 与四足仿生机器狗巡检');
+            setVal('cmsNanshaLine2Label', cfg.nansha_line2_label || '设备规模');
+            setVal('cmsNanshaLine2Val', cfg.nansha_line2_val || '30+ 节点');
+            setVal('cmsNanshaStatus', cfg.nansha_status || '正常运行');
             setVal('cmsNanshaDesc', cfg.nansha_desc || '广州南沙创新港集成了激光 SLAM 复合移动机器人与四足仿生机器狗空地协同巡检体系。面向半导体 3C 取放料、管廊智慧巡检与应急搜救场景提供 24 小时自主运载支持。');
             setVal('cmsNanshaImgUrl', cfg.nansha_img || '/static/assets/base_nansha.jpg');
             setSrc('cmsNanshaPreview', cfg.nansha_img || '/static/assets/base_nansha.jpg');
 
-            setVal('cmsRobotArmName', cfg.robot_arm_name || '华数 BR610 六轴机械臂');
-            setVal('cmsRobotArmImgUrl', cfg.robot_arm_img || '/static/assets/huashu_br610_arm.jpg');
-            setSrc('cmsRobotArmPreview', cfg.robot_arm_img || '/static/assets/huashu_br610_arm.jpg');
+            setVal('cmsCat1Name', cfg.cat1_name || cfg.robot_arm_name || '华数 BR610 六轴工业机械臂');
+            setVal('cmsCat1HealthSub', cfg.cat1_health_sub || '伺服电机负载与温升');
+            setVal('cmsCat1Vendor', cfg.cat1_vendor || '华数机器人');
+            setVal('cmsCat1Specs', cfg.cat1_specs || '负载 10kg | 臂展 1450mm');
+            setVal('cmsRobotArmImgUrl', cfg.cat1_img || cfg.robot_arm_img || '/static/assets/huashu_br610_arm.jpg');
+            setSrc('cmsRobotArmPreview', cfg.cat1_img || cfg.robot_arm_img || '/static/assets/huashu_br610_arm.jpg');
 
-            setVal('cmsRobotAmrName', cfg.robot_amr_name || '珞石 SR3 复合移动 AMR');
-            setVal('cmsRobotAmrImgUrl', cfg.robot_amr_img || '/static/assets/luxshare_amr_sr3.jpg');
-            setSrc('cmsRobotAmrPreview', cfg.robot_amr_img || '/static/assets/luxshare_amr_sr3.jpg');
+            setVal('cmsCat2Name', cfg.cat2_name || cfg.robot_amr_name || '珞石 SR3 复合移动 AMR');
+            setVal('cmsCat2HealthSub', cfg.cat2_health_sub || '电池健康度与定位精度');
+            setVal('cmsCat2Vendor', cfg.cat2_vendor || '珞石智能');
+            setVal('cmsCat2Specs', cfg.cat2_specs || '载重 200kg | 激光SLAM');
+            setVal('cmsRobotAmrImgUrl', cfg.cat2_img || cfg.robot_amr_img || '/static/assets/luxshare_amr_sr3.jpg');
+            setSrc('cmsRobotAmrPreview', cfg.cat2_img || cfg.robot_amr_img || '/static/assets/luxshare_amr_sr3.jpg');
 
-            setVal('cmsRobotDogName', cfg.robot_dog_name || '四足仿生巡检机器狗');
-            setVal('cmsRobotDogImgUrl', cfg.robot_dog_img || '/static/assets/bionic_robot_dog.jpg');
-            setSrc('cmsRobotDogPreview', cfg.robot_dog_img || '/static/assets/bionic_robot_dog.jpg');
+            setVal('cmsCat3Name', cfg.cat3_name || cfg.robot_dog_name || '四足仿生巡检机器狗');
+            setVal('cmsCat3HealthSub', cfg.cat3_health_sub || '关节扭矩与红外测温模组');
+            setVal('cmsCat3Vendor', cfg.cat3_vendor || '仿生机器人');
+            setVal('cmsCat3Specs', cfg.cat3_specs || '12自由度 | IP67全天候');
+            setVal('cmsRobotDogImgUrl', cfg.cat3_img || cfg.robot_dog_img || '/static/assets/bionic_robot_dog.jpg');
+            setSrc('cmsRobotDogPreview', cfg.cat3_img || cfg.robot_dog_img || '/static/assets/bionic_robot_dog.jpg');
+
+            setVal('cmsCat4Name', cfg.cat4_name || cfg.robot_collab_name || '四足狗+无人机协同系统');
+            setVal('cmsCat4HealthSub', cfg.cat4_health_sub || '空地协同遥感与应急通讯链路');
+            setVal('cmsCat4Vendor', cfg.cat4_vendor || '昕邦智能联合研制');
+            setVal('cmsCat4Specs', cfg.cat4_specs || '5G自组网 | 多源传感融合');
+            setVal('cmsRobotCollabImgUrl', cfg.cat4_img || cfg.robot_collab_img || '/static/assets/huashu_br610_arm.jpg');
+            setSrc('cmsRobotCollabPreview', cfg.cat4_img || cfg.robot_collab_img || '/static/assets/huashu_br610_arm.jpg');
         }
 
         async function handleCmsImageUpload(event, targetKey) {
@@ -2411,6 +2873,9 @@
                     } else if (targetKey === 'dog') {
                         document.getElementById('cmsRobotDogImgUrl').value = imgUrl;
                         document.getElementById('cmsRobotDogPreview').src = imgUrl;
+                    } else if (targetKey === 'collab') {
+                        document.getElementById('cmsRobotCollabImgUrl').value = imgUrl;
+                        document.getElementById('cmsRobotCollabPreview').src = imgUrl;
                     }
                     showToast('图片上传成功！请点击右上角保存按钮以全站生效', '✅');
                 } else {
@@ -2442,25 +2907,60 @@
                 system_title: getVal('cmsSystemTitle', '昕邦智能装备 · 机器人物联网管控平台'),
                 system_subtitle: getVal('cmsSystemSubtitle', 'XINBANG INDUSTRIAL FLEET DIGITAL TWIN PLATFORM'),
                 company_name: getVal('cmsCompanyName', '昕邦智能装备'),
+                site_footer_text: getVal('cmsFooterText', '© 2026 昕邦智能装备 · 机器人物联网管控平台 (广州番禺 · 广州南沙)'),
+                modal_twin_footer_badge: getVal('cmsModalTwinBadge', '广州番禺示范线 · 昕邦工业机器人数字孪生接入点'),
+                
                 panyu_title: getVal('cmsPanyuTitle', '广州番禺智造中心'),
                 panyu_sub: getVal('cmsPanyuSub', '华数六轴工业机械臂高精加工与焊接示范产线'),
-                panyu_attr1: getVal('cmsPanyuAttr1', '工业机械臂自动化产线'),
-                panyu_attr3: getVal('cmsPanyuAttr3', '20+ 台六轴高精机械臂'),
+                panyu_line1_label: getVal('cmsPanyuLine1Label', '主产线'),
+                panyu_line1_val: getVal('cmsPanyuLine1Val', '华数 BR610 六轴工业机械臂高精加工'),
+                panyu_line2_label: getVal('cmsPanyuLine2Label', '设备规模'),
+                panyu_line2_val: getVal('cmsPanyuLine2Val', '20+ 节点'),
+                panyu_status: getVal('cmsPanyuStatus', '正常运行'),
                 panyu_desc: getVal('cmsPanyuDesc', '广州番禺智造中心专注于华数 BR610 六轴工业机器人高精加工、打磨、弧焊与码垛工序。产线全面覆盖 5G 工业物联网网关，支持 HSC3 工业总线运动控制与闭环电流遥测。'),
                 panyu_img: getVal('cmsPanyuImgUrl', '/static/assets/base_panyu.jpg'),
+                
                 nansha_title: getVal('cmsNanshaTitle', '广州南沙创新港'),
                 nansha_sub: getVal('cmsNanshaSub', '复合移动机器人 (AMR) 与四足仿生机器狗巡检基地'),
-                nansha_attr1: getVal('cmsNanshaAttr1', '复合AMR与仿生巡检'),
-                nansha_attr3: getVal('cmsNanshaAttr3', '30+ 台协同作业编队'),
+                nansha_line1_label: getVal('cmsNanshaLine1Label', '核心装备'),
+                nansha_line1_val: getVal('cmsNanshaLine1Val', '复合移动 AMR 与四足仿生机器狗巡检'),
+                nansha_line2_label: getVal('cmsNanshaLine2Label', '设备规模'),
+                nansha_line2_val: getVal('cmsNanshaLine2Val', '30+ 节点'),
+                nansha_status: getVal('cmsNanshaStatus', '正常运行'),
                 nansha_desc: getVal('cmsNanshaDesc', '广州南沙创新港集成了激光 SLAM 复合移动机器人与四足仿生机器狗空地协同巡检体系。面向半导体 3C 取放料、管廊智慧巡检与应急搜救场景提供 24 小时自主运载支持。'),
                 nansha_img: getVal('cmsNanshaImgUrl', '/static/assets/base_nansha.jpg'),
-                robot_arm_name: getVal('cmsRobotArmName', '华数 BR610 六轴机械臂'),
+
+                cat1_name: getVal('cmsCat1Name', '华数 BR610 六轴工业机械臂'),
+                cat1_health_sub: getVal('cmsCat1HealthSub', '伺服电机负载与温升'),
+                cat1_vendor: getVal('cmsCat1Vendor', '华数机器人'),
+                cat1_specs: getVal('cmsCat1Specs', '负载 10kg | 臂展 1450mm'),
+                cat1_img: getVal('cmsRobotArmImgUrl', '/static/assets/huashu_br610_arm.jpg'),
+                robot_arm_name: getVal('cmsCat1Name', '华数 BR610 六轴工业机械臂'),
                 robot_arm_img: getVal('cmsRobotArmImgUrl', '/static/assets/huashu_br610_arm.jpg'),
-                robot_amr_name: getVal('cmsRobotArmImgUrl', '/static/assets/huashu_br610_arm.jpg'),
-                robot_amr_name: getVal('cmsRobotAmrName', '珞石 SR3 复合移动 AMR'),
+
+                cat2_name: getVal('cmsCat2Name', '珞石 SR3 复合移动 AMR'),
+                cat2_health_sub: getVal('cmsCat2HealthSub', '电池健康度与定位精度'),
+                cat2_vendor: getVal('cmsCat2Vendor', '珞石智能'),
+                cat2_specs: getVal('cmsCat2Specs', '载重 200kg | 激光SLAM'),
+                cat2_img: getVal('cmsRobotAmrImgUrl', '/static/assets/luxshare_amr_sr3.jpg'),
+                robot_amr_name: getVal('cmsCat2Name', '珞石 SR3 复合移动 AMR'),
                 robot_amr_img: getVal('cmsRobotAmrImgUrl', '/static/assets/luxshare_amr_sr3.jpg'),
-                robot_dog_name: getVal('cmsRobotDogName', '四足仿生巡检机器狗'),
-                robot_dog_img: getVal('cmsRobotDogImgUrl', '/static/assets/bionic_robot_dog.jpg')
+
+                cat3_name: getVal('cmsCat3Name', '四足仿生巡检机器狗'),
+                cat3_health_sub: getVal('cmsCat3HealthSub', '关节扭矩与红外测温模组'),
+                cat3_vendor: getVal('cmsCat3Vendor', '仿生机器人'),
+                cat3_specs: getVal('cmsCat3Specs', '12自由度 | IP67全天候'),
+                cat3_img: getVal('cmsRobotDogImgUrl', '/static/assets/bionic_robot_dog.jpg'),
+                robot_dog_name: getVal('cmsCat3Name', '四足仿生巡检机器狗'),
+                robot_dog_img: getVal('cmsRobotDogImgUrl', '/static/assets/bionic_robot_dog.jpg'),
+
+                cat4_name: getVal('cmsCat4Name', '四足狗+无人机协同系统'),
+                cat4_health_sub: getVal('cmsCat4HealthSub', '空地协同遥感与应急通讯链路'),
+                cat4_vendor: getVal('cmsCat4Vendor', '昕邦智能联合研制'),
+                cat4_specs: getVal('cmsCat4Specs', '5G自组网 | 多源传感融合'),
+                cat4_img: getVal('cmsRobotCollabImgUrl', '/static/assets/huashu_br610_arm.jpg'),
+                robot_collab_name: getVal('cmsCat4Name', '四足狗+无人机协同系统'),
+                robot_collab_img: getVal('cmsRobotCollabImgUrl', '/static/assets/huashu_br610_arm.jpg')
             };
 
             try {

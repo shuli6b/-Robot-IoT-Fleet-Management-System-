@@ -27,8 +27,20 @@ DEVICE_TYPE_DISPLAY = {
 }
 
 
-def get_device_display_name(device_type: str) -> str:
-    """获取设备类型的中文显示名，未知类型返回原名"""
+def get_device_display_name(device_type: str, db_path: str = DB_PATH) -> str:
+    """获取设备类型的中文显示名，优先从 CMS 动态配置中获取"""
+    try:
+        cfg = get_site_config(db_path)
+        if device_type in ["huashu_arm", "arm"]:
+            return cfg.get("cat1_name") or "华数 BR610 六轴工业机械臂"
+        elif device_type in ["luxshare_amr", "amr"]:
+            return cfg.get("cat2_name") or "珞石 SR3 复合移动 AMR"
+        elif device_type in ["robot_dog", "dog"]:
+            return cfg.get("cat3_name") or "四足仿生巡检机器狗"
+        elif device_type in ["uav_rescue", "collaborative_arm", "custom"]:
+            return cfg.get("cat4_name") or "四足狗+无人机协同系统"
+    except Exception:
+        pass
     return DEVICE_TYPE_DISPLAY.get(device_type, device_type)
 
 
@@ -73,12 +85,28 @@ def init_db(db_path: str = DB_PATH) -> bool:
                     device_type      TEXT    NOT NULL,
                     status           TEXT    NOT NULL DEFAULT 'offline',
                     last_report_time TEXT    DEFAULT NULL,
+                    device_name      TEXT    DEFAULT '',
+                    location         TEXT    DEFAULT '',
+                    specs            TEXT    DEFAULT '{}',
+                    notes            TEXT    DEFAULT '',
                     created_at       TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
                     updated_at       TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
                     UNIQUE(device_id, device_type)
                 )
                 """
             )
+            # 动态补齐 devices 表扩展列（若已存在旧表）
+            for col_name, col_def in [
+                ("device_name", "TEXT DEFAULT ''"),
+                ("location", "TEXT DEFAULT ''"),
+                ("specs", "TEXT DEFAULT '{}'"),
+                ("notes", "TEXT DEFAULT ''"),
+            ]:
+                try:
+                    conn.execute(f"ALTER TABLE devices ADD COLUMN {col_name} {col_def}")
+                except Exception:
+                    pass
+
             # 设备表索引
             conn.execute("CREATE INDEX IF NOT EXISTS idx_devices_status ON devices(status)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_devices_type ON devices(device_type)")
@@ -307,8 +335,19 @@ def get_all_devices(
         devices = []
         for r in rows:
             d = dict(r)
-            d["device_type_display"] = get_device_display_name(d["device_type"])
+            d["device_type_display"] = get_device_display_name(d["device_type"], db_path=db_path)
+            d["device_name"] = d.get("device_name") or d.get("device_id")
+            d["location"] = d.get("location") or ("广州番禺智造中心" if d.get("device_type") in ["huashu_arm", "arm"] else "广州南沙创新港")
             
+            raw_specs = d.get("specs")
+            if raw_specs:
+                try:
+                    d["specs"] = json.loads(raw_specs) if isinstance(raw_specs, str) else raw_specs
+                except Exception:
+                    d["specs"] = {}
+            else:
+                d["specs"] = {}
+
             # 动态校验在线状态（如果最近 30 秒内有上报，确保显示 online）
             last_t = d.get("last_report_time")
             if last_t:
@@ -349,7 +388,17 @@ def get_device(
         row = cursor.fetchone()
         if row:
             d = dict(row)
-            d["device_type_display"] = get_device_display_name(d["device_type"])
+            d["device_type_display"] = get_device_display_name(d["device_type"], db_path=db_path)
+            d["device_name"] = d.get("device_name") or d.get("device_id")
+            d["location"] = d.get("location") or ("广州番禺智造中心" if d.get("device_type") in ["huashu_arm", "arm"] else "广州南沙创新港")
+            raw_specs = d.get("specs")
+            if raw_specs:
+                try:
+                    d["specs"] = json.loads(raw_specs) if isinstance(raw_specs, str) else raw_specs
+                except Exception:
+                    d["specs"] = {}
+            else:
+                d["specs"] = {}
             return d
         return None
     except Exception as e:
@@ -376,12 +425,66 @@ def get_device_by_id(
 
         if row:
             d = dict(row)
-            d["device_type_display"] = get_device_display_name(d["device_type"])
+            d["device_type_display"] = get_device_display_name(d["device_type"], db_path=db_path)
+            d["device_name"] = d.get("device_name") or d.get("device_id")
+            d["location"] = d.get("location") or ("广州番禺智造中心" if d.get("device_type") in ["huashu_arm", "arm"] else "广州南沙创新港")
+            raw_specs = d.get("specs")
+            if raw_specs:
+                try:
+                    d["specs"] = json.loads(raw_specs) if isinstance(raw_specs, str) else raw_specs
+                except Exception:
+                    d["specs"] = {}
+            else:
+                d["specs"] = {}
             return d
         return None
     except Exception as e:
         logger.error(f"get_device_by_id 查询异常 [{device_id}]: {e}")
         return None
+    finally:
+        conn.close()
+
+
+def update_device_info(
+    device_id: str,
+    device_type: Optional[str] = None,
+    device_name: Optional[str] = None,
+    location: Optional[str] = None,
+    specs: Optional[Any] = None,
+    notes: Optional[str] = None,
+    db_path: str = DB_PATH,
+) -> bool:
+    """更新单台设备自定义名称、归属基地、规格参数字典及管理员备注"""
+    conn = get_connection(db_path)
+    try:
+        fields = ["updated_at = datetime('now','localtime')"]
+        params: List[Any] = []
+        if device_name is not None:
+            fields.append("device_name = ?")
+            params.append(device_name)
+        if location is not None:
+            fields.append("location = ?")
+            params.append(location)
+        if specs is not None:
+            fields.append("specs = ?")
+            params.append(json.dumps(specs, ensure_ascii=False) if not isinstance(specs, str) else specs)
+        if notes is not None:
+            fields.append("notes = ?")
+            params.append(notes)
+
+        where = "WHERE device_id = ?"
+        params.append(device_id)
+        if device_type:
+            where += " AND device_type = ?"
+            params.append(device_type)
+
+        sql = f"UPDATE devices SET {', '.join(fields)} {where}"
+        with conn:
+            conn.execute(sql, params)
+        return True
+    except Exception as e:
+        logger.error(f"update_device_info 写入异常 [{device_id}]: {e}")
+        return False
     finally:
         conn.close()
 
@@ -1125,27 +1228,70 @@ def get_site_config(db_path: str = DB_PATH) -> Dict[str, Any]:
     """获取站点品牌与基地/设备图文自定义配置 (支持CMS实时热更新)"""
     raw_cfg = get_system_config("site_branding_config", default=None, db_path=db_path)
     default_config = {
-        "system_title": "昕邦智能装备 · 机器人物联网管控平台",
-        "system_subtitle": "XINBANG INDUSTRIAL FLEET DIGITAL TWIN PLATFORM",
-        "company_name": "昕邦智能装备",
-        "panyu_title": "广州番禺智造中心",
-        "panyu_sub": "华数六轴工业机械臂高精加工与焊接示范产线",
-        "panyu_img": "/static/assets/base_panyu.jpg",
-        "panyu_attr1": "工业机械臂产线",
-        "panyu_attr3": "20+ 台六轴高精机械臂",
-        "panyu_desc": "广州番禺智造中心专注于华数 BR610 六轴工业机器人高精加工、打磨、弧焊与码垛工序。产线全面覆盖 5G 工业物联网网关，支持 HSC3 工业总线运动控制与闭环电流遥测。",
-        "nansha_title": "广州南沙创新港",
-        "nansha_sub": "复合移动机器人 (AMR) 与四足仿生机器狗巡检基地",
+        "system_title": "昕邦智能 · 多品类异构机器人智能管控平台",
+        "system_subtitle": "NEWBOND Robot AIoT PLATFORM",
+        "company_name": "昕邦智能/NEWBOND",
+        "footer_text": "© 2026 昕邦智能/NEWBOND · 机器人物联网管控平台 (广州番禺 · 广州南沙)",
+        "modal_twin_footer_badge": "广州番禺运营中心 · 昕邦工业机器人数字孪生接入点",
+        
+        # 基地 1: 广州番禺运营中心
+        "panyu_title": "广州番禺运营中心",
+        "panyu_sub": "具身智能机器人应用展示",
+        "panyu_line1_label": "主产线",
+        "panyu_line1_val": "云 - 边 - 端协同的具身智能训练与作业平台",
+        "panyu_line2_label": "设备规模",
+        "panyu_line2_val": "20+台工业机器人、协作机器人、AMR移动机器人、工业轮式人形机器人规划",
+        "panyu_status": "正常运行",
+        "panyu_desc": "广州番禺运营中心专注于具身智能训练平台推广，平台覆盖从数据采集、仿真训练、实机迁移到多机协同作业的完整流程。核心团队拥有近20年的智能机器人行业经验，在推广具身智能训练平台的同时，致力于推动AI+机器人在工业、商业项目落地。",
+        "panyu_img": "/static/assets/custom_1787207360_5b2b10.png",
+        
+        # 基地 2: 广州南沙机器人研发中心
+        "nansha_title": "广州南沙机器人研发中心",
+        "nansha_sub": "空地作业机器人编队",
+        "nansha_line1_label": "核心装备",
+        "nansha_line1_val": "空地作业系统平台",
+        "nansha_line2_label": "设备规模",
+        "nansha_line2_val": "20+ “机器狗+无人机”复合机器人、“机器狗+机械臂”复合机器人",
+        "nansha_status": "正常运行",
+        "nansha_desc": "广州南沙研发中心专注于空地作业平台开发，包括机器人软硬件及控制算法，底层运动控制小脑开发、上层VLA大模型。致力于推广空地平台复合机器人在电力、矿山、森林等场景的危险作业、高空作业。",
         "nansha_img": "/static/assets/base_nansha.jpg",
-        "nansha_attr1": "复合AMR与仿生巡检",
-        "nansha_attr3": "30+ 台协同作业编队",
-        "nansha_desc": "广州南沙创新港集成了激光 SLAM 复合移动机器人与四足仿生机器狗空地协同巡检体系。面向半导体 3C 取放料、管廊智慧巡检与应急搜救场景提供 24 小时自主运载支持。",
-        "robot_arm_name": "华数 BR610 六轴机械臂",
-        "robot_arm_img": "/static/assets/huashu_br610_arm.jpg",
-        "robot_amr_name": "珞石 SR3 复合移动 AMR",
-        "robot_amr_img": "/static/assets/luxshare_amr_sr3.jpg",
-        "robot_dog_name": "四足仿生巡检机器狗",
-        "robot_dog_img": "/static/assets/bionic_robot_dog.jpg"
+        
+        # 4 大品类机器人档案与健康指标配置
+        "cat1_key": "huashu_arm",
+        "cat1_name": "工业机器人、协作机器人",
+        "cat1_health_sub": "伺服电机负载与温升",
+        "cat1_vendor": "华数机器人",
+        "cat1_specs": "负载 10kg | 工作半径 1450mm | 重复定位精度 ±0.03mm | 防护等级 IP65",
+        "cat1_img": "/static/assets/custom_1787208898_2a7c1f.png",
+        "robot_arm_name": "工业机器人、协作机器人",
+        "robot_arm_img": "/static/assets/custom_1787208898_2a7c1f.png",
+        
+        "cat2_key": "luxshare_amr",
+        "cat2_name": "复合移动机器人AMR",
+        "cat2_health_sub": "电池健康度与定位精度",
+        "cat2_vendor": "珞石智能",
+        "cat2_specs": "底盘载重 200kg | 激光SLAM导航 | 最大航速 1.5m/s | 续航 8h",
+        "cat2_img": "/static/assets/custom_1787209622_b4b14f.png",
+        "robot_amr_name": "复合移动机器人AMR",
+        "robot_amr_img": "/static/assets/custom_1787209622_b4b14f.png",
+        
+        "cat3_key": "robot_dog",
+        "cat3_name": "四足仿生机器狗",
+        "cat3_health_sub": "关节扭矩与红外测温模组",
+        "cat3_vendor": "仿生机器人",
+        "cat3_specs": "12 自由度高扭矩 | 越障能力 25cm/35° | 双光热成像吊舱 | IP67 全天候",
+        "cat3_img": "/static/assets/custom_1787209238_0e59b9.png",
+        "robot_dog_name": "四足仿生机器狗",
+        "robot_dog_img": "/static/assets/custom_1787209238_0e59b9.png",
+        
+        "cat4_key": "uav_rescue",
+        "cat4_name": "四足狗+无人机协同系统",
+        "cat4_health_sub": "空地协同遥感与应急通讯链路",
+        "cat4_vendor": "昕邦智能联合研制",
+        "cat4_specs": "多机编队协同 | 5G专网自组网 | 实时多源传感融合 | 边缘AI智能识别",
+        "cat4_img": "/static/assets/huashu_br610_arm.jpg",
+        "robot_collab_name": "四足狗+无人机协同系统",
+        "robot_collab_img": "/static/assets/huashu_br610_arm.jpg"
     }
     if raw_cfg:
         try:
