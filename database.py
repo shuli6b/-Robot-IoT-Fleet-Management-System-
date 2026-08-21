@@ -99,6 +99,7 @@ def init_db(db_path: str = DB_PATH) -> bool:
             for col_name, col_def in [
                 ("device_name", "TEXT DEFAULT ''"),
                 ("location", "TEXT DEFAULT ''"),
+                ("vendor", "TEXT DEFAULT ''"),
                 ("specs", "TEXT DEFAULT '{}'"),
                 ("notes", "TEXT DEFAULT ''"),
             ]:
@@ -337,6 +338,7 @@ def get_all_devices(
             d = dict(r)
             d["device_type_display"] = get_device_display_name(d["device_type"], db_path=db_path)
             d["device_name"] = d.get("device_name") or d.get("device_id")
+            d["vendor"] = d.get("vendor") or ""
             d["location"] = d.get("location") or ("广州番禺智造中心" if d.get("device_type") in ["huashu_arm", "arm"] else "广州南沙创新港")
             
             raw_specs = d.get("specs")
@@ -390,6 +392,7 @@ def get_device(
             d = dict(row)
             d["device_type_display"] = get_device_display_name(d["device_type"], db_path=db_path)
             d["device_name"] = d.get("device_name") or d.get("device_id")
+            d["vendor"] = d.get("vendor") or ""
             d["location"] = d.get("location") or ("广州番禺智造中心" if d.get("device_type") in ["huashu_arm", "arm"] else "广州南沙创新港")
             raw_specs = d.get("specs")
             if raw_specs:
@@ -427,6 +430,7 @@ def get_device_by_id(
             d = dict(row)
             d["device_type_display"] = get_device_display_name(d["device_type"], db_path=db_path)
             d["device_name"] = d.get("device_name") or d.get("device_id")
+            d["vendor"] = d.get("vendor") or ""
             d["location"] = d.get("location") or ("广州番禺智造中心" if d.get("device_type") in ["huashu_arm", "arm"] else "广州南沙创新港")
             raw_specs = d.get("specs")
             if raw_specs:
@@ -450,11 +454,12 @@ def update_device_info(
     device_type: Optional[str] = None,
     device_name: Optional[str] = None,
     location: Optional[str] = None,
+    vendor: Optional[str] = None,
     specs: Optional[Any] = None,
     notes: Optional[str] = None,
     db_path: str = DB_PATH,
 ) -> bool:
-    """更新单台设备自定义名称、归属基地、规格参数字典及管理员备注"""
+    """更新单台设备自定义名称、厂商角标、归属基地、规格参数字典及管理员备注"""
     conn = get_connection(db_path)
     try:
         fields = ["updated_at = datetime('now','localtime')"]
@@ -465,6 +470,9 @@ def update_device_info(
         if location is not None:
             fields.append("location = ?")
             params.append(location)
+        if vendor is not None:
+            fields.append("vendor = ?")
+            params.append(vendor)
         if specs is not None:
             fields.append("specs = ?")
             params.append(json.dumps(specs, ensure_ascii=False) if not isinstance(specs, str) else specs)

@@ -648,7 +648,7 @@
     <!-- Clean Footer -->
     <footer class="mt-auto border-t border-slate-200 py-4 bg-white text-xs text-slate-500">
         <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-            <span>© 2026 昕邦智能装备 · 机器人物联网管控平台 (广州番禺 · 广州南沙)</span>
+            <span id="siteFooterText">© 2026 昕邦智能/NEWBOND · 多品类异构机器人智能管控平台 (广州番禺运营中心 · 广州南沙机器人研发中心)</span>
             <div id="techSupportBadge" class="hidden text-[11px] text-slate-600 font-mono">
                 技术支持 — 擎天智运维团队
             </div>
@@ -740,14 +740,19 @@
                     <div class="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3 flex flex-col justify-between">
                         <div class="space-y-3">
                             <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                                <span class="font-bold text-slate-900 dark:text-slate-100">规格参数</span>
-                                <span class="text-[10px] text-slate-500 dark:text-slate-400 font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" id="modalSpecBrand">华数机器人</span>
+                                <div class="flex items-center gap-1.5">
+                                    <span class="font-bold text-slate-900 dark:text-slate-100">规格参数</span>
+                                    <button onclick="openEditDeviceModalFrom3D()" class="text-slate-400 hover:text-blue-500 transition text-[11px]" title="修改设备标签与所有规格参数">✏️</button>
+                                </div>
+                                <div class="flex items-center gap-1">
+                                    <span class="text-[10px] text-slate-500 dark:text-slate-400 font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 cursor-pointer hover:border-blue-400 hover:text-blue-500 transition" id="modalSpecBrand" onclick="openEditDeviceModalFrom3D()" title="点击自定义此厂商/品牌角标">华数机器人</span>
+                                </div>
                             </div>
                             <div class="space-y-2 text-slate-600 dark:text-slate-300 text-[11px]" id="modalSpecList"></div>
                         </div>
                         <div class="pt-2 border-t border-slate-100 dark:border-slate-800 text-right">
-                            <button onclick="openEditDeviceModalFrom3D()" class="text-[10px] text-blue-600 dark:text-blue-400 hover:underline font-medium">
-                                ➕ 管理员自定义参数/备注 →
+                            <button onclick="openEditDeviceModalFrom3D()" class="text-[10px] text-blue-600 dark:text-blue-400 hover:underline font-medium flex items-center justify-end gap-1 w-full">
+                                <span>✏️ 修改厂商角标 / 自定义全部规格参数 →</span>
                             </button>
                         </div>
                     </div>
@@ -1305,7 +1310,7 @@
                                     <div class="grid grid-cols-2 gap-2">
                                         <div>
                                             <label class="block text-[10px] text-slate-500 mb-0.5">制造厂商/品牌</label>
-                                            <input type="text" id="cmsCat3Vendor" placeholder="仿生机器人" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs">
+                                            <input type="text" id="cmsCat3Vendor" placeholder="宇树/昕邦定制" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs">
                                         </div>
                                         <div>
                                             <label class="block text-[10px] text-slate-500 mb-0.5">出厂默认规格摘要</label>
@@ -1550,12 +1555,17 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         <label class="block font-medium text-slate-700 dark:text-slate-300 mb-1">归属示范基地 / 安装工位</label>
-                        <input type="text" id="editDevLocation" placeholder="如：广州番禺智造中心 · A01工位" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-xs">
+                        <input type="text" id="editDevLocation" placeholder="如：广州番禺运营中心 · A01工位" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-xs">
                     </div>
                     <div>
-                        <label class="block font-medium text-slate-700 dark:text-slate-300 mb-1">管理员说明 / 备注信息</label>
-                        <input type="text" id="editDevNotes" placeholder="如：5G网络切片保障，已加装力矩传感器" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-xs">
+                        <label class="block font-medium text-slate-700 dark:text-slate-300 mb-1">厂商 / 品牌 / 定制方角标 (规格右上角小字)</label>
+                        <input type="text" id="editDevVendor" placeholder="如：宇树/昕邦定制、华数机器人、珞石智能" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-xs font-mono">
                     </div>
+                </div>
+
+                <div>
+                    <label class="block font-medium text-slate-700 dark:text-slate-300 mb-1">管理员说明 / 备注信息</label>
+                    <input type="text" id="editDevNotes" placeholder="如：5G网络切片保障，已加装力矩传感器" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-xs">
                 </div>
 
                 <!-- Dynamic Custom Specs Key-Value Table -->
@@ -1759,7 +1769,7 @@
         let DEVICE_TYPE_VENDORS = {
             'huashu_arm': '华数机器人',
             'luxshare_amr': '珞石智能',
-            'robot_dog': '仿生机器人',
+            'robot_dog': '宇树/昕邦定制',
             'uav_rescue': '昕邦智能联合研制'
         };
         let DEVICE_DEFAULT_SPECS = {
@@ -2452,10 +2462,10 @@
             const devDisplayName = dev.device_name ? `${dev.device_name} (${id})` : `${typeDisplay} (${id})`;
             
             const cfg = window.SITE_CONFIG || {};
-            const devVendor = (
+            const devVendor = dev.vendor || (
                 type === 'huashu_arm' ? cfg.cat1_vendor :
                 type === 'luxshare_amr' ? cfg.cat2_vendor :
-                type === 'robot_dog' ? cfg.cat3_vendor :
+                type === 'robot_dog' ? (cfg.cat3_vendor || '宇树/昕邦定制') :
                 cfg.cat4_vendor
             ) || DEVICE_TYPE_VENDORS[type] || '昕邦工业装备';
 
@@ -2472,8 +2482,8 @@
             // Render specs: default specs + device custom specs
             const specList = document.getElementById('modalSpecList');
             const defaultSpecs = DEVICE_DEFAULT_SPECS[type] || {};
-            const customSpecs = dev.specs || {};
-            const allSpecs = { ...defaultSpecs, ...customSpecs };
+            const hasCustomSpecs = dev.specs && typeof dev.specs === 'object' && Object.keys(dev.specs).length > 0;
+            const allSpecs = hasCustomSpecs ? dev.specs : defaultSpecs;
 
             let specHtml = Object.entries(allSpecs).map(([k, v]) => `
                 <div class="flex justify-between py-0.5 border-b border-slate-50 dark:border-slate-800/50">
@@ -2541,6 +2551,12 @@
             document.getElementById('editDevModalSub').innerText = `Device ID: ${dev.device_id}`;
             document.getElementById('editDevName').value = dev.device_name || '';
             document.getElementById('editDevLocation').value = dev.location || '';
+            document.getElementById('editDevVendor').value = dev.vendor || (
+                dev.device_type === 'huashu_arm' ? (window.SITE_CONFIG?.cat1_vendor || '华数机器人') :
+                dev.device_type === 'luxshare_amr' ? (window.SITE_CONFIG?.cat2_vendor || '珞石智能') :
+                dev.device_type === 'robot_dog' ? (window.SITE_CONFIG?.cat3_vendor || '宇树/昕邦定制') :
+                (window.SITE_CONFIG?.cat4_vendor || '昕邦智能联合研制')
+            );
             document.getElementById('editDevNotes').value = dev.notes || '';
 
             // Category select options
@@ -2587,6 +2603,7 @@
             const devName = document.getElementById('editDevName').value.trim();
             const devType = document.getElementById('editDevType').value;
             const location = document.getElementById('editDevLocation').value.trim();
+            const devVendor = document.getElementById('editDevVendor').value.trim();
             const notes = document.getElementById('editDevNotes').value.trim();
 
             const specs = {};
@@ -2609,6 +2626,7 @@
                         device_type: devType,
                         device_name: devName,
                         location: location,
+                        vendor: devVendor,
                         specs: specs,
                         notes: notes
                     })
@@ -2624,6 +2642,7 @@
                         currentDevices[idx].device_type = devType;
                         currentDevices[idx].device_type_display = DEVICE_TYPE_NAMES[devType] || devType;
                         currentDevices[idx].location = location;
+                        currentDevices[idx].vendor = devVendor;
                         currentDevices[idx].specs = specs;
                         currentDevices[idx].notes = notes;
                     }
@@ -2827,7 +2846,7 @@
 
             setVal('cmsCat3Name', cfg.cat3_name || cfg.robot_dog_name || '四足仿生巡检机器狗');
             setVal('cmsCat3HealthSub', cfg.cat3_health_sub || '关节扭矩与红外测温模组');
-            setVal('cmsCat3Vendor', cfg.cat3_vendor || '仿生机器人');
+            setVal('cmsCat3Vendor', cfg.cat3_vendor || '宇树/昕邦定制');
             setVal('cmsCat3Specs', cfg.cat3_specs || '12自由度 | IP67全天候');
             setVal('cmsRobotDogImgUrl', cfg.cat3_img || cfg.robot_dog_img || '/static/assets/bionic_robot_dog.jpg');
             setSrc('cmsRobotDogPreview', cfg.cat3_img || cfg.robot_dog_img || '/static/assets/bionic_robot_dog.jpg');
@@ -2956,7 +2975,7 @@
 
                 cat3_name: getVal('cmsCat3Name', '四足仿生巡检机器狗'),
                 cat3_health_sub: getVal('cmsCat3HealthSub', '关节扭矩与红外测温模组'),
-                cat3_vendor: getVal('cmsCat3Vendor', '仿生机器人'),
+                cat3_vendor: getVal('cmsCat3Vendor', '宇树/昕邦定制'),
                 cat3_specs: getVal('cmsCat3Specs', '12自由度 | IP67全天候'),
                 cat3_img: getVal('cmsRobotDogImgUrl', '/static/assets/bionic_robot_dog.jpg'),
                 robot_dog_name: getVal('cmsCat3Name', '四足仿生巡检机器狗'),

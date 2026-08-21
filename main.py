@@ -1197,13 +1197,14 @@ class DeviceUpdateRequest(BaseModel):
     device_name: Optional[str] = Field(None, description="自定义设备名称")
     device_type: Optional[str] = Field(None, description="归属设备品类")
     location: Optional[str] = Field(None, description="归属基地/工位位置")
+    vendor: Optional[str] = Field(None, description="厂商/品牌角标 (如: 宇树/昕邦定制)")
     specs: Optional[Dict[str, Any]] = Field(None, description="自定义规格参数键值对")
     notes: Optional[str] = Field(None, description="管理员备注/说明信息")
 
 
 @app.post("/api/devices/{device_id}/update")
 async def api_update_device(device_id: str, body: DeviceUpdateRequest = Body(...), request: Request = None):
-    """修改单台设备自定义名称、位置、归属品类、规格参数与备注"""
+    """修改单台设备自定义名称、厂商角标、位置、归属品类、规格参数与备注"""
     if not request or not is_admin(request):
         return api_response(
             code=403,
@@ -1215,6 +1216,7 @@ async def api_update_device(device_id: str, body: DeviceUpdateRequest = Body(...
         device_type=body.device_type,
         device_name=body.device_name,
         location=body.location,
+        vendor=body.vendor,
         specs=body.specs,
         notes=body.notes
     )

@@ -39,6 +39,9 @@ HANDOVER_GUIDE.md
 *交接*.md
 *私有*.md
 *运维*.md
+机器人后台/
+*.docx
+*.pdf
 
 # IDE & OS files
 .idea/
