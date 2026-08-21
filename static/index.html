@@ -1959,11 +1959,17 @@
             trafficDataState = [];
             trafficDataSensor = [];
 
+            const onlineCountInit = currentDevices.filter(d => d.status === 'online').length;
             for (let i = 12; i >= 0; i--) {
                 const t = new Date(now.getTime() - i * 3000);
                 trafficTimeLabels.push(t.toLocaleTimeString('zh-CN', { hour12: false }));
-                trafficDataState.push(Math.floor(18 + Math.random() * 8));
-                trafficDataSensor.push(Math.floor(35 + Math.random() * 15));
+                if (onlineCountInit === 0) {
+                    trafficDataState.push(0);
+                    trafficDataSensor.push(0);
+                } else {
+                    trafficDataState.push(Math.max(1, Math.floor(onlineCountInit * 2 + (Math.random() * 4 - 2))));
+                    trafficDataSensor.push(Math.max(2, Math.floor(onlineCountInit * 4 + (Math.random() * 6 - 3))));
+                }
             }
 
             const isDark = document.documentElement.classList.contains('dark');
@@ -2003,6 +2009,7 @@
                 },
                 yAxis: {
                     type: 'value',
+                    min: 0,
                     splitLine: { lineStyle: { color: isDark ? '#1E293B' : '#F1F5F9' } },
                     axisLabel: { color: isDark ? '#94A3B8' : '#64748B', fontSize: 10 }
                 },
@@ -2054,15 +2061,23 @@
 
             const nowStr = new Date().toLocaleTimeString('zh-CN', { hour12: false });
             const onlineCount = currentDevices.filter(d => d.status === 'online').length;
-            const baseState = onlineCount > 0 ? onlineCount * 2 : 16;
-            const baseSensor = onlineCount > 0 ? onlineCount * 3.5 : 32;
 
-            const nextState = Math.floor(baseState + (Math.random() * 8 - 4));
-            const nextSensor = Math.floor(baseSensor + (Math.random() * 14 - 7));
+            let nextState = 0;
+            let nextSensor = 0;
+
+            if (onlineCount > 0) {
+                const baseState = onlineCount * 2;
+                const baseSensor = onlineCount * 3.5;
+                nextState = Math.max(1, Math.floor(baseState + (Math.random() * 4 - 2)));
+                nextSensor = Math.max(2, Math.floor(baseSensor + (Math.random() * 8 - 4)));
+            } else {
+                nextState = 0;
+                nextSensor = 0;
+            }
 
             trafficTimeLabels.push(nowStr);
-            trafficDataState.push(Math.max(5, nextState));
-            trafficDataSensor.push(Math.max(10, nextSensor));
+            trafficDataState.push(nextState);
+            trafficDataSensor.push(nextSensor);
 
             if (trafficTimeLabels.length > 15) {
                 trafficTimeLabels.shift();
