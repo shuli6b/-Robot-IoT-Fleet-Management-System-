@@ -1,12 +1,14 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-mock_service.py - 工业机器人集群遥测数据常驻模拟服务
-用于在大屏上常驻呈现 10 台多品类真实感机器人运行状态与 3D 动作
-支持：华数机械臂 (4台)、复合 AMR (3台)、四足机器狗 (2台)、空地协同无人机编队 (1套)
+=============================================================================
+机器人物联网智能管控平台 - 多品类工业设备集群实时遥测与闭环控制模拟服务
+Fleet Telemetry & Command State Machine Simulator
+=============================================================================
 """
 
-import sys
 import os
+import sys
 import time
 import json
 import math
@@ -14,16 +16,12 @@ import random
 import signal
 import logging
 from datetime import datetime
+import paho.mqtt.client as mqtt
 
-try:
-    import paho.mqtt.client as mqtt
-except ImportError:
-    import subprocess
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "-i", "https://pypi.tuna.tsinghua.edu.cn/simple", "paho-mqtt==2.1.0"])
-    import paho.mqtt.client as mqtt
-
-LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
 logger = logging.getLogger("robot_mock_service")
 
 MQTT_HOST = os.getenv("MQTT_HOST", "127.0.0.1")
@@ -48,45 +46,201 @@ class VirtualRobot:
         self.device_name = device_name
         self.location = location
         self.vendor = vendor
-        self.battery = random.randint(82, 98)
+        
+        self.battery = float(random.randint(85, 98))
         self.step = random.randint(0, 100)
-        self.cycle_count = random.randint(120, 850)
-        self.speed = random.randint(70, 90)
-        self.x = round(random.uniform(5.0, 35.0), 2)
-        self.y = round(random.uniform(2.0, 20.0), 2)
+        self.cycle_count = random.randint(150, 800)
+        self.running_hours = round(random.uniform(120.0, 350.0), 1)
+        self.speed = 80
+        
+        # 初始坐标与朝向
+        self.x = round(random.uniform(5.0, 25.0), 2)
+        self.y = round(random.uniform(2.0, 15.0), 2)
+        self.z = 0.55 if device_type == "robot_dog" else (45.0 if device_type == "uav_rescue" else 0.0)
+        self.c = round(random.uniform(-180.0, 180.0), 1)
+
+        # 状态机核心变量
         self.status = "running"
+        self.is_moving = True
+        self.gait_mode = "trot" if device_type == "robot_dog" else "normal"
+        self.enabled = True
+        self.emergency_stop = False
         self.error_code = 0
         self.error_msg = "Normal"
+        
+        self.current_program = "BR610_MAIN_LINE.PRG" if device_type == "huashu_arm" else "TASK_AUTO.PRG"
+        self.current_task = f"TASK_{random.randint(100, 200)}"
+        self.joint_angles = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        self.motor_currents = [1.5, 1.8, 1.6, 0.9, 0.8, 0.5]
 
-    def update_state(self):
-        self.step += 1
-        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    def handle_command(self, cmd: str, params: dict):
+        """精准响应并持久保持工业控制指令状态"""
+        if not cmd:
+            return
+        cmd_clean = cmd.strip().lower()
+        logger.info(f"[{self.device_id}] 🤖 执行指令: {cmd_clean} | 详细参数: {params}")
 
-        # 偶发极低概率微小告警(每100步最多1次短暂告警)
-        if self.step % 120 == 0:
-            self.status = "idle"
-        else:
-            self.status = "running"
+        # 1. 全局急停与复位
+        if cmd_clean in ["stop", "emergency_stop"]:
+            self.status = "stopped"
+            self.is_moving = False
+            self.emergency_stop = True
+            self.enabled = False
+            self.motor_currents = [0.0] * 6
+            return
+
+        if cmd_clean == "reset":
+            self.emergency_stop = False
+            self.enabled = True
             self.error_code = 0
             self.error_msg = "Normal"
+            self.status = "idle"
+            self.is_moving = False
+            return
 
+        if cmd_clean == "enable":
+            self.enabled = True
+            if self.status in ["disabled", "stopped"]:
+                self.status = "idle"
+            return
+
+        if cmd_clean == "disable":
+            self.enabled = False
+            self.status = "disabled"
+            self.is_moving = False
+            self.motor_currents = [0.0] * 6
+            return
+
+        if cmd_clean in ["pause", "pause_nav"]:
+            self.status = "paused"
+            self.is_moving = False
+            return
+
+        if cmd_clean in ["resume", "resume_nav"]:
+            self.status = "running"
+            self.is_moving = True
+            self.enabled = True
+            self.emergency_stop = False
+            return
+
+        if cmd_clean == "set_override":
+            self.speed = int(params.get("override", self.speed))
+            return
+
+        # 2. 四足机器狗专属指令响应
+        if self.device_type == "robot_dog":
+            if cmd_clean == "stand":
+                self.status = "standing"
+                self.gait_mode = "stand"
+                self.is_moving = False
+                self.z = float(params.get("height", 0.55))
+                self.joint_angles = [0.0, 28.0, 0.0, 28.0, 0.0, 28.0]
+                self.motor_currents = [0.8, 0.9, 0.8, 0.9, 0.8, 0.9]
+                logger.info(f"[{self.device_id}] 🐕 机器狗已进入【站立待命姿态】(持久保持静止)")
+            elif cmd_clean == "sit":
+                self.status = "sitting"
+                self.gait_mode = "sit"
+                self.is_moving = False
+                self.z = 0.22
+                self.joint_angles = [35.0, 75.0, 35.0, 75.0, 35.0, 75.0]
+                self.motor_currents = [0.2, 0.3, 0.2, 0.3, 0.2, 0.3]
+                logger.info(f"[{self.device_id}] 🐕 机器狗已进入【蹲伏休眠姿态】")
+            elif cmd_clean in ["patrol", "walk_to"]:
+                self.status = "running"
+                self.gait_mode = "trot"
+                self.is_moving = True
+                self.current_task = f"PATROL_{params.get('route', 'AREA_ZONE_1')}"
+                logger.info(f"[{self.device_id}] 🐕 机器狗已启动【Trot 巡检步态】沿航线巡航")
+            elif cmd_clean == "auto_dock_charge":
+                self.status = "charging"
+                self.is_moving = False
+                self.joint_angles = [30.0, 70.0, 30.0, 70.0, 30.0, 70.0]
+
+        # 3. 华数工业机械臂专属指令响应
+        elif self.device_type == "huashu_arm":
+            if cmd_clean == "home":
+                self.status = "idle"
+                self.is_moving = False
+                self.joint_angles = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            elif cmd_clean == "start_cycle":
+                self.status = "running"
+                self.is_moving = True
+                self.enabled = True
+            elif cmd_clean == "select_prog":
+                self.current_program = params.get("prog_name", self.current_program)
+            elif cmd_clean == "jog_joint":
+                axis = int(params.get("axis", 1)) - 1
+                step_deg = float(params.get("step_deg", 5.0)) * int(params.get("direction", 1))
+                if 0 <= axis < 6:
+                    self.joint_angles[axis] = round(self.joint_angles[axis] + step_deg, 2)
+                    self.is_moving = False
+                    self.status = "idle"
+
+        # 4. 珞石复合 AMR 移动机器人专属指令响应
+        elif self.device_type == "luxshare_amr":
+            if cmd_clean == "nav_to_point":
+                self.status = "running"
+                self.is_moving = True
+                self.current_task = f"NAV_TO_{params.get('target_point', 'BAY_02')}"
+            elif cmd_clean == "pick_and_place":
+                self.status = "running"
+                self.is_moving = True
+                self.current_task = f"TRANSFER_{params.get('source_station', 'ST_A')}_TO_{params.get('target_station', 'ST_B')}"
+            elif cmd_clean == "auto_charge":
+                self.status = "charging"
+                self.is_moving = False
+                self.current_task = "DOCK_CHARGING"
+
+        # 5. 空地协同无人机编队指令响应
+        elif self.device_type == "uav_rescue":
+            if cmd_clean == "auto_land_recharge":
+                self.status = "landing"
+                self.is_moving = False
+                self.z = 0.0
+            elif cmd_clean in ["collab_patrol", "multispectral_scan"]:
+                self.status = "running"
+                self.is_moving = True
+                self.z = 45.0
+
+    def update_state(self):
+        """每周期计算并生成符合工业物理特性的实时遥测报文"""
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # 仅在运动状态下递增步数与累计时间
+        if self.is_moving:
+            self.step += 1
+            self.running_hours = round(self.running_hours + (INTERVAL / 3600.0), 3)
+
+        # -------------------------------------------------------------
+        # 1. 华数六轴工业机械臂 (huashu_arm)
+        # -------------------------------------------------------------
         if self.device_type == "huashu_arm":
-            self.cycle_count += 1
-            j1 = round(math.sin(self.step * 0.15) * 45.0, 2)
-            j2 = round(-25.0 + math.cos(self.step * 0.12) * 20.0, 2)
-            j3 = round(80.0 + math.sin(self.step * 0.1) * 15.0, 2)
-            j4 = round(math.cos(self.step * 0.2) * 35.0, 2)
-            j5 = round(math.sin(self.step * 0.18) * 60.0, 2)
-            j6 = round((self.step * 8) % 360 - 180.0, 2)
-            joints = [j1, j2, j3, j4, j5, j6]
-            cart = {
-                "x": round(480.0 + math.cos(self.step * 0.1) * 50.0, 2),
-                "y": round(150.0 + math.sin(self.step * 0.1) * 50.0, 2),
-                "z": round(380.0 + math.sin(self.step * 0.15) * 30.0, 2),
-                "a": 180.0, "b": 0.0, "c": j1
-            }
-            currents = [round(1.2 + abs(math.sin(self.step * 0.15 + i)) * 1.6, 2) for i in range(6)]
-            
+            if self.is_moving and self.enabled and not self.emergency_stop:
+                self.cycle_count += 1
+                j1 = round(math.sin(self.step * 0.15) * 45.0, 2)
+                j2 = round(-25.0 + math.cos(self.step * 0.12) * 20.0, 2)
+                j3 = round(80.0 + math.sin(self.step * 0.1) * 15.0, 2)
+                j4 = round(math.cos(self.step * 0.2) * 35.0, 2)
+                j5 = round(math.sin(self.step * 0.18) * 60.0, 2)
+                j6 = round((self.step * 8) % 360 - 180.0, 2)
+                self.joint_angles = [j1, j2, j3, j4, j5, j6]
+                self.motor_currents = [round(1.2 + abs(math.sin(self.step * 0.15 + i)) * 1.6, 2) for i in range(6)]
+                cart = {
+                    "x": round(480.0 + math.cos(self.step * 0.1) * 50.0, 2),
+                    "y": round(150.0 + math.sin(self.step * 0.1) * 50.0, 2),
+                    "z": round(380.0 + math.sin(self.step * 0.15) * 30.0, 2),
+                    "a": 180.0, "b": 0.0, "c": j1
+                }
+            else:
+                cart = {
+                    "x": 480.0, "y": 150.0, "z": 380.0,
+                    "a": 180.0, "b": 0.0, "c": self.joint_angles[0] if self.joint_angles else 0.0
+                }
+                if not self.enabled or self.emergency_stop:
+                    self.motor_currents = [0.0] * 6
+                else:
+                    self.motor_currents = [0.3, 0.4, 0.3, 0.2, 0.1, 0.1]
+
             state_msg = {
                 "timestamp": now_str,
                 "device_name": self.device_name,
@@ -94,173 +248,233 @@ class VirtualRobot:
                 "vendor": self.vendor,
                 "status": self.status,
                 "battery": 100.0,
-                "speed": self.speed,
-                "joint_angles": joints,
+                "speed": self.speed if self.is_moving else 0,
+                "joint_angles": self.joint_angles,
                 "cartesian_pos": cart,
-                "motor_currents": currents,
-                "emergency_stop": False,
-                "enabled": True,
+                "motor_currents": self.motor_currents,
+                "emergency_stop": self.emergency_stop,
+                "enabled": self.enabled,
+                "current_program": self.current_program,
                 "cycle_count": self.cycle_count,
-                "running_hours": round(180.0 + self.step * 0.02, 1),
+                "running_hours": round(self.running_hours, 1),
                 "error_code": self.error_code,
                 "error_msg": self.error_msg
             }
             sensor_msg = {
                 "timestamp": now_str,
-                "temperature": round(37.0 + math.sin(self.step * 0.05) * 2.5, 1),
-                "current": round(sum(currents) / len(currents), 2),
-                "voltage": round(24.0 + math.sin(self.step * 0.1) * 0.3, 2),
-                "motor_currents": currents
+                "temperature": round(37.0 + math.sin(self.step * 0.05) * 2.0, 1),
+                "current": round(sum(self.motor_currents) / len(self.motor_currents), 2),
+                "voltage": 24.0,
+                "motor_currents": self.motor_currents
             }
 
+        # -------------------------------------------------------------
+        # 2. 珞石复合移动 AMR (luxshare_amr)
+        # -------------------------------------------------------------
         elif self.device_type == "luxshare_amr":
-            self.x = round(self.x + math.sin(self.step * 0.1) * 0.8, 2)
-            self.y = round(self.y + math.cos(self.step * 0.1) * 0.8, 2)
-            
-            # 复合 AMR 车载 6 轴协作臂动态插补运动
-            j1 = round(math.sin(self.step * 0.2) * 40.0, 2)
-            j2 = round(25.0 + math.cos(self.step * 0.15) * 20.0, 2)
-            j3 = round(-40.0 + math.sin(self.step * 0.12) * 25.0, 2)
-            j4 = round(math.cos(self.step * 0.25) * 50.0, 2)
-            j5 = round(math.sin(self.step * 0.2) * 65.0, 2)
-            j6 = round((self.step * 10) % 360 - 180.0, 2)
-            amr_joints = [j1, j2, j3, j4, j5, j6]
+            if self.is_moving and self.enabled and not self.emergency_stop:
+                self.x = round(self.x + math.sin(self.step * 0.1) * 0.8, 2)
+                self.y = round(self.y + math.cos(self.step * 0.1) * 0.8, 2)
+                j1 = round(math.sin(self.step * 0.2) * 40.0, 2)
+                j2 = round(25.0 + math.cos(self.step * 0.15) * 20.0, 2)
+                j3 = round(-40.0 + math.sin(self.step * 0.12) * 25.0, 2)
+                j4 = round(math.cos(self.step * 0.25) * 50.0, 2)
+                j5 = round(math.sin(self.step * 0.2) * 65.0, 2)
+                j6 = round((self.step * 10) % 360 - 180.0, 2)
+                self.joint_angles = [j1, j2, j3, j4, j5, j6]
+                self.motor_currents = [round(2.1 + abs(math.sin(self.step * 0.15 + i)) * 1.5, 2) for i in range(6)]
+                speed_mps = round(0.9 + abs(math.sin(self.step * 0.1)) * 0.4, 2)
+                self.battery = max(35.0, round(self.battery - 0.02, 1))
+            else:
+                speed_mps = 0.0
+                if self.status == "charging":
+                    self.battery = min(100.0, round(self.battery + 0.5, 1))
+                    self.motor_currents = [0.1] * 6
+                elif not self.enabled or self.emergency_stop:
+                    self.motor_currents = [0.0] * 6
+                else:
+                    self.motor_currents = [0.4, 0.4, 0.4, 0.2, 0.2, 0.2]
 
             cart = {
                 "x": round(self.x * 100, 1),
                 "y": round(self.y * 100, 1),
-                "z": 0.0,
-                "a": 0.0,
-                "b": 0.0,
+                "z": 0.0, "a": 0.0, "b": 0.0,
                 "c": round(math.atan2(math.cos(self.step * 0.1), math.sin(self.step * 0.1)) * 57.3, 1)
             }
-            currents = [round(2.1 + abs(math.sin(self.step * 0.15 + i)) * 1.5, 2) for i in range(6)]
-
             state_msg = {
                 "timestamp": now_str,
                 "device_name": self.device_name,
                 "location": self.location,
                 "vendor": self.vendor,
-                "status": "running" if self.status != "idle" else "idle",
-                "battery": max(35.0, round(96.0 - (self.step % 500) * 0.1, 1)),
-                "speed_mps": round(0.9 + abs(math.sin(self.step * 0.1)) * 0.4, 2),
+                "status": self.status,
+                "battery": self.battery,
+                "speed_mps": speed_mps,
                 "position": {"x": self.x, "y": self.y, "z": 0.0, "floor": 1},
-                "joint_angles": amr_joints,
-                "arm_sr3_pose": amr_joints,
+                "joint_angles": self.joint_angles,
+                "arm_sr3_pose": self.joint_angles,
                 "cartesian_pos": cart,
-                "motor_currents": currents,
-                "current_task": f"TASK_TRANS_{100 + self.step % 20}",
+                "motor_currents": self.motor_currents,
+                "current_task": self.current_task,
                 "load_status": "loaded" if (self.step // 10) % 2 == 0 else "empty",
-                "cycle_count": int(self.step * 2),
-                "running_hours": round(145.0 + self.step * 0.02, 1),
-                "emergency_stop": False,
-                "enabled": True,
+                "cycle_count": self.cycle_count,
+                "running_hours": round(self.running_hours, 1),
+                "emergency_stop": self.emergency_stop,
+                "enabled": self.enabled,
                 "error_code": self.error_code,
                 "error_msg": self.error_msg
             }
             sensor_msg = {
                 "timestamp": now_str,
-                "temperature": round(32.5 + random.uniform(0, 1.5), 1),
-                "current": round(sum(currents) / len(currents), 2),
+                "temperature": round(32.5 + random.uniform(0, 1.0), 1),
+                "current": round(sum(self.motor_currents) / len(self.motor_currents), 2),
                 "voltage": 48.0,
-                "motor_currents": currents,
-                "co2_ppm": int(520 + math.sin(self.step * 0.08) * 40),
-                "pm25": int(20 + math.cos(self.step * 0.08) * 8),
-                "noise_db": round(56.0 + random.uniform(0, 3.0), 1)
+                "motor_currents": self.motor_currents,
+                "co2_ppm": int(520 + math.sin(self.step * 0.08) * 30),
+                "pm25": 18,
+                "noise_db": 55.0
             }
 
+        # -------------------------------------------------------------
+        # 3. 四足仿生巡检机器狗 (robot_dog)
+        # -------------------------------------------------------------
         elif self.device_type == "robot_dog":
-            # 四足仿生 Trot 对角交替小跑动态步态 (前左/后右同相，前右/后左反相)
-            fl_hip = round(math.sin(self.step * 0.35) * 22.0, 2)
-            fl_knee = round(42.0 + math.sin(self.step * 0.35) * 28.0, 2)
-            fr_hip = round(math.sin(self.step * 0.35 + math.pi) * 22.0, 2)
-            fr_knee = round(42.0 + math.sin(self.step * 0.35 + math.pi) * 28.0, 2)
-            hl_leg = round(math.sin(self.step * 0.35 + math.pi) * 25.0, 2)
-            hr_leg = round(math.sin(self.step * 0.35) * 25.0, 2)
-            dog_joints = [fl_hip, fl_knee, fr_hip, fr_knee, hl_leg, hr_leg]
-
-            dog_cart = {
-                "x": round(18.0 + math.cos(self.step * 0.08) * 8.5, 2),
-                "y": round(9.0 + math.sin(self.step * 0.08) * 8.5, 2),
-                "z": round(0.55 + abs(math.sin(self.step * 0.35)) * 0.06, 2),
-                "a": round(math.sin(self.step * 0.25) * 2.5, 2),
-                "b": round(math.cos(self.step * 0.25) * 1.5, 2),
-                "c": round((self.step * 4) % 360 - 180.0, 2)
-            }
-            currents = [round(3.2 + abs(math.sin(self.step * 0.35 + i * 0.7)) * 2.0, 2) for i in range(6)]
+            if self.status == "standing":
+                # 站立待命姿态 (保持直立，完全静止)
+                self.joint_angles = [0.0, 28.0, 0.0, 28.0, 0.0, 28.0]
+                self.motor_currents = [0.8, 0.9, 0.8, 0.9, 0.8, 0.9]
+                speed_mps = 0.0
+                cart = {
+                    "x": self.x, "y": self.y, "z": self.z,
+                    "a": 0.0, "b": 0.0, "c": self.c
+                }
+            elif self.status == "sitting":
+                # 蹲伏休眠姿态
+                self.joint_angles = [35.0, 75.0, 35.0, 75.0, 35.0, 75.0]
+                self.motor_currents = [0.2, 0.3, 0.2, 0.3, 0.2, 0.3]
+                speed_mps = 0.0
+                cart = {
+                    "x": self.x, "y": self.y, "z": 0.22,
+                    "a": 0.0, "b": 0.0, "c": self.c
+                }
+            elif self.status in ["stopped", "disabled"] or self.emergency_stop or not self.enabled:
+                # 停机断电
+                speed_mps = 0.0
+                self.motor_currents = [0.0] * 6
+                cart = {
+                    "x": self.x, "y": self.y, "z": self.z,
+                    "a": 0.0, "b": 0.0, "c": self.c
+                }
+            else:
+                # 正常巡检小跑 (Trot 步态)
+                self.x = round(18.0 + math.cos(self.step * 0.08) * 8.5, 2)
+                self.y = round(9.0 + math.sin(self.step * 0.08) * 8.5, 2)
+                self.c = round((self.step * 4) % 360 - 180.0, 2)
+                
+                fl_hip = round(math.sin(self.step * 0.35) * 22.0, 2)
+                fl_knee = round(42.0 + math.sin(self.step * 0.35) * 28.0, 2)
+                fr_hip = round(math.sin(self.step * 0.35 + math.pi) * 22.0, 2)
+                fr_knee = round(42.0 + math.sin(self.step * 0.35 + math.pi) * 28.0, 2)
+                hl_leg = round(math.sin(self.step * 0.35 + math.pi) * 25.0, 2)
+                hr_leg = round(math.sin(self.step * 0.35) * 25.0, 2)
+                self.joint_angles = [fl_hip, fl_knee, fr_hip, fr_knee, hl_leg, hr_leg]
+                self.motor_currents = [round(3.2 + abs(math.sin(self.step * 0.35 + i * 0.7)) * 2.0, 2) for i in range(6)]
+                speed_mps = round(0.8 + abs(math.sin(self.step * 0.15)) * 0.3, 2)
+                
+                cart = {
+                    "x": self.x, "y": self.y,
+                    "z": round(0.55 + abs(math.sin(self.step * 0.35)) * 0.06, 2),
+                    "a": round(math.sin(self.step * 0.25) * 2.5, 2),
+                    "b": round(math.cos(self.step * 0.25) * 1.5, 2),
+                    "c": self.c
+                }
+                self.battery = max(30.0, round(self.battery - 0.015, 1))
 
             state_msg = {
                 "timestamp": now_str,
                 "device_name": self.device_name,
                 "location": self.location,
                 "vendor": self.vendor,
-                "status": "running" if self.status != "idle" else "standing",
-                "battery": max(40.0, round(92.0 - (self.step % 400) * 0.1, 1)),
-                "gait_mode": "trot",
-                "speed_mps": round(0.8 + abs(math.sin(self.step * 0.15)) * 0.3, 2),
-                "joint_angles": dog_joints,
-                "cartesian_pos": dog_cart,
-                "motor_currents": currents,
-                "imu_pitch": dog_cart["a"],
-                "imu_roll": dog_cart["b"],
-                "cycle_count": int(self.step * 4),
-                "running_hours": round(210.6 + self.step * 0.02, 1),
-                "emergency_stop": False,
-                "enabled": True,
+                "status": self.status,
+                "battery": self.battery,
+                "gait_mode": self.gait_mode,
+                "speed_mps": speed_mps,
+                "joint_angles": self.joint_angles,
+                "cartesian_pos": cart,
+                "motor_currents": self.motor_currents,
+                "imu_pitch": cart["a"],
+                "imu_roll": cart["b"],
+                "cycle_count": self.cycle_count,
+                "running_hours": round(self.running_hours, 1),
+                "emergency_stop": self.emergency_stop,
+                "enabled": self.enabled,
                 "uav_collab_ready": True,
                 "error_code": self.error_code,
                 "error_msg": self.error_msg
             }
             sensor_msg = {
                 "timestamp": now_str,
-                "temperature": round(35.0 + random.uniform(0, 2.0), 1),
-                "current": round(sum(currents) / len(currents), 2),
+                "temperature": round(35.0 + random.uniform(0, 1.5), 1),
+                "current": round(sum(self.motor_currents) / len(self.motor_currents), 2),
                 "voltage": 28.8,
-                "motor_currents": currents,
+                "motor_currents": self.motor_currents,
                 "hcho": 0.016,
                 "voc": 0.10,
                 "foot_traffic": 320 + int(self.step * 0.8)
             }
 
+        # -------------------------------------------------------------
+        # 4. 空地协同无人机编队 (uav_rescue)
+        # -------------------------------------------------------------
         elif self.device_type == "uav_rescue":
-            uav_joints = [round(math.sin(self.step * 0.25 + i * 1.0) * 15.0, 2) for i in range(6)]
-            uav_cart = {
-                "x": round(28.0 + math.sin(self.step * 0.06) * 12.0, 1),
-                "y": round(32.0 + math.cos(self.step * 0.06) * 12.0, 1),
-                "z": round(45.0 + math.sin(self.step * 0.1) * 4.0, 1),
-                "a": round(math.sin(self.step * 0.2) * 3.5, 1),
-                "b": round(math.cos(self.step * 0.2) * 2.5, 1),
-                "c": round((self.step * 5) % 360 - 180.0, 1)
-            }
-            currents = [round(11.0 + abs(math.sin(self.step * 0.2 + i * 0.5)) * 2.5, 2) for i in range(6)]
+            if self.status == "landing":
+                flight_speed = 0.0
+                self.motor_currents = [0.0] * 6
+                self.joint_angles = [0.0] * 6
+                cart = {"x": self.x, "y": self.y, "z": 0.0, "a": 0.0, "b": 0.0, "c": 0.0}
+            elif self.is_moving:
+                self.joint_angles = [round(math.sin(self.step * 0.25 + i * 1.0) * 15.0, 2) for i in range(6)]
+                cart = {
+                    "x": round(28.0 + math.sin(self.step * 0.06) * 12.0, 1),
+                    "y": round(32.0 + math.cos(self.step * 0.06) * 12.0, 1),
+                    "z": round(45.0 + math.sin(self.step * 0.1) * 4.0, 1),
+                    "a": round(math.sin(self.step * 0.2) * 3.5, 1),
+                    "b": round(math.cos(self.step * 0.2) * 2.5, 1),
+                    "c": round((self.step * 5) % 360 - 180.0, 1)
+                }
+                self.motor_currents = [round(11.0 + abs(math.sin(self.step * 0.2 + i * 0.5)) * 2.5, 2) for i in range(6)]
+                flight_speed = round(5.2 + math.cos(self.step * 0.1) * 1.2, 2)
+            else:
+                flight_speed = 0.0
+                self.motor_currents = [2.0] * 6
+                cart = {"x": self.x, "y": self.y, "z": self.z, "a": 0.0, "b": 0.0, "c": self.c}
 
             state_msg = {
                 "timestamp": now_str,
                 "device_name": self.device_name,
                 "location": self.location,
                 "vendor": self.vendor,
-                "status": "running",
+                "status": self.status,
                 "battery": max(50.0, round(98.0 - (self.step % 300) * 0.1, 1)),
-                "altitude_m": uav_cart["z"],
-                "flight_speed_mps": round(5.2 + math.cos(self.step * 0.1) * 1.2, 2),
+                "altitude_m": cart["z"],
+                "flight_speed_mps": flight_speed,
                 "signal_rssi_dbm": -58,
                 "collab_ground_dog_id": "robot_dog_01",
-                "joint_angles": uav_joints,
-                "cartesian_pos": uav_cart,
-                "motor_currents": currents,
-                "cycle_count": int(self.step * 2),
-                "running_hours": round(98.4 + self.step * 0.02, 1),
-                "emergency_stop": False,
-                "enabled": True,
+                "joint_angles": self.joint_angles,
+                "cartesian_pos": cart,
+                "motor_currents": self.motor_currents,
+                "cycle_count": self.cycle_count,
+                "running_hours": round(self.running_hours, 1),
+                "emergency_stop": self.emergency_stop,
+                "enabled": self.enabled,
                 "error_code": self.error_code,
                 "error_msg": self.error_msg
             }
             sensor_msg = {
                 "timestamp": now_str,
                 "temperature": round(26.5 + random.uniform(0, 1.5), 1),
-                "current": round(sum(currents) / len(currents), 2),
+                "current": round(sum(self.motor_currents) / len(self.motor_currents), 2),
                 "voltage": 22.2,
-                "motor_currents": currents,
+                "motor_currents": self.motor_currents,
                 "wind_speed_mps": round(2.8 + random.uniform(0, 0.8), 1)
             }
 
@@ -286,13 +500,15 @@ def build_robot_fleet():
 
 def main():
     logger.info("==========================================================")
-    logger.info("  🚀 工业机器人集群遥测常驻模拟推流服务已启动")
+    logger.info("  🚀 工业机器人集群遥测与控制模拟服务 (完整状态机版) 已启动")
     logger.info(f"  - MQTT Broker: {MQTT_HOST}:{MQTT_PORT}")
     logger.info(f"  - 模拟推流频率: {INTERVAL} 秒/轮")
     logger.info("==========================================================")
 
     robots = build_robot_fleet()
-    logger.info(f"已初始化 {len(robots)} 台虚拟机器人设备：")
+    robot_map = {r.device_id: r for r in robots}
+    
+    logger.info(f"已就绪 {len(robots)} 台虚拟工业设备：")
     for r in robots:
         logger.info(f"  ● [{r.device_type}] {r.device_id} ({r.device_name}) - 工位: {r.location}")
 
@@ -301,19 +517,35 @@ def main():
     def on_cmd(c, userdata, msg):
         try:
             payload = json.loads(msg.payload.decode("utf-8"))
-            logger.info(f"[CMD] 收到云端下行指令 -> Topic: {msg.topic} | Command: {payload.get('command')}")
+            topic_parts = msg.topic.split("/")
+            
+            # 支持 Topic: cmd/{type}/{id} 或 robot/{type}/{id}/cmd
+            target_id = None
+            if len(topic_parts) >= 3 and topic_parts[0] == "cmd":
+                target_id = topic_parts[2]
+            elif len(topic_parts) >= 4 and topic_parts[0] == "robot" and topic_parts[3] == "cmd":
+                target_id = topic_parts[2]
+
+            cmd_name = payload.get("command")
+            params = payload.get("params", {})
+            
+            if target_id and target_id in robot_map:
+                logger.info(f"[CMD] 收到精准下发指令 -> 设备: {target_id} | 指令: {cmd_name} | 参数: {params}")
+                robot_map[target_id].handle_command(cmd_name, params)
+            else:
+                logger.warning(f"[CMD] 未知目标设备或广播指令 -> Topic: {msg.topic} | Command: {cmd_name}")
         except Exception as e:
-            logger.warning(f"[CMD] 指令解析异常: {e}")
+            logger.warning(f"[CMD] 指令处理异常: {e}")
 
     client.on_message = on_cmd
 
-    # 尝试连接 MQTT Broker
+    # 连接 MQTT Broker 并订阅控制下发主题
     while running:
         try:
             client.connect(MQTT_HOST, MQTT_PORT, keepalive=60)
-            client.subscribe("cmd/#", qos=1)
+            client.subscribe([("cmd/#", 1), ("robot/+/+/cmd", 1)])
             client.loop_start()
-            logger.info("[MQTT OK] 成功连入 MQTT Broker，开始推流！")
+            logger.info("[MQTT OK] 成功连入 MQTT Broker 并已订阅全部指令主题 [cmd/#, robot/+/+/cmd]！")
             break
         except Exception as e:
             logger.warning(f"MQTT Broker 连接失败 ({e})，3秒后重试...")
@@ -334,14 +566,15 @@ def main():
                 client.publish(topic_state, json.dumps(state_data, ensure_ascii=False), qos=1)
                 client.publish(topic_sensor, json.dumps(sensor_data, ensure_ascii=False), qos=1)
 
-            if round_cnt % 10 == 0:
-                logger.info(f"[HEARTBEAT] 已完成 {round_cnt} 轮推流，{len(robots)} 台虚拟设备全部在线正常")
+            if round_cnt % 15 == 0:
+                active_moving = sum(1 for r in robots if r.is_moving)
+                logger.info(f"[HEARTBEAT] 第 {round_cnt} 轮推流完成 | 在线: {len(robots)} 台 | 动态运行中: {active_moving} 台 | 待命/站立/充电: {len(robots) - active_moving} 台")
 
             time.sleep(INTERVAL)
     finally:
         client.loop_stop()
         client.disconnect()
-        logger.info("模拟服务已停止")
+        logger.info("模拟服务已安全退出")
 
 if __name__ == "__main__":
     main()
