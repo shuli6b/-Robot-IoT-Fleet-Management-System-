@@ -39,7 +39,13 @@ HANDOVER_GUIDE.md
 *交接*.md
 *私有*.md
 *运维*.md
-机器人后台/
+*交付*.md
+*实战*.md
+*实机*.md
+*教程*.md
+*.bat
+huashu_edge_agent/huashu_standalone_agent.py
+huashu_edge_agent/启动机械臂推流.*
 *.docx
 *.pdf
 
