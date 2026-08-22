@@ -350,7 +350,7 @@ def get_all_devices(
             else:
                 d["specs"] = {}
 
-            # 动态校验在线状态（如果最近 30 秒内有上报，确保显示 online）
+            # 动态校验在线状态（如果最近 35 秒内有上报，确保显示 online）
             last_t = d.get("last_report_time")
             if last_t:
                 try:
@@ -360,6 +360,25 @@ def get_all_devices(
                         d["status"] = "online"
                 except Exception:
                     pass
+
+            # 读取最新状态报文中的真实遥测指标 (电量/故障码/使能)
+            try:
+                cur_data = conn.execute(
+                    "SELECT raw_payload FROM device_data WHERE device_type = ? AND device_id = ? AND data_type = 'state' ORDER BY received_at DESC, id DESC LIMIT 1",
+                    (d["device_type"], d["device_id"]),
+                )
+                row_data = cur_data.fetchone()
+                if row_data:
+                    parsed_s = json.loads(row_data[0])
+                    d["battery"] = parsed_s.get("battery", 96.0)
+                    d["error_code"] = parsed_s.get("error_code", 0)
+                    d["error_msg"] = parsed_s.get("error_msg", "")
+                    d["enabled"] = parsed_s.get("enabled", True)
+                    d["emergency_stop"] = parsed_s.get("emergency_stop", False)
+                else:
+                    d["battery"] = 96.0
+            except Exception:
+                d["battery"] = 96.0
 
             if status and d["status"] != status:
                 continue

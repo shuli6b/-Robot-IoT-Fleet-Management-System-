@@ -2234,10 +2234,10 @@
                         <div class="p-4 space-y-2.5 text-xs">
                             <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 text-[11px]">
                                 <span>母线动力/电池</span>
-                                <span class="font-mono text-slate-900 dark:text-slate-100 font-semibold">96% (良好)</span>
+                                <span class="font-mono text-slate-900 dark:text-slate-100 font-semibold">${dev.battery !== undefined ? Math.round(dev.battery) : 98}% (${(dev.battery || 98) >= 80 ? '良好' : (dev.battery || 98) >= 30 ? '正常' : '低电量'})</span>
                             </div>
                             <div class="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                                <div class="bg-slate-900 dark:bg-blue-500 h-full rounded-full" style="width: 96%"></div>
+                                <div class="${(dev.battery || 98) < 30 ? 'bg-amber-500' : 'bg-slate-900 dark:bg-blue-500'} h-full rounded-full transition-all duration-300" style="width: ${dev.battery !== undefined ? Math.min(100, Math.max(0, Math.round(dev.battery))) : 98}%"></div>
                             </div>
 
                             <div class="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px]">
@@ -2263,6 +2263,7 @@
                 const isOnline = dev.status === 'online';
                 const typeName = dev.device_type_display || DEVICE_TYPE_NAMES[dev.device_type] || dev.device_type;
                 const devDisplayName = dev.device_name ? `${dev.device_name} (${dev.device_id})` : dev.device_id;
+                const bat = dev.battery !== undefined ? Math.round(dev.battery) : 98;
 
                 return `
                     <tr onclick="selectDevice('${dev.device_type}', '${dev.device_id}'); openRobot3DModal();" 
@@ -2279,7 +2280,7 @@
                                 <span>${isOnline ? '运行正常' : '已离线'}</span>
                             </span>
                         </td>
-                        <td class="py-3 font-mono text-slate-800 dark:text-slate-200 text-xs font-semibold">96%</td>
+                        <td class="py-3 font-mono text-slate-800 dark:text-slate-200 text-xs font-semibold">${bat}%</td>
                         <td class="py-3 text-[11px] text-slate-500 dark:text-slate-400 font-mono">${formatRelativeTime(dev.last_report_time)}</td>
                         <td class="py-3 text-right">
                             <button class="px-3 py-1 text-xs rounded-md bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:border dark:border-slate-700 text-white font-medium transition">
@@ -2504,37 +2505,105 @@
             }
             specList.innerHTML = specHtml;
 
-            // Joint angles & currents
-            document.getElementById('modalJointsContainer').innerHTML = [
-                { j: 'J1 基座', v: '+15.2°', p: 55 },
-                { j: 'J2 大臂', v: '-30.5°', p: 40 },
-                { j: 'J3 小臂', v: '+88.4°', p: 75 },
-                { j: 'J4 手腕', v: '0.0°', p: 50 },
-                { j: 'J5 俯仰', v: '+45.0°', p: 65 },
-                { j: 'J6 旋转', v: '-12.8°', p: 45 }
-            ].map(i => `
-                <div class="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-300">
-                    <span class="w-16 font-mono text-slate-500 dark:text-slate-400">${i.j}</span>
-                    <div class="flex-1 mx-2 bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                        <div class="bg-blue-600 h-full" style="width:${i.p}%"></div>
-                    </div>
-                    <span class="font-mono text-slate-900 dark:text-slate-100 w-12 text-right">${i.v}</span>
-                </div>
-            `).join('');
-
-            document.getElementById('modalMotorCurrentsGrid').innerHTML = [2.3, 3.1, 2.8, 1.2, 0.9, 0.6].map((c, i) => `
-                <div class="bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-center">
-                    <div class="text-[9px] text-slate-400">M${i+1} 伺服</div>
-                    <div class="text-slate-900 dark:text-slate-100 font-bold">${c}A</div>
-                </div>
-            `).join('');
-
             updateModalCmdPresets(type, id);
             applyModalRoleUI();
             document.getElementById('robot3DModal').classList.remove('hidden');
+
+            // 立即刷新并启动实时工况遥测轮询
+            refreshModalLiveTelemetry();
+            if (window.modalLiveTimer) clearInterval(window.modalLiveTimer);
+            window.modalLiveTimer = setInterval(refreshModalLiveTelemetry, 1500);
         }
 
-        function closeRobot3DModal() { document.getElementById('robot3DModal').classList.add('hidden'); }
+        async function refreshModalLiveTelemetry() {
+            if (!selectedDevice || document.getElementById('robot3DModal').classList.contains('hidden')) {
+                if (window.modalLiveTimer) clearInterval(window.modalLiveTimer);
+                return;
+            }
+            const { type, id } = selectedDevice;
+            try {
+                const res = await fetch(`/api/devices/${encodeURIComponent(type)}/${encodeURIComponent(id)}/latest`);
+                const body = await res.json();
+                if (body.code === 200 && body.data && body.data.latest_data) {
+                    const parsed = body.data.latest_data.parsed_payload || {};
+                    
+                    // 1. 关节角度 (J1 ~ J6)
+                    const joints = parsed.joint_angles || parsed.arm_sr3_pose || [0, 0, 0, 0, 0, 0];
+                    const jointLabels = type === 'huashu_arm' ? ['J1 基座', 'J2 大臂', 'J3 小臂', 'J4 手腕', 'J5 俯仰', 'J6 旋转'] :
+                                       type === 'luxshare_amr' ? ['J1 回转', 'J2 肩部', 'J3 肘部', 'J4 腕1', 'J5 腕2', 'J6 腕3'] :
+                                       ['前左髋', '前左膝', '前右髋', '前右膝', '后左腿', '后右腿'];
+                    
+                    const jointsContainer = document.getElementById('modalJointsContainer');
+                    if (jointsContainer) {
+                        jointsContainer.innerHTML = joints.slice(0, 6).map((val, idx) => {
+                            const num = typeof val === 'number' ? val : parseFloat(val) || 0;
+                            const pct = Math.min(100, Math.max(0, Math.round(((num + 180) / 360) * 100)));
+                            const sign = num > 0 ? '+' : '';
+                            return `
+                                <div class="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-300">
+                                    <span class="w-16 font-mono text-slate-500 dark:text-slate-400">${jointLabels[idx] || `轴${idx+1}`}</span>
+                                    <div class="flex-1 mx-2 bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                                        <div class="bg-blue-600 dark:bg-blue-500 h-full transition-all duration-300" style="width:${pct}%"></div>
+                                    </div>
+                                    <span class="font-mono text-slate-900 dark:text-slate-100 w-14 text-right font-medium">${sign}${num.toFixed(1)}°</span>
+                                </div>
+                            `;
+                        }).join('');
+                    }
+
+                    // 2. 末端空间笛卡尔坐标 (X, Y, Z, A, B, C)
+                    const cart = parsed.cartesian_pos || parsed.position || {};
+                    const cartEl = document.getElementById('modalCartesianPos');
+                    const eulerEl = document.getElementById('modalEulerAngles');
+                    if (cartEl) {
+                        if (cart.x !== undefined) {
+                            cartEl.innerText = `X: ${Number(cart.x).toFixed(1)} | Y: ${Number(cart.y).toFixed(1)} | Z: ${Number(cart.z || 0).toFixed(1)} mm`;
+                        } else {
+                            cartEl.innerText = `X: 450.0 | Y: 200.0 | Z: 350.0 mm`;
+                        }
+                    }
+                    if (eulerEl) {
+                        if (cart.a !== undefined) {
+                            eulerEl.innerText = `A: ${Number(cart.a).toFixed(1)}° | B: ${Number(cart.b || 0).toFixed(1)}° | C: ${Number(cart.c || 0).toFixed(1)}°`;
+                        } else {
+                            eulerEl.innerText = `A: 180.0° | B: 0.0° | C: 0.0°`;
+                        }
+                    }
+
+                    // 3. 伺服电机电流 (M1 ~ M6)
+                    const currents = parsed.motor_currents || [parsed.current || 2.5, 2.1, 1.8, 1.2, 0.9, 0.6];
+                    const currGrid = document.getElementById('modalMotorCurrentsGrid');
+                    if (currGrid) {
+                        currGrid.innerHTML = currents.slice(0, 6).map((c, i) => {
+                            const cVal = typeof c === 'number' ? c : parseFloat(c) || 0;
+                            return `
+                                <div class="bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-center">
+                                    <div class="text-[9px] text-slate-400">M${i+1} 伺服</div>
+                                    <div class="text-slate-900 dark:text-slate-100 font-bold font-mono">${cVal.toFixed(2)}A</div>
+                                </div>
+                            `;
+                        }).join('');
+                    }
+
+                    // 4. 工单节拍与工时
+                    const cycleEl = document.getElementById('modalCycleCount');
+                    const runEl = document.getElementById('modalRunHours');
+                    if (cycleEl && parsed.cycle_count !== undefined) {
+                        cycleEl.innerText = `${parsed.cycle_count.toLocaleString()} 次`;
+                    }
+                    if (runEl && parsed.running_hours !== undefined) {
+                        runEl.innerText = `${parsed.running_hours.toFixed(1)} 小时`;
+                    }
+                }
+            } catch (e) {
+                console.error('refreshModalLiveTelemetry error:', e);
+            }
+        }
+
+        function closeRobot3DModal() {
+            if (window.modalLiveTimer) clearInterval(window.modalLiveTimer);
+            document.getElementById('robot3DModal').classList.add('hidden');
+        }
 
         function openEditDeviceModalFrom3D() {
             if (!selectedDevice) return;
