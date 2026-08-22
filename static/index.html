@@ -444,7 +444,7 @@
                                 <h3 class="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight">各品类设备健康指数</h3>
                                 <p class="text-xs text-slate-500 dark:text-slate-400">基于伺服负载、电机温升与通讯质量分析</p>
                             </div>
-                            <span class="text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">健康状况良好</span>
+                            <span id="overviewHealthSummaryBadge" class="text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">健康状况良好</span>
                         </div>
                         <div class="space-y-3.5 text-xs pt-1" id="overviewHealthList">
                             <div class="space-y-1" id="healthCatRow1">
@@ -3341,6 +3341,7 @@
                 if (body.code === 200 && body.data) {
                     currentDevices = body.data.devices || [];
                     renderActiveFleetView();
+                    updateDynamicHealthIndices(currentDevices);
                     updateAuditDeviceDropdown(currentDevices);
 
                     if (currentDevices.length > 0 && !selectedDevice) {
@@ -3349,6 +3350,78 @@
                 }
             } catch (e) {
                 console.error(e);
+            }
+        }
+
+        function updateDynamicHealthIndices(devices) {
+            const cats = [
+                { type: 'huashu_arm', valId: 'overviewHealthCat1Val', barRow: 'healthCatRow1' },
+                { type: 'luxshare_amr', valId: 'overviewHealthCat2Val', barRow: 'healthCatRow2' },
+                { type: 'robot_dog', valId: 'overviewHealthCat3Val', barRow: 'healthCatRow3' },
+                { type: 'uav_rescue', valId: 'overviewHealthCat4Val', barRow: 'healthCatRow4' }
+            ];
+
+            let totalScoreSum = 0;
+            let activeCatCount = 0;
+
+            cats.forEach((cat, idx) => {
+                const catDevs = devices.filter(d => d.device_type === cat.type);
+                const valEl = document.getElementById(cat.valId);
+                const rowEl = document.getElementById(cat.barRow);
+                const barEl = rowEl ? rowEl.querySelector('div.h-full') : null;
+
+                if (!catDevs || catDevs.length === 0) {
+                    if (valEl) valEl.innerText = '0.0%';
+                    if (barEl) {
+                        barEl.style.width = '0%';
+                        barEl.className = 'bg-slate-300 dark:bg-slate-700 h-full rounded-full transition-all duration-500';
+                    }
+                } else {
+                    const onlineCount = catDevs.filter(d => d.status === 'online').length;
+                    const onlineRatio = onlineCount / catDevs.length;
+                    
+                    let healthPct = 0;
+                    if (onlineCount > 0) {
+                        // 基于设备在线率与基础良好度动态计算
+                        const baseScore = 95.0 + (onlineRatio * 3.8); // 95% ~ 98.8%
+                        healthPct = Math.min(100.0, Math.round((baseScore * onlineRatio) * 10) / 10);
+                    }
+                    
+                    totalScoreSum += healthPct;
+                    activeCatCount++;
+
+                    if (valEl) valEl.innerText = `${healthPct.toFixed(1)}%`;
+                    if (barEl) {
+                        barEl.style.width = `${healthPct}%`;
+                        if (healthPct >= 90) {
+                            barEl.className = `${idx === 0 ? 'bg-blue-600' : idx === 1 ? 'bg-indigo-600' : idx === 2 ? 'bg-emerald-600' : 'bg-cyan-600'} h-full rounded-full transition-all duration-500`;
+                        } else if (healthPct >= 60) {
+                            barEl.className = 'bg-amber-500 h-full rounded-full transition-all duration-500';
+                        } else {
+                            barEl.className = 'bg-rose-500 h-full rounded-full transition-all duration-500';
+                        }
+                    }
+                }
+            });
+
+            const summaryBadge = document.getElementById('overviewHealthSummaryBadge');
+            if (summaryBadge) {
+                if (!devices || devices.length === 0) {
+                    summaryBadge.innerText = '暂无设备推流';
+                    summaryBadge.className = 'text-xs font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700';
+                } else {
+                    const avgScore = activeCatCount > 0 ? (totalScoreSum / activeCatCount) : 0;
+                    if (avgScore >= 90) {
+                        summaryBadge.innerText = '健康状况良好';
+                        summaryBadge.className = 'text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800';
+                    } else if (avgScore >= 60) {
+                        summaryBadge.innerText = '部分设备需关注';
+                        summaryBadge.className = 'text-xs font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800';
+                    } else {
+                        summaryBadge.innerText = '存在异常告警';
+                        summaryBadge.className = 'text-xs font-medium text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 px-2 py-0.5 rounded border border-rose-200 dark:border-rose-800';
+                    }
+                }
             }
         }
 
