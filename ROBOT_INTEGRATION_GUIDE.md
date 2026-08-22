@@ -23,7 +23,7 @@
                                │ MQTT 协议 (TCP 端口 :1883 / QoS 1)
                                ▼
 ┌─────────────────────────────────────────────────────────────┐
-│       【云端智能管控服务器 (IP: 106.55.248.254)】            │
+│       【云端智能管控服务器 (IP: <SERVER_PUBLIC_IP>)】            │
 │                                                             │
 │   - EMQX 物联网 Broker (:1883)                              │
 │   - FastAPI 实时遥测引擎 (:8000)                             │
@@ -65,7 +65,7 @@
     }
   ],
   "mqtt": {
-    "host": "106.55.248.254",
+    "host": "<SERVER_PUBLIC_IP>",
     "port": 1883,
     "topic_state": "robot/huashu_arm/{device_id}/state",
     "topic_sensor": "robot/huashu_arm/{device_id}/sensor",
@@ -117,7 +117,7 @@ import time
 import json
 import paho.mqtt.client as mqtt
 
-MQTT_BROKER = "106.55.248.254"
+MQTT_BROKER = "<SERVER_PUBLIC_IP>"
 MQTT_PORT = 1883
 DEVICE_ID = "amr_001"
 DEVICE_TYPE = "luxshare_amr"
@@ -200,7 +200,7 @@ import time
 import json
 import paho.mqtt.client as mqtt
 
-MQTT_BROKER = "106.55.248.254"
+MQTT_BROKER = "<SERVER_PUBLIC_IP>"
 MQTT_PORT = 1883
 DEVICE_ID = "dog_001"
 DEVICE_TYPE = "robot_dog"
