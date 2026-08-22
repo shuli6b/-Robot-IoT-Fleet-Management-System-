@@ -2531,7 +2531,8 @@
                     const joints = parsed.joint_angles || parsed.arm_sr3_pose || [0, 0, 0, 0, 0, 0];
                     const jointLabels = type === 'huashu_arm' ? ['J1 基座', 'J2 大臂', 'J3 小臂', 'J4 手腕', 'J5 俯仰', 'J6 旋转'] :
                                        type === 'luxshare_amr' ? ['J1 回转', 'J2 肩部', 'J3 肘部', 'J4 腕1', 'J5 腕2', 'J6 腕3'] :
-                                       ['前左髋', '前左膝', '前右髋', '前右膝', '后左腿', '后右腿'];
+                                       type === 'robot_dog' ? ['前左髋', '前左膝', '前右髋', '前右膝', '后左腿', '后右腿'] :
+                                       ['1号动力', '2号动力', '3号动力', '4号动力', '云台俯仰', '云台偏航'];
                     
                     const jointsContainer = document.getElementById('modalJointsContainer');
                     if (jointsContainer) {
@@ -2555,11 +2556,12 @@
                     const cart = parsed.cartesian_pos || parsed.position || {};
                     const cartEl = document.getElementById('modalCartesianPos');
                     const eulerEl = document.getElementById('modalEulerAngles');
+                    const unit = (type === 'robot_dog' || type === 'uav_rescue') ? 'm' : 'mm';
                     if (cartEl) {
                         if (cart.x !== undefined) {
-                            cartEl.innerText = `X: ${Number(cart.x).toFixed(1)} | Y: ${Number(cart.y).toFixed(1)} | Z: ${Number(cart.z || 0).toFixed(1)} mm`;
+                            cartEl.innerText = `X: ${Number(cart.x).toFixed(1)} | Y: ${Number(cart.y).toFixed(1)} | Z: ${Number(cart.z || 0).toFixed(1)} ${unit}`;
                         } else {
-                            cartEl.innerText = `X: 450.0 | Y: 200.0 | Z: 350.0 mm`;
+                            cartEl.innerText = `X: 450.0 | Y: 200.0 | Z: 350.0 ${unit}`;
                         }
                     }
                     if (eulerEl) {
