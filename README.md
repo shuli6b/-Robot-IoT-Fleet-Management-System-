@@ -1,5 +1,9 @@
 # 机器人物联网管控平台 (Robot IoT Fleet Management System)
 
+> 📘 **重要技术文档导航**：
+> - **[《交付与运维操作手册 (HANDOVER_GUIDE.md)》](./HANDOVER_GUIDE.md)**：包含公网访问入口、默认凭据、开机自启机制、双机热备与常用运维指令。
+> - **[《现场接入新机器人实战指南 (ROBOT_INTEGRATION_GUIDE.md)》](./ROBOT_INTEGRATION_GUIDE.md)**：包含华数机械臂、复合 AMR、四足机器狗、无人机编队的详细接入教程、Python/ROS 代码模板与报文字典。
+
 本项目是一套用于工业机器人设备集群监控、工况遥测分析与指令调度的管理系统。系统基于 **Python (FastAPI) + MQTT (EMQX / Mosquitto) + SQLite + Web 前端** 开发，支持机械臂、移动机器人 (AMR)、四足仿生机器狗等多品类设备的运行状态集中监控、3D 姿态展示、参数配置与故障诊断。
 
 ---
