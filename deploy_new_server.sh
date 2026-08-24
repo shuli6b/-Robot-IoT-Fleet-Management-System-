@@ -77,37 +77,64 @@ FRPS_AUTH_TOKEN="${FRPS_AUTH_TOKEN:-YOUR_AUTH_TOKEN}"
 echo "[6/6] 配置 FRP 穿透客户端 (frpc)..."
 mkdir -p /usr/local/frp
 cat << EOF > /usr/local/frp/frpc.toml
-serverAddr = "$FRPS_HOST"
-serverPort = 7000
-auth.token = "$FRPS_AUTH_TOKEN"
+# =============================================================================
+# 机器人物联网智能管控平台 - FRP 客户端穿透映射配置文件 (frpc.toml)
+# 中继服务器地址: $FRPS_HOST (腾讯云公网 VPS)
+# =============================================================================
 
+# 【1. 服务端主连接通道】
+serverAddr = "$FRPS_HOST"     # 云端中继 VPS 公网 IP
+serverPort = 7000             # FRPS 握手与控制信令通信端口
+auth.token = "$FRPS_AUTH_TOKEN" # 生产专属认证密钥令牌
+
+# -----------------------------------------------------------------------------
+# 【业务端口 1】生产管理大屏与 REST API
+# 外部访问地址: http://$FRPS_HOST:8000
+# 对应内网服务: FastAPI 后端服务 (robot-iot.service 监听本地 8000)
+# -----------------------------------------------------------------------------
 [[proxies]]
 name = "iot-web"
 type = "tcp"
 localIP = "127.0.0.1"
-localPort = 8000
-remotePort = 8000
+localPort = 8000              # 内网 FastAPI 监听端口
+remotePort = 8000             # 映射到公网 VPS 的 Web 访问端口
 
+# -----------------------------------------------------------------------------
+# 【业务端口 2】工业物联网 EMQX MQTT 消息总线
+# 外部接入地址: tcp://$FRPS_HOST:1883
+# 对应内网服务: EMQX 5.8 消息代理 (所有真实/虚拟机器人上报遥测与下发控制均连此端口)
+# -----------------------------------------------------------------------------
 [[proxies]]
 name = "iot-mqtt"
 type = "tcp"
 localIP = "127.0.0.1"
-localPort = 1883
-remotePort = 1883
+localPort = 1883              # 内网 EMQX MQTT 默认通信端口
+remotePort = 1883             # 映射到公网 VPS 的 MQTT 通信端口
 
+# -----------------------------------------------------------------------------
+# 【业务端口 3】EMQX 后台集群运维控制台 (EMQX Dashboard)
+# 外部访问地址: http://$FRPS_HOST:18083 (默认账号: admin / public)
+# 对应内网服务: EMQX 运维可视化管理面板，用于排查客户端连接数与主题订阅
+# -----------------------------------------------------------------------------
 [[proxies]]
 name = "emqx-dashboard"
 type = "tcp"
 localIP = "127.0.0.1"
-localPort = 18083
-remotePort = 18083
+localPort = 18083             # 内网 EMQX Dashboard 监听端口
+remotePort = 18083            # 映射到公网 VPS 的后台管理端口
 
+# -----------------------------------------------------------------------------
+# 【运维端口 4】内网宿主机远程 SSH 反向安全管理隧道
+# 外部连接命令: ssh -p 2222 nbrobotsys@$FRPS_HOST (密码: 201125)
+# 对应内网服务: 内网物理主机自身的 OpenSSH 服务 (22 端口)
+# 说明: 专供运维人员在任何外网环境下直连内网物理机终端进行代码部署与系统维护
+# -----------------------------------------------------------------------------
 [[proxies]]
 name = "local-ssh"
 type = "tcp"
 localIP = "127.0.0.1"
-localPort = 22
-remotePort = 2222
+localPort = 22                # 内网物理主机自身的 SSH 端口
+remotePort = 2222             # 映射到公网 VPS 的高位 SSH 端口
 EOF
 
 if [ ! -f "/usr/local/frp/frpc" ]; then

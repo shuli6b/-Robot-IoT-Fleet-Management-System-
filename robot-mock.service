@@ -1,0 +1,22 @@
+[Unit]
+Description=Robot IoT Mock Device Fleet Telemetry Simulator
+After=network.target emqx.service robot-iot.service
+Wants=emqx.service robot-iot.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/robot-iot
+Environment="PATH=/opt/robot-iot/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"
+Environment="PYTHONUNBUFFERED=1"
+Environment="MQTT_HOST=127.0.0.1"
+Environment="MQTT_PORT=1883"
+Environment="MOCK_INTERVAL=2.0"
+ExecStart=/opt/robot-iot/venv/bin/python mock_service.py
+Restart=always
+RestartSec=3s
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target
