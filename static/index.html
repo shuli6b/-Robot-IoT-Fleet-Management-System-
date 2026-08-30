@@ -2516,7 +2516,7 @@
                         
                         <!-- 3D Interactive WebGL Robot Model Viewport -->
                         <div class="relative h-48 w-full overflow-hidden bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 border-b border-slate-800">
-                            <canvas id="${canvasId}" class="w-full h-full block cursor-grab active:cursor-grabbing"></canvas>
+                            <canvas id="${canvasId}" class="w-full h-full block pointer-events-none"></canvas>
                             
                             <!-- Status Badges -->
                             <div class="absolute top-2.5 left-2.5 flex items-center gap-1.5 z-10">
@@ -2864,83 +2864,86 @@
         }
         
         function openRobot3DModal() {
-            if (selectedDevice) {
+            try {
+                if (!selectedDevice) {
+                    if (currentDevices.length > 0) selectDevice(currentDevices[0].device_type, currentDevices[0].device_id);
+                    else return;
+                }
                 const { type, id } = selectedDevice;
-                loadDeviceIO(type, id);
-                loadWeeklyBackups(type, id);
+
+                try { loadDeviceIO(type, id); } catch (e) {}
+                try { loadWeeklyBackups(type, id); } catch (e) {}
                 
-                // Update Workstation in HUD
                 const wsEl = document.getElementById('hudWorkstation');
                 if (wsEl) {
                     wsEl.innerText = type === 'huashu_arm' ? '广州番禺 A01' : type === 'luxshare_amr' ? '广州南沙 B02' : '广州南沙 巡检区';
                 }
+
+                const dev = currentDevices.find(d => d.device_id === id) || { device_id: id, device_type: type };
+                const typeDisplay = dev.device_type_display || DEVICE_TYPE_NAMES[type] || type;
+                const devDisplayName = dev.device_name ? `${dev.device_name} (${id})` : `${typeDisplay} (${id})`;
+                
+                const cfg = window.SITE_CONFIG || {};
+                const devVendor = dev.vendor || (
+                    type === 'huashu_arm' ? cfg.cat1_vendor :
+                    type === 'luxshare_amr' ? cfg.cat2_vendor :
+                    type === 'robot_dog' ? (cfg.cat3_vendor || '宇树/昕邦定制') :
+                    cfg.cat4_vendor
+                ) || DEVICE_TYPE_VENDORS[type] || '昕邦工业装备';
+
+                const titleEl = document.getElementById('modalDevTitle'); if (titleEl) titleEl.innerText = devDisplayName;
+                const subTitleEl = document.getElementById('modalDevSubTitle'); if (subTitleEl) subTitleEl.innerText = `ID: ${id} | 安装工位: ${dev.location || '智能制造示范产线'} | 实时 3D 运动学、I/O 监控与报警处理档案`;
+                const bannerEl = document.getElementById('modalBannerType'); if (bannerEl) bannerEl.innerText = `${typeDisplay} · ${dev.device_name || id}`;
+                const brandEl = document.getElementById('modalSpecBrand'); if (brandEl) brandEl.innerText = devVendor;
+
+                const twinBadge = cfg.modal_twin_footer_badge || '广州番禺示范线 · 昕邦工业机器人数字孪生接入点';
+                const twinBadgeEl = document.getElementById('modalTwinFooterBadge');
+                if (twinBadgeEl) twinBadgeEl.innerText = twinBadge;
+
+                const specList = document.getElementById('modalSpecList');
+                if (specList) {
+                    const defaultSpecs = DEVICE_DEFAULT_SPECS[type] || {};
+                    const hasCustomSpecs = dev.specs && typeof dev.specs === 'object' && Object.keys(dev.specs).length > 0;
+                    const allSpecs = hasCustomSpecs ? dev.specs : defaultSpecs;
+
+                    let specHtml = Object.entries(allSpecs).map(([k, v]) => `
+                        <div class="flex justify-between py-0.5 border-b border-slate-50 dark:border-slate-800/50">
+                            <span class="text-slate-500 dark:text-slate-400">${k}:</span>
+                            <span class="font-mono text-slate-800 dark:text-slate-200 font-medium">${v}</span>
+                        </div>
+                    `).join('');
+
+                    if (dev.notes) {
+                        specHtml += `
+                            <div class="pt-1.5 text-[10px] text-slate-400 dark:text-slate-500 italic">
+                                说明: ${dev.notes}
+                            </div>
+                        `;
+                    }
+                    specList.innerHTML = specHtml;
+                }
+
+                try { updateModalCmdPresets(type, id); } catch (e) {}
+                try { applyModalRoleUI(); } catch (e) {}
+                try { switchRobotModalTab('3d'); } catch (e) {}
+
+                const modal = document.getElementById('robot3DModal');
+                if (modal) modal.classList.remove('hidden');
+
+                setTimeout(() => {
+                    initRobot3DScene();
+                    buildRobot3DModel(type);
+                    onRobot3DResize();
+                }, 80);
+
+                refreshModalLiveTelemetry();
+                if (window.modalLiveTimer) clearInterval(window.modalLiveTimer);
+                window.modalLiveTimer = setInterval(refreshModalLiveTelemetry, 1500);
+            } catch (err) {
+                console.error("openRobot3DModal critical error:", err);
+                const modal = document.getElementById('robot3DModal');
+                if (modal) modal.classList.remove('hidden');
             }
-            if (!selectedDevice) {
-                if (currentDevices.length > 0) selectDevice(currentDevices[0].device_type, currentDevices[0].device_id);
-                else return;
-            }
-            const { type, id } = selectedDevice;
-            const dev = currentDevices.find(d => d.device_id === id) || { device_id: id, device_type: type };
-            const typeDisplay = dev.device_type_display || DEVICE_TYPE_NAMES[type] || type;
-            const devDisplayName = dev.device_name ? `${dev.device_name} (${id})` : `${typeDisplay} (${id})`;
-            
-            const cfg = window.SITE_CONFIG || {};
-            const devVendor = dev.vendor || (
-                type === 'huashu_arm' ? cfg.cat1_vendor :
-                type === 'luxshare_amr' ? cfg.cat2_vendor :
-                type === 'robot_dog' ? (cfg.cat3_vendor || '宇树/昕邦定制') :
-                cfg.cat4_vendor
-            ) || DEVICE_TYPE_VENDORS[type] || '昕邦工业装备';
-
-            document.getElementById('modalDevTitle').innerText = devDisplayName;
-            document.getElementById('modalDevSubTitle').innerText = `ID: ${id} | 安装工位: ${dev.location || '智能制造示范产线'} | 实时 3D 运动学、I/O 监控与报警处理档案`;
-            document.getElementById('modalBannerType').innerText = `${typeDisplay} · ${dev.device_name || id}`;
-            document.getElementById('modalSpecBrand').innerText = devVendor;
-
-            const twinBadge = cfg.modal_twin_footer_badge || '广州番禺示范线 · 昕邦工业机器人数字孪生接入点';
-            const twinBadgeEl = document.getElementById('modalTwinFooterBadge');
-            if (twinBadgeEl) twinBadgeEl.innerText = twinBadge;
-
-            // Render specs: default specs + device custom specs
-            const specList = document.getElementById('modalSpecList');
-            const defaultSpecs = DEVICE_DEFAULT_SPECS[type] || {};
-            const hasCustomSpecs = dev.specs && typeof dev.specs === 'object' && Object.keys(dev.specs).length > 0;
-            const allSpecs = hasCustomSpecs ? dev.specs : defaultSpecs;
-
-            let specHtml = Object.entries(allSpecs).map(([k, v]) => `
-                <div class="flex justify-between py-0.5 border-b border-slate-50 dark:border-slate-800/50">
-                    <span class="text-slate-500 dark:text-slate-400">${k}:</span>
-                    <span class="font-mono text-slate-800 dark:text-slate-200 font-medium">${v}</span>
-                </div>
-            `).join('');
-
-            if (dev.notes) {
-                specHtml += `
-                    <div class="pt-1.5 text-[10px] text-slate-400 dark:text-slate-500 italic">
-                        说明: ${dev.notes}
-                    </div>
-                `;
-            }
-            specList.innerHTML = specHtml;
-
-            updateModalCmdPresets(type, id);
-            applyModalRoleUI();
-            
-            // Switch to 3D tab by default
-            switchRobotModalTab('3d');
-            document.getElementById('robot3DModal').classList.remove('hidden');
-
-            // Initialize Three.js 3D WebGL Canvas & Build Robot 3D Mesh
-            setTimeout(() => {
-                initRobot3DScene();
-                buildRobot3DModel(type);
-                onRobot3DResize();
-            }, 100);
-
-            // 立即刷新并启动实时工况遥测轮询
-            refreshModalLiveTelemetry();
-            if (window.modalLiveTimer) clearInterval(window.modalLiveTimer);
-            window.modalLiveTimer = setInterval(refreshModalLiveTelemetry, 1500);
         }
 
         async function refreshModalLiveTelemetry() {
@@ -3718,7 +3721,7 @@
             if (robot3dRenderer && robot3dScene && robot3dCamera) {
                 robot3dRenderer.render(robot3dScene, robot3dCamera);
             }
-        }}
+        }
 
 
         function switchRobotModalTab(tabKey) {
