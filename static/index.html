@@ -3149,6 +3149,93 @@
 
         
         // =============================================================
+        
+        // Real URDF STL Mesh Loader for Rokae XMS3-R580
+        function createRokaeStlArm(scale = 2.2, matColor = 0xf1f5f9) {
+            const loader = new THREE.STLLoader();
+            const basePath = '/static/models/luxshare_xms3/XMS3-R580-W4G3B4C_description/meshes/';
+            
+            const matWhite = new THREE.MeshStandardMaterial({ color: matColor, metalness: 0.3, roughness: 0.35 });
+            const matDark = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.7, roughness: 0.3 });
+            
+            const armContainer = new THREE.Group();
+            armContainer.rotation.x = -Math.PI / 2; // Convert URDF Z-up to Three.js Y-up
+            
+            // Base Link (URDF origin 0 0 0)
+            loader.load(basePath + 'XMS3-R580-W4G3B4C_base.stl', geo => {
+                geo.scale(0.001 * scale, 0.001 * scale, 0.001 * scale);
+                const m = new THREE.Mesh(geo, matDark);
+                m.castShadow = true;
+                armContainer.add(m);
+            });
+            
+            // J1 Group (axis Z)
+            const j1 = new THREE.Group();
+            armContainer.add(j1);
+            loader.load(basePath + 'XMS3-R580-W4G3B4C_link1.stl', geo => {
+                geo.scale(0.001 * scale, 0.001 * scale, 0.001 * scale);
+                const m = new THREE.Mesh(geo, matWhite);
+                m.castShadow = true;
+                j1.add(m);
+            });
+            
+            // J2 Group (axis Y, origin 0 0 0)
+            const j2 = new THREE.Group();
+            j1.add(j2);
+            loader.load(basePath + 'XMS3-R580-W4G3B4C_link2.stl', geo => {
+                geo.scale(0.001 * scale, 0.001 * scale, 0.001 * scale);
+                const m = new THREE.Mesh(geo, matWhite);
+                m.castShadow = true;
+                j2.add(m);
+            });
+            
+            // J3 Group (axis -Y, origin 0.05 0 0.29)
+            const j3 = new THREE.Group();
+            j3.position.set(0.05 * scale, 0, 0.29 * scale);
+            j2.add(j3);
+            loader.load(basePath + 'XMS3-R580-W4G3B4C_link3.stl', geo => {
+                geo.scale(0.001 * scale, 0.001 * scale, 0.001 * scale);
+                const m = new THREE.Mesh(geo, matWhite);
+                m.castShadow = true;
+                j3.add(m);
+            });
+            
+            // J4 Group (axis Z, origin -0.05 0 0.29)
+            const j4 = new THREE.Group();
+            j4.position.set(-0.05 * scale, 0, 0.29 * scale);
+            j3.add(j4);
+            loader.load(basePath + 'XMS3-R580-W4G3B4C_link4.stl', geo => {
+                geo.scale(0.001 * scale, 0.001 * scale, 0.001 * scale);
+                const m = new THREE.Mesh(geo, matWhite);
+                m.castShadow = true;
+                j4.add(m);
+            });
+            
+            // J5 Group (axis -Y, origin 0 0.136 0)
+            const j5 = new THREE.Group();
+            j5.position.set(0, 0.136 * scale, 0);
+            j4.add(j5);
+            loader.load(basePath + 'XMS3-R580-W4G3B4C_link5.stl', geo => {
+                geo.scale(0.001 * scale, 0.001 * scale, 0.001 * scale);
+                const m = new THREE.Mesh(geo, matWhite);
+                m.castShadow = true;
+                j5.add(m);
+            });
+            
+            // J6 Group (axis Z, origin 0 0 0.1035)
+            const j6 = new THREE.Group();
+            j6.position.set(0, 0, 0.1035 * scale);
+            j5.add(j6);
+            loader.load(basePath + 'XMS3-R580-W4G3B4C_link6.stl', geo => {
+                geo.scale(0.001 * scale, 0.001 * scale, 0.001 * scale);
+                const m = new THREE.Mesh(geo, matDark);
+                m.castShadow = true;
+                j6.add(m);
+            });
+            
+            return { container: armContainer, joints: [j1, j2, j3, j4, j5, j6] };
+        }
+    
         // 3D MINIATURE VIEWERS FOR FLEET CARDS (Three.js WebGL)
         // =============================================================
         const card3dInstances = {};
@@ -3252,24 +3339,18 @@
 
             } else if (deviceType === 'luxshare_amr') {
                 const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.28, 1.8), matDarkGrey);
-                chassis.position.y = 0.22;
+                chassis.position.y = 0.14;
                 rootGroup.add(chassis);
 
                 const lidar = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.12, 16), matCyan);
-                lidar.position.set(0, 0.42, 0.7);
+                lidar.position.set(0, 0.34, 0.7);
                 rootGroup.add(lidar);
 
-                const armBase = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.35, 0.2, 20), matLightGrey);
-                armBase.position.set(0, 0.46, -0.2);
-                rootGroup.add(armBase);
-
-                const j1 = new THREE.Group(); j1.position.set(0, 0.56, -0.2); rootGroup.add(j1);
-                const arm1 = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.16, 0.8, 16), matLightGrey); arm1.position.y = 0.4; j1.add(arm1);
-                const j2 = new THREE.Group(); j2.position.set(0, 0.8, 0); j1.add(j2);
-                const arm2 = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.7, 16), matLightGrey); arm2.position.y = 0.35; j2.add(arm2);
-
-                jointNodes.push(j1, j2);
-
+                // Mount Real STL XMS3 Arm from URDF
+                const stlArm = createRokaeStlArm(1.4, 0xe2e8f0);
+                stlArm.container.position.set(0, 0.28, -0.2);
+                rootGroup.add(stlArm.container);
+                jointNodes.push(...stlArm.joints);
             } else if (deviceType === 'robot_dog') {
                 const body = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.35, 1.2), matDarkGrey);
                 body.position.y = 0.65;
@@ -3325,209 +3406,24 @@
                     if (deviceType === 'huashu_arm' || deviceType === 'luxshare_amr') {
                         const rads = joints.map(deg => THREE.MathUtils.degToRad(typeof deg === 'number' ? deg : parseFloat(deg) || 0));
                         const speed = 0.08;
-                        if (jointNodes[0]) jointNodes[0].rotation.y = THREE.MathUtils.lerp(jointNodes[0].rotation.y, rads[0] || 0, speed);
-                        if (jointNodes[1]) jointNodes[1].rotation.z = THREE.MathUtils.lerp(jointNodes[1].rotation.z, rads[1] || 0, speed);
-                        if (jointNodes[2]) jointNodes[2].rotation.z = THREE.MathUtils.lerp(jointNodes[2].rotation.z, rads[2] || 0, speed);
-                        if (jointNodes[3]) jointNodes[3].rotation.y = THREE.MathUtils.lerp(jointNodes[3].rotation.y, rads[3] || 0, speed);
-                        if (jointNodes[4]) jointNodes[4].rotation.z = THREE.MathUtils.lerp(jointNodes[4].rotation.z, rads[4] || 0, speed);
-                        if (jointNodes[5]) jointNodes[5].rotation.y = THREE.MathUtils.lerp(jointNodes[5].rotation.y, rads[5] || 0, speed);
-                    } else if (deviceType === 'robot_dog' && jointNodes.length >= 4) {
-                        const speed = payload.speed || 0;
-                        if (speed > 0) {
-                            const swing = Math.sin(time * speed * 5) * 0.35;
-                            jointNodes[0].rotation.x = swing;
-                            jointNodes[1].rotation.x = -swing;
-                            jointNodes[2].rotation.x = -swing;
-                            jointNodes[3].rotation.x = swing;
+                        if (deviceType === 'luxshare_amr') {
+                            // URDF Z-up coordinates for XMS3 STL arm
+                            if (jointNodes[0]) jointNodes[0].rotation.z = THREE.MathUtils.lerp(jointNodes[0].rotation.z, rads[0] || 0, speed);
+                            if (jointNodes[1]) jointNodes[1].rotation.y = THREE.MathUtils.lerp(jointNodes[1].rotation.y, rads[1] || 0, speed);
+                            if (jointNodes[2]) jointNodes[2].rotation.y = THREE.MathUtils.lerp(jointNodes[2].rotation.y, -(rads[2] || 0), speed);
+                            if (jointNodes[3]) jointNodes[3].rotation.z = THREE.MathUtils.lerp(jointNodes[3].rotation.z, rads[3] || 0, speed);
+                            if (jointNodes[4]) jointNodes[4].rotation.y = THREE.MathUtils.lerp(jointNodes[4].rotation.y, -(rads[4] || 0), speed);
+                            if (jointNodes[5]) jointNodes[5].rotation.z = THREE.MathUtils.lerp(jointNodes[5].rotation.z, rads[5] || 0, speed);
                         } else {
-                            jointNodes[0].rotation.x = 0;
-                            jointNodes[1].rotation.x = 0;
-                            jointNodes[2].rotation.x = 0;
-                            jointNodes[3].rotation.x = 0;
+                            // Huashu URDF Y-up hierarchy
+                            if (jointNodes[0]) jointNodes[0].rotation.y = THREE.MathUtils.lerp(jointNodes[0].rotation.y, rads[0] || 0, speed);
+                            if (jointNodes[1]) jointNodes[1].rotation.z = THREE.MathUtils.lerp(jointNodes[1].rotation.z, rads[1] || 0, speed);
+                            if (jointNodes[2]) jointNodes[2].rotation.z = THREE.MathUtils.lerp(jointNodes[2].rotation.z, rads[2] || 0, speed);
+                            if (jointNodes[3]) jointNodes[3].rotation.y = THREE.MathUtils.lerp(jointNodes[3].rotation.y, rads[3] || 0, speed);
+                            if (jointNodes[4]) jointNodes[4].rotation.z = THREE.MathUtils.lerp(jointNodes[4].rotation.z, rads[4] || 0, speed);
+                            if (jointNodes[5]) jointNodes[5].rotation.y = THREE.MathUtils.lerp(jointNodes[5].rotation.y, rads[5] || 0, speed);
                         }
-                    } else if (deviceType === 'uav_rescue') {
-                        jointNodes.forEach(p => p.rotation.y += 0.45);
-                    }
-                }
-
-                renderer.render(scene, camera);
-            }
-            animate();
-
-            card3dInstances[deviceId] = { scene, camera, renderer, controls, animId, jointNodes };
-        }
-
-        // =============================================================
-        // WEEKLY BACKUP LOADER
-        // =============================================================
-        async function loadWeeklyBackups(type, id) {
-            try {
-                const res = await fetch(`/api/devices/${encodeURIComponent(type)}/${encodeURIComponent(id)}/backups/weekly`);
-                const body = await res.json();
-                const container = document.getElementById('modalWeeklyBackupList');
-                if (!container) return;
-
-                if (body.code === 200 && Array.isArray(body.data)) {
-                    container.innerHTML = body.data.map(item => `
-                        <div class="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between transition hover:border-slate-400">
-                            <div>
-                                <div class="font-mono font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                                    <span>📦 ${item.filename}</span>
-                                </div>
-                                <div class="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
-                                    归档时间: ${item.created_at} · ${(item.filesize / 1024).toFixed(1)} KB
-                                </div>
-                            </div>
-                            <button onclick="triggerRemoteBackup()" class="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-700 text-white font-medium text-xs shadow-sm transition flex items-center gap-1">
-                                <span>📥 下载</span>
-                            </button>
-                        </div>
-                    `).join('');
-                }
-            } catch (e) {
-                console.error('loadWeeklyBackups error:', e);
-            }
-        }
-
-                function buildRobot3DModel(deviceType) {
-            if (!robot3dScene) return;
-
-            if (robot3dModel) {
-                robot3dScene.remove(robot3dModel);
-                robot3dModel = null;
-            }
-            robot3dJointNodes = [];
-
-            const rootGroup = new THREE.Group();
-            robot3dModel = rootGroup;
-
-            const matOrange = createIndustrialMaterial(0xf97316, 0.35, 0.4);
-            const matDarkGrey = createIndustrialMaterial(0x1e293b, 0.7, 0.3);
-            const matLightGrey = createIndustrialMaterial(0x94a3b8, 0.8, 0.25);
-            const matWhite = createIndustrialMaterial(0xf8fafc, 0.2, 0.5);
-            const matCyan = createIndustrialMaterial(0x06b6d4, 0.5, 0.3);
-            const matGlow = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
-
-            if (deviceType === 'huashu_arm' || deviceType === 'arm') {
-                const baseGeo = new THREE.CylinderGeometry(0.55, 0.65, 0.35, 32);
-                const baseMesh = new THREE.Mesh(baseGeo, matDarkGrey);
-                baseMesh.position.y = 0.175;
-                baseMesh.castShadow = true;
-                rootGroup.add(baseMesh);
-
-                const j1Group = new THREE.Group();
-                j1Group.position.set(0, 0.35, 0);
-                rootGroup.add(j1Group);
-                const shoulderGeo = new THREE.CylinderGeometry(0.42, 0.48, 0.45, 32);
-                const shoulderMesh = new THREE.Mesh(shoulderGeo, matDarkGrey);
-                shoulderMesh.position.y = 0.225;
-                shoulderMesh.castShadow = true;
-                j1Group.add(shoulderMesh);
-
-                const j2Group = new THREE.Group();
-                j2Group.position.set(0, 0.45, 0);
-                j1Group.add(j2Group);
-                const j2Pivot = new THREE.Mesh(new THREE.SphereGeometry(0.32, 24, 24), matDarkGrey);
-                j2Group.add(j2Pivot);
-
-                const upperArmGeo = new THREE.CylinderGeometry(0.24, 0.28, 1.3, 24);
-                const upperArmMesh = new THREE.Mesh(upperArmGeo, matOrange);
-                upperArmMesh.position.set(0, 0.65, 0);
-                upperArmMesh.castShadow = true;
-                j2Group.add(upperArmMesh);
-
-                const j3Group = new THREE.Group();
-                j3Group.position.set(0, 1.3, 0);
-                j2Group.add(j3Group);
-                const j3Pivot = new THREE.Mesh(new THREE.SphereGeometry(0.26, 24, 24), matDarkGrey);
-                j3Group.add(j3Pivot);
-
-                const foreArmGeo = new THREE.CylinderGeometry(0.19, 0.23, 1.2, 24);
-                const foreArmMesh = new THREE.Mesh(foreArmGeo, matOrange);
-                foreArmMesh.position.set(0, 0.6, 0);
-                foreArmMesh.castShadow = true;
-                j3Group.add(foreArmMesh);
-
-                const j4Group = new THREE.Group();
-                j4Group.position.set(0, 1.2, 0);
-                j3Group.add(j4Group);
-                const j4Mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.19, 0.25, 24), matDarkGrey);
-                j4Mesh.position.y = 0.125;
-                j4Group.add(j4Mesh);
-
-                const j5Group = new THREE.Group();
-                j5Group.position.set(0, 0.25, 0);
-                j4Group.add(j5Group);
-                const j5Pivot = new THREE.Mesh(new THREE.SphereGeometry(0.17, 24, 24), matLightGrey);
-                j5Group.add(j5Pivot);
-
-                const j6Group = new THREE.Group();
-                j6Group.position.set(0, 0.18, 0);
-                j5Group.add(j6Group);
-                const flange = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.1, 24), matDarkGrey);
-                flange.position.y = 0.05;
-                j6Group.add(flange);
-
-                const gripperBase = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.08, 0.16), matDarkGrey);
-                gripperBase.position.y = 0.12;
-                j6Group.add(gripperBase);
-                const finger1 = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.18, 0.06), matLightGrey);
-                finger1.position.set(-0.08, 0.22, 0);
-                j6Group.add(finger1);
-                const finger2 = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.18, 0.06), matLightGrey);
-                finger2.position.set(0.08, 0.22, 0);
-                j6Group.add(finger2);
-
-                robot3dJointNodes = [j1Group, j2Group, j3Group, j4Group, j5Group, j6Group];
-
-            } else if (deviceType === 'luxshare_amr') {
-                const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.32, 2.0), matDarkGrey);
-                chassis.position.y = 0.25;
-                chassis.castShadow = true;
-                rootGroup.add(chassis);
-
-                const ledStrip = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.04, 0.06), matGlow);
-                ledStrip.position.set(0, 0.32, 1.01);
-                rootGroup.add(ledStrip);
-
-                const lidar = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.14, 24), matCyan);
-                lidar.position.set(0, 0.45, 0.85);
-                rootGroup.add(lidar);
-
-                [-0.85, 0.85].forEach(x => {
-                    [-0.65, 0.65].forEach(z => {
-                        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.12, 24), matDarkGrey);
-                        wheel.rotation.z = Math.PI / 2;
-                        wheel.position.set(x, 0.18, z);
-                        rootGroup.add(wheel);
-                    });
-                });
-
-                const armBase = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.42, 0.2, 32), matWhite);
-                armBase.position.set(0, 0.51, -0.2);
-                rootGroup.add(armBase);
-
-                const j1 = new THREE.Group(); j1.position.set(0, 0.61, -0.2); rootGroup.add(j1);
-                const j1m = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.32, 0.3, 24), matCyan);
-                j1.add(j1m);
-
-                const j2 = new THREE.Group(); j2.position.set(0, 0.3, 0); j1.add(j2);
-                const link2 = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 1.1, 24), matWhite);
-                link2.position.y = 0.55; j2.add(link2);
-
-                const j3 = new THREE.Group(); j3.position.set(0, 1.1, 0); j2.add(j3);
-                const link3 = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.18, 1.0, 24), matWhite);
-                link3.position.y = 0.5; j3.add(link3);
-
-                const j4 = new THREE.Group(); j4.position.set(0, 1.0, 0); j3.add(j4);
-                const j5 = new THREE.Group(); j5.position.set(0, 0.2, 0); j4.add(j5);
-                const j6 = new THREE.Group(); j6.position.set(0, 0.15, 0); j5.add(j6);
-                const grip = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.18), matDarkGrey);
-                j6.add(grip);
-
-                robot3dJointNodes = [j1, j2, j3, j4, j5, j6];
-
-            } else if (deviceType === 'robot_dog') {
+                    }} else if (deviceType === 'robot_dog') {
                 const body = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.35, 1.2), matDarkGrey);
                 body.position.y = 0.75;
                 body.castShadow = true;
@@ -3604,31 +3500,22 @@
             if (!robot3dJointNodes || robot3dJointNodes.length === 0) return;
 
             const joints = parsedPayload.joint_angles || parsedPayload.arm_sr3_pose || [0, 0, 0, 0, 0, 0];
+            const rads = joints.map(deg => THREE.MathUtils.degToRad(typeof deg === 'number' ? deg : parseFloat(deg) || 0));
 
-            if (deviceType === 'huashu_arm' || deviceType === 'luxshare_amr') {
-                const rads = joints.map(deg => THREE.MathUtils.degToRad(typeof deg === 'number' ? deg : parseFloat(deg) || 0));
-                
-                if (robot3dJointNodes[0]) robot3dJointNodes[0].userData.targetY = rads[0] || 0;
-                if (robot3dJointNodes[1]) robot3dJointNodes[1].userData.targetZ = rads[1] || 0;
-                if (robot3dJointNodes[2]) robot3dJointNodes[2].userData.targetZ = rads[2] || 0;
-                if (robot3dJointNodes[3]) robot3dJointNodes[3].userData.targetY = rads[3] || 0;
-                if (robot3dJointNodes[4]) robot3dJointNodes[4].userData.targetZ = rads[4] || 0;
-                if (robot3dJointNodes[5]) robot3dJointNodes[5].userData.targetY = rads[5] || 0;
-
-            } else if (deviceType === 'robot_dog') {
-                const speed = parsedPayload.speed || 0.5;
-                const time = Date.now() * 0.005 * (speed > 0 ? (speed * 2.5) : 0.4);
-                const swing = Math.sin(time) * 0.35;
-                
-                if (robot3dJointNodes[0]) robot3dJointNodes[0].rotation.x = swing;
-                if (robot3dJointNodes[2]) robot3dJointNodes[2].rotation.x = -swing;
-                if (robot3dJointNodes[4]) robot3dJointNodes[4].rotation.x = -swing;
-                if (robot3dJointNodes[6]) robot3dJointNodes[6].rotation.x = swing;
-
-            } else if (deviceType === 'uav_rescue') {
-                robot3dJointNodes.forEach(prop => {
-                    prop.rotation.y += 0.45;
-                });
+            if (deviceType === 'luxshare_amr') {
+                if (robot3dJointNodes[0]) robot3dJointNodes[0].userData.target = { axis: 'z', val: rads[0] || 0 };
+                if (robot3dJointNodes[1]) robot3dJointNodes[1].userData.target = { axis: 'y', val: rads[1] || 0 };
+                if (robot3dJointNodes[2]) robot3dJointNodes[2].userData.target = { axis: 'y', val: -(rads[2] || 0) };
+                if (robot3dJointNodes[3]) robot3dJointNodes[3].userData.target = { axis: 'z', val: rads[3] || 0 };
+                if (robot3dJointNodes[4]) robot3dJointNodes[4].userData.target = { axis: 'y', val: -(rads[4] || 0) };
+                if (robot3dJointNodes[5]) robot3dJointNodes[5].userData.target = { axis: 'z', val: rads[5] || 0 };
+            } else if (deviceType === 'huashu_arm' || deviceType === 'arm') {
+                if (robot3dJointNodes[0]) robot3dJointNodes[0].userData.target = { axis: 'y', val: rads[0] || 0 };
+                if (robot3dJointNodes[1]) robot3dJointNodes[1].userData.target = { axis: 'z', val: rads[1] || 0 };
+                if (robot3dJointNodes[2]) robot3dJointNodes[2].userData.target = { axis: 'z', val: rads[2] || 0 };
+                if (robot3dJointNodes[3]) robot3dJointNodes[3].userData.target = { axis: 'y', val: rads[3] || 0 };
+                if (robot3dJointNodes[4]) robot3dJointNodes[4].userData.target = { axis: 'z', val: rads[4] || 0 };
+                if (robot3dJointNodes[5]) robot3dJointNodes[5].userData.target = { axis: 'y', val: rads[5] || 0 };
             }
         }
 
@@ -3638,24 +3525,12 @@
             
             const speed = 0.08;
             if (robot3dJointNodes && robot3dJointNodes.length > 0) {
-                if (robot3dJointNodes[0] && robot3dJointNodes[0].userData.targetY !== undefined) {
-                    robot3dJointNodes[0].rotation.y = THREE.MathUtils.lerp(robot3dJointNodes[0].rotation.y, robot3dJointNodes[0].userData.targetY, speed);
-                }
-                if (robot3dJointNodes[1] && robot3dJointNodes[1].userData.targetZ !== undefined) {
-                    robot3dJointNodes[1].rotation.z = THREE.MathUtils.lerp(robot3dJointNodes[1].rotation.z, robot3dJointNodes[1].userData.targetZ, speed);
-                }
-                if (robot3dJointNodes[2] && robot3dJointNodes[2].userData.targetZ !== undefined) {
-                    robot3dJointNodes[2].rotation.z = THREE.MathUtils.lerp(robot3dJointNodes[2].rotation.z, robot3dJointNodes[2].userData.targetZ, speed);
-                }
-                if (robot3dJointNodes[3] && robot3dJointNodes[3].userData.targetY !== undefined) {
-                    robot3dJointNodes[3].rotation.y = THREE.MathUtils.lerp(robot3dJointNodes[3].rotation.y, robot3dJointNodes[3].userData.targetY, speed);
-                }
-                if (robot3dJointNodes[4] && robot3dJointNodes[4].userData.targetZ !== undefined) {
-                    robot3dJointNodes[4].rotation.z = THREE.MathUtils.lerp(robot3dJointNodes[4].rotation.z, robot3dJointNodes[4].userData.targetZ, speed);
-                }
-                if (robot3dJointNodes[5] && robot3dJointNodes[5].userData.targetY !== undefined) {
-                    robot3dJointNodes[5].rotation.y = THREE.MathUtils.lerp(robot3dJointNodes[5].rotation.y, robot3dJointNodes[5].userData.targetY, speed);
-                }
+                robot3dJointNodes.forEach(node => {
+                    if (node && node.userData && node.userData.target) {
+                        const { axis, val } = node.userData.target;
+                        node.rotation[axis] = THREE.MathUtils.lerp(node.rotation[axis], val, speed);
+                    }
+                });
             }
 
             if (robot3dRenderer && robot3dScene && robot3dCamera) {
