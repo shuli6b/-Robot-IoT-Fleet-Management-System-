@@ -799,16 +799,6 @@
                                 <span class="text-cyan-400 text-[9px]">实时遥测 ●</span>
                             </div>
                         </div>
-                            <div class="grid grid-cols-3 gap-1 text-slate-300 text-[10px] text-center font-mono">
-                                <div class="bg-slate-900/80 p-0.5 rounded">A:<span id="hudTcpA" class="text-white">180°</span></div>
-                                <div class="bg-slate-900/80 p-0.5 rounded">B:<span id="hudTcpB" class="text-white">0.0°</span></div>
-                                <div class="bg-slate-900/80 p-0.5 rounded">C:<span id="hudTcpC" class="text-white">45°</span></div>
-                            </div>
-                            <div class="pt-1 text-[10px] text-slate-400 border-t border-slate-800/80 flex items-center justify-between">
-                                <span>工位: <strong class="text-emerald-400" id="hudWorkstation">广州番禺 A01</strong></span>
-                                <span class="text-cyan-400 text-[9px] underline flex items-center gap-0.5"><span>车间坐标</span><span>→</span></span>
-                            </div>
-                        </div>
 
                         <!-- Bottom Control Hint -->
                         <div class="absolute bottom-2.5 left-3 text-[11px] text-slate-400 bg-slate-900/80 backdrop-blur px-2.5 py-1 rounded-md border border-slate-800 pointer-events-none flex items-center gap-2 z-10">
@@ -1102,9 +1092,8 @@
 
             </div>
 
-            <div class="px-6 py-3.5 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                <span id="modalTwinFooterBadge">广州番禺示范线 · 昕邦工业机器人数字孪生接入点</span>
-                <button onclick="closeRobot3DModal()" class="px-4 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 font-medium transition">完成查看</button>
+            <div class="px-6 py-3.5 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end">
+                <button onclick="closeRobot3DModal()" class="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition shadow-sm">完成查看</button>
             </div>
         </div>
     </div>
@@ -3274,24 +3263,36 @@
 
                 if (controls) controls.update();
 
-                // Dynamic idling articulation
-                if (deviceType === 'huashu_arm' && jointNodes.length >= 6) {
-                    jointNodes[0].rotation.y = Math.sin(time * 0.7) * 0.45;
-                    jointNodes[1].rotation.z = Math.sin(time * 0.9) * 0.35 + 0.3;
-                    jointNodes[2].rotation.z = Math.cos(time * 0.9) * 0.4 - 0.2;
-                    jointNodes[3].rotation.y = Math.sin(time * 1.2) * 0.6;
-                    jointNodes[4].rotation.z = Math.cos(time * 0.8) * 0.3;
-                    jointNodes[5].rotation.y = time * 0.8;
-                } else if (deviceType === 'luxshare_amr' && jointNodes.length >= 2) {
-                    jointNodes[0].rotation.y = Math.sin(time * 0.8) * 0.5;
-                    jointNodes[1].rotation.z = Math.cos(time * 0.8) * 0.3;
-                } else if (deviceType === 'robot_dog' && jointNodes.length >= 4) {
-                    jointNodes[0].rotation.x = Math.sin(time * 3) * 0.35;
-                    jointNodes[1].rotation.x = -Math.sin(time * 3) * 0.35;
-                    jointNodes[2].rotation.x = -Math.sin(time * 3) * 0.35;
-                    jointNodes[3].rotation.x = Math.sin(time * 3) * 0.35;
-                } else if (deviceType === 'uav_rescue') {
-                    jointNodes.forEach(p => p.rotation.y += 0.3);
+                // Real telemetry-driven articulation
+                const dev = typeof currentDevices !== 'undefined' ? currentDevices.find(d => d.device_id === deviceId) : null;
+                if (dev && dev.latest_state && dev.latest_state.parsed_payload) {
+                    const payload = dev.latest_state.parsed_payload;
+                    const joints = payload.joint_angles || payload.arm_sr3_pose || [0,0,0,0,0,0];
+                    if ((deviceType === 'huashu_arm' || deviceType === 'luxshare_amr') && jointNodes.length >= 6) {
+                        const rads = joints.map(deg => THREE.MathUtils.degToRad(typeof deg === 'number' ? deg : parseFloat(deg) || 0));
+                        jointNodes[0].rotation.y = rads[0] || 0;
+                        jointNodes[1].rotation.z = rads[1] || 0;
+                        jointNodes[2].rotation.z = rads[2] || 0;
+                        jointNodes[3].rotation.y = rads[3] || 0;
+                        jointNodes[4].rotation.z = rads[4] || 0;
+                        jointNodes[5].rotation.y = rads[5] || 0;
+                    } else if (deviceType === 'robot_dog' && jointNodes.length >= 4) {
+                        const speed = payload.speed || 0;
+                        if (speed > 0) {
+                            const swing = Math.sin(time * speed * 5) * 0.35;
+                            jointNodes[0].rotation.x = swing;
+                            jointNodes[1].rotation.x = -swing;
+                            jointNodes[2].rotation.x = -swing;
+                            jointNodes[3].rotation.x = swing;
+                        } else {
+                            jointNodes[0].rotation.x = 0;
+                            jointNodes[1].rotation.x = 0;
+                            jointNodes[2].rotation.x = 0;
+                            jointNodes[3].rotation.x = 0;
+                        }
+                    } else if (deviceType === 'uav_rescue') {
+                        jointNodes.forEach(p => p.rotation.y += 0.45);
+                    }
                 }
 
                 renderer.render(scene, camera);
@@ -3342,10 +3343,238 @@
             }
             robot3dJointNodes = [];
 
-            const { rootGroup, jointNodes } = createKinematicRobotMesh(deviceType, robot3dWireframeMode);
+            const rootGroup = new THREE.Group();
             robot3dModel = rootGroup;
-            robot3dJointNodes = jointNodes;
+
+            const matOrange = createIndustrialMaterial(0xf97316, 0.35, 0.4);
+            const matDarkGrey = createIndustrialMaterial(0x1e293b, 0.7, 0.3);
+            const matLightGrey = createIndustrialMaterial(0x94a3b8, 0.8, 0.25);
+            const matWhite = createIndustrialMaterial(0xf8fafc, 0.2, 0.5);
+            const matCyan = createIndustrialMaterial(0x06b6d4, 0.5, 0.3);
+            const matGlow = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+
+            if (deviceType === 'huashu_arm' || deviceType === 'arm') {
+                const baseGeo = new THREE.CylinderGeometry(0.55, 0.65, 0.35, 32);
+                const baseMesh = new THREE.Mesh(baseGeo, matDarkGrey);
+                baseMesh.position.y = 0.175;
+                baseMesh.castShadow = true;
+                rootGroup.add(baseMesh);
+
+                const j1Group = new THREE.Group();
+                j1Group.position.set(0, 0.35, 0);
+                rootGroup.add(j1Group);
+                const shoulderGeo = new THREE.CylinderGeometry(0.42, 0.48, 0.45, 32);
+                const shoulderMesh = new THREE.Mesh(shoulderGeo, matDarkGrey);
+                shoulderMesh.position.y = 0.225;
+                shoulderMesh.castShadow = true;
+                j1Group.add(shoulderMesh);
+
+                const j2Group = new THREE.Group();
+                j2Group.position.set(0, 0.45, 0);
+                j1Group.add(j2Group);
+                const j2Pivot = new THREE.Mesh(new THREE.SphereGeometry(0.32, 24, 24), matDarkGrey);
+                j2Group.add(j2Pivot);
+
+                const upperArmGeo = new THREE.CylinderGeometry(0.24, 0.28, 1.3, 24);
+                const upperArmMesh = new THREE.Mesh(upperArmGeo, matOrange);
+                upperArmMesh.position.set(0, 0.65, 0);
+                upperArmMesh.castShadow = true;
+                j2Group.add(upperArmMesh);
+
+                const j3Group = new THREE.Group();
+                j3Group.position.set(0, 1.3, 0);
+                j2Group.add(j3Group);
+                const j3Pivot = new THREE.Mesh(new THREE.SphereGeometry(0.26, 24, 24), matDarkGrey);
+                j3Group.add(j3Pivot);
+
+                const foreArmGeo = new THREE.CylinderGeometry(0.19, 0.23, 1.2, 24);
+                const foreArmMesh = new THREE.Mesh(foreArmGeo, matOrange);
+                foreArmMesh.position.set(0, 0.6, 0);
+                foreArmMesh.castShadow = true;
+                j3Group.add(foreArmMesh);
+
+                const j4Group = new THREE.Group();
+                j4Group.position.set(0, 1.2, 0);
+                j3Group.add(j4Group);
+                const j4Mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.19, 0.25, 24), matDarkGrey);
+                j4Mesh.position.y = 0.125;
+                j4Group.add(j4Mesh);
+
+                const j5Group = new THREE.Group();
+                j5Group.position.set(0, 0.25, 0);
+                j4Group.add(j5Group);
+                const j5Pivot = new THREE.Mesh(new THREE.SphereGeometry(0.17, 24, 24), matLightGrey);
+                j5Group.add(j5Pivot);
+
+                const j6Group = new THREE.Group();
+                j6Group.position.set(0, 0.18, 0);
+                j5Group.add(j6Group);
+                const flange = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.1, 24), matDarkGrey);
+                flange.position.y = 0.05;
+                j6Group.add(flange);
+
+                const gripperBase = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.08, 0.16), matDarkGrey);
+                gripperBase.position.y = 0.12;
+                j6Group.add(gripperBase);
+                const finger1 = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.18, 0.06), matLightGrey);
+                finger1.position.set(-0.08, 0.22, 0);
+                j6Group.add(finger1);
+                const finger2 = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.18, 0.06), matLightGrey);
+                finger2.position.set(0.08, 0.22, 0);
+                j6Group.add(finger2);
+
+                robot3dJointNodes = [j1Group, j2Group, j3Group, j4Group, j5Group, j6Group];
+
+            } else if (deviceType === 'luxshare_amr') {
+                const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.32, 2.0), matDarkGrey);
+                chassis.position.y = 0.25;
+                chassis.castShadow = true;
+                rootGroup.add(chassis);
+
+                const ledStrip = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.04, 0.06), matGlow);
+                ledStrip.position.set(0, 0.32, 1.01);
+                rootGroup.add(ledStrip);
+
+                const lidar = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.14, 24), matCyan);
+                lidar.position.set(0, 0.45, 0.85);
+                rootGroup.add(lidar);
+
+                [-0.85, 0.85].forEach(x => {
+                    [-0.65, 0.65].forEach(z => {
+                        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.12, 24), matDarkGrey);
+                        wheel.rotation.z = Math.PI / 2;
+                        wheel.position.set(x, 0.18, z);
+                        rootGroup.add(wheel);
+                    });
+                });
+
+                const armBase = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.42, 0.2, 32), matWhite);
+                armBase.position.set(0, 0.51, -0.2);
+                rootGroup.add(armBase);
+
+                const j1 = new THREE.Group(); j1.position.set(0, 0.61, -0.2); rootGroup.add(j1);
+                const j1m = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.32, 0.3, 24), matCyan);
+                j1.add(j1m);
+
+                const j2 = new THREE.Group(); j2.position.set(0, 0.3, 0); j1.add(j2);
+                const link2 = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 1.1, 24), matWhite);
+                link2.position.y = 0.55; j2.add(link2);
+
+                const j3 = new THREE.Group(); j3.position.set(0, 1.1, 0); j2.add(j3);
+                const link3 = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.18, 1.0, 24), matWhite);
+                link3.position.y = 0.5; j3.add(link3);
+
+                const j4 = new THREE.Group(); j4.position.set(0, 1.0, 0); j3.add(j4);
+                const j5 = new THREE.Group(); j5.position.set(0, 0.2, 0); j4.add(j5);
+                const j6 = new THREE.Group(); j6.position.set(0, 0.15, 0); j5.add(j6);
+                const grip = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.18), matDarkGrey);
+                j6.add(grip);
+
+                robot3dJointNodes = [j1, j2, j3, j4, j5, j6];
+
+            } else if (deviceType === 'robot_dog') {
+                const body = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.35, 1.2), matDarkGrey);
+                body.position.y = 0.75;
+                body.castShadow = true;
+                rootGroup.add(body);
+
+                const head = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.28, 0.4), matCyan);
+                head.position.set(0, 0.88, 0.65);
+                rootGroup.add(head);
+
+                const legPositions = [
+                    { name: 'FL', x: -0.38, z: 0.45 },
+                    { name: 'FR', x: 0.38, z: 0.45 },
+                    { name: 'RL', x: -0.38, z: -0.45 },
+                    { name: 'RR', x: 0.38, z: -0.45 }
+                ];
+
+                robot3dJointNodes = [];
+                legPositions.forEach(pos => {
+                    const hipGroup = new THREE.Group();
+                    hipGroup.position.set(pos.x, 0.75, pos.z);
+                    rootGroup.add(hipGroup);
+
+                    const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.07, 0.42, 16), matDarkGrey);
+                    thigh.position.y = -0.21;
+                    hipGroup.add(thigh);
+
+                    const kneeGroup = new THREE.Group();
+                    kneeGroup.position.set(0, -0.42, 0);
+                    hipGroup.add(kneeGroup);
+
+                    const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.05, 0.45, 16), matLightGrey);
+                    shin.position.y = -0.225;
+                    kneeGroup.add(shin);
+
+                    const foot = new THREE.Mesh(new THREE.SphereGeometry(0.07, 16, 16), matCyan);
+                    foot.position.y = -0.45;
+                    kneeGroup.add(foot);
+
+                    robot3dJointNodes.push(hipGroup, kneeGroup);
+                });
+
+            } else {
+                const droneCenter = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.35, 0.15, 24), matDarkGrey);
+                droneCenter.position.y = 1.6;
+                rootGroup.add(droneCenter);
+
+                const gimbal = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), matCyan);
+                gimbal.position.set(0, 1.48, 0.18);
+                rootGroup.add(gimbal);
+
+                const armAngles = [0, Math.PI / 2, Math.PI, Math.PI * 1.5];
+                robot3dJointNodes = [];
+                armAngles.forEach(ang => {
+                    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.9, 12), matDarkGrey);
+                    arm.rotation.z = Math.PI / 2;
+                    arm.rotation.y = ang;
+                    arm.position.y = 1.6;
+                    rootGroup.add(arm);
+
+                    const propGroup = new THREE.Group();
+                    propGroup.position.set(Math.cos(ang) * 0.75, 1.68, Math.sin(ang) * 0.75);
+                    rootGroup.add(propGroup);
+
+                    const prop = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.02, 0.06), matLightGrey);
+                    propGroup.add(prop);
+                    robot3dJointNodes.push(propGroup);
+                });
+            }
+
             robot3dScene.add(rootGroup);
+        }
+
+        function updateRobot3DKinematics(parsedPayload, deviceType) {
+            if (!robot3dJointNodes || robot3dJointNodes.length === 0) return;
+
+            const joints = parsedPayload.joint_angles || parsedPayload.arm_sr3_pose || [0, 0, 0, 0, 0, 0];
+
+            if (deviceType === 'huashu_arm' || deviceType === 'luxshare_amr') {
+                const rads = joints.map(deg => THREE.MathUtils.degToRad(typeof deg === 'number' ? deg : parseFloat(deg) || 0));
+                
+                if (robot3dJointNodes[0]) robot3dJointNodes[0].rotation.y = rads[0] || 0;
+                if (robot3dJointNodes[1]) robot3dJointNodes[1].rotation.z = rads[1] || 0;
+                if (robot3dJointNodes[2]) robot3dJointNodes[2].rotation.z = rads[2] || 0;
+                if (robot3dJointNodes[3]) robot3dJointNodes[3].rotation.y = rads[3] || 0;
+                if (robot3dJointNodes[4]) robot3dJointNodes[4].rotation.z = rads[4] || 0;
+                if (robot3dJointNodes[5]) robot3dJointNodes[5].rotation.y = rads[5] || 0;
+
+            } else if (deviceType === 'robot_dog') {
+                const speed = parsedPayload.speed || 0.5;
+                const time = Date.now() * 0.005 * (speed > 0 ? (speed * 2.5) : 0.4);
+                const swing = Math.sin(time) * 0.35;
+                
+                if (robot3dJointNodes[0]) robot3dJointNodes[0].rotation.x = swing;
+                if (robot3dJointNodes[2]) robot3dJointNodes[2].rotation.x = -swing;
+                if (robot3dJointNodes[4]) robot3dJointNodes[4].rotation.x = -swing;
+                if (robot3dJointNodes[6]) robot3dJointNodes[6].rotation.x = swing;
+
+            } else if (deviceType === 'uav_rescue') {
+                robot3dJointNodes.forEach(prop => {
+                    prop.rotation.y += 0.45;
+                });
+            }
         }
 
         function animateRobot3D() {
