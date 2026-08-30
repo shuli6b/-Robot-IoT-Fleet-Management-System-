@@ -301,6 +301,7 @@ async def check_device_offline_task():
     while True:
         try:
             mark_offline_devices(threshold_seconds=OFFLINE_THRESHOLD_SECONDS)
+            cleanup_old_alarms(7)
         except asyncio.CancelledError:
             break
         except Exception as e:
