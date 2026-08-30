@@ -403,19 +403,25 @@ async def local_simulation_generator_task():
                 topic="robot/luxshare_amr/luxshare_amr_01/state"
             )
 
-            # 3. 智能四足巡检机器狗 (robot_dog_01)
+            # 3. 智能四足巡检机器狗 (robot_dog_01) - 真实 6 轴腿部关节角度遥测
+            leg_swing = round(math.sin(t * 0.8) * 25.0, 1)
+            knee_swing = round(-math.sin(t * 0.8) * 35.0 - 15.0, 1)
+            j_dog = [leg_swing, knee_swing, -leg_swing, -knee_swing, -leg_swing, knee_swing]
             payload_dog = {
                 "device_id": "robot_dog_01",
                 "device_type": "robot_dog",
                 "status": "online",
                 "timestamp": now_iso,
+                "joint_angles": j_dog,
                 "speed": 1.2,
                 "battery": round(76.0 + math.cos(t * 0.02) * 4.0, 1),
                 "enabled": True,
                 "emergency_stop": False,
                 "error_code": 0,
-                "error_msg": "巡检中",
-                "cartesian_pos": {"x": round(320.0 + math.sin(t * 0.1) * 80.0, 1), "y": round(-150.2 + math.cos(t * 0.1) * 80.0, 1), "z": 180.5}
+                "error_msg": "正常巡检中",
+                "cycle_count": int(4520 + t),
+                "running_hours": round(128.5 + t / 3600.0, 2),
+                "cartesian_pos": {"x": round(320.0 + math.sin(t * 0.1) * 80.0, 1), "y": round(-150.2 + math.cos(t * 0.1) * 80.0, 1), "z": 180.5, "a": 0.0, "b": round(math.sin(t*0.5)*3.0, 1), "c": round(math.cos(t*0.5)*3.0, 1)}
             }
             insert_device_data(
                 device_id="robot_dog_01",
@@ -425,19 +431,23 @@ async def local_simulation_generator_task():
                 topic="robot/robot_dog/robot_dog_01/state"
             )
 
-            # 4. 空地协同搜救无人机 (uav_rescue_01)
+            # 4. 空地协同搜救无人机 (uav_rescue_01) - 旋翼转速与云台角度遥测
             payload_uav = {
                 "device_id": "uav_rescue_01",
                 "device_type": "uav_rescue",
                 "status": "online",
                 "timestamp": now_iso,
+                "joint_angles": [3600.0, 3600.0, 3600.0, 3600.0, round(math.sin(t*0.3)*15.0, 1), round(math.cos(t*0.2)*30.0, 1)],
+                "motor_rpm": 3600,
                 "altitude": round(15.0 + math.sin(t * 0.3) * 2.0, 1),
                 "battery": round(92.0 - (t % 100) * 0.1, 1),
                 "enabled": True,
                 "emergency_stop": False,
                 "error_code": 0,
-                "error_msg": "空中巡检中",
-                "cartesian_pos": {"x": round(500.0 + math.sin(t * 0.1) * 120.0, 1), "y": round(300.0 + math.cos(t * 0.1) * 120.0, 1), "z": 150.0}
+                "error_msg": "空中巡查中",
+                "cycle_count": int(910 + t),
+                "running_hours": round(45.2 + t / 3600.0, 2),
+                "cartesian_pos": {"x": round(500.0 + math.sin(t * 0.1) * 120.0, 1), "y": round(300.0 + math.cos(t * 0.1) * 120.0, 1), "z": 150.0, "a": round(math.sin(t*0.4)*5.0, 1), "b": round(math.cos(t*0.4)*5.0, 1), "c": 0.0}
             }
             insert_device_data(
                 device_id="uav_rescue_01",
