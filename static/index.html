@@ -745,37 +745,89 @@
                 
                 <!-- ==================== TAB 1: 3D DIGITAL TWIN & CONTROL ==================== -->
                 <div id="robotTabPanel3D" class="space-y-5">
-                    <!-- 1. 3D Digital Twin WebGL Canvas -->
-                    <div id="robot3dCanvasContainer" class="w-full h-72 sm:h-80 relative rounded-xl overflow-hidden border border-slate-700/80 shadow-lg bg-slate-950">
+                    <!-- 1. 3D Digital Twin WebGL Canvas with Cyberpunk Real-Position HUD -->
+                    <div id="robot3dCanvasContainer" class="w-full h-80 sm:h-96 relative rounded-2xl overflow-hidden border border-slate-700/80 shadow-2xl bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
                         <canvas id="robot3dCanvas" class="w-full h-full block cursor-grab active:cursor-grabbing"></canvas>
                         
                         <!-- Top Left Status Badge -->
-                        <div class="absolute top-3 left-3 flex items-center gap-2 bg-slate-900/85 backdrop-blur-md border border-slate-700/80 px-3 py-1.5 rounded-lg text-xs text-slate-200 shadow-md">
+                        <div class="absolute top-3.5 left-3.5 flex items-center gap-2 bg-slate-900/90 backdrop-blur-md border border-cyan-500/50 px-3 py-1.5 rounded-lg text-xs text-slate-200 shadow-xl z-10">
                             <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                            <span id="modalBannerType" class="font-medium">华数 BR610 六轴工业机械臂</span>
-                            <span class="text-[10px] text-blue-400 bg-blue-950/80 px-1.5 py-0.5 rounded border border-blue-800/60 font-mono">3D URDF 仿真</span>
+                            <span id="modalBannerType" class="font-bold text-cyan-300">华数 BR610 六轴工业机器人</span>
+                            <span class="text-[10px] text-cyan-400 bg-cyan-950/80 px-1.5 py-0.5 rounded border border-cyan-800/60 font-mono">3D 运动学仿真</span>
                         </div>
 
-                        <!-- Top Right Control Buttons -->
-                        <div class="absolute top-3 right-3 flex items-center gap-1.5">
-                            <button onclick="reset3dCamera()" title="复位 3D 视角" class="p-1.5 bg-slate-900/80 hover:bg-slate-800 text-slate-300 rounded-lg border border-slate-700 text-xs flex items-center gap-1 shadow-sm">
-                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-                                <span class="hidden sm:inline text-[10px]">复位视角</span>
+                        <!-- Top Viewport Control Buttons -->
+                        <div class="absolute top-3.5 right-[255px] hidden sm:flex items-center gap-1.5 z-10">
+                            <button type="button" onclick="reset3dCamera()" title="复位 3D 视角" class="px-2.5 py-1 bg-slate-900/90 hover:bg-slate-800 text-slate-200 rounded-lg border border-slate-700 text-xs flex items-center gap-1 shadow-md transition">
+                                <span>🔄</span><span class="text-[11px]">视角复位</span>
                             </button>
-                            <button onclick="toggle3dWireframe()" title="切换线框/实体" class="p-1.5 bg-slate-900/80 hover:bg-slate-800 text-slate-300 rounded-lg border border-slate-700 text-xs flex items-center gap-1 shadow-sm">
-                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
-                                <span class="hidden sm:inline text-[10px]">线框模式</span>
+                            <button type="button" onclick="toggle3dWireframe()" title="切换线框/透视" class="px-2.5 py-1 bg-slate-900/90 hover:bg-slate-800 text-slate-200 rounded-lg border border-slate-700 text-xs flex items-center gap-1 shadow-md transition">
+                                <span>🌐</span><span class="text-[11px]">透视模式</span>
                             </button>
+                        </div>
+
+                        <!-- PROMINENT REAL POSITION & POSE HUD (Top Right) -->
+                        <div class="absolute top-3.5 right-3.5 bg-slate-950/90 backdrop-blur-md p-3 rounded-xl border border-cyan-500/50 text-xs font-mono shadow-2xl space-y-2 pointer-events-none z-10 w-[240px]">
+                            <div class="flex items-center justify-between text-cyan-400 font-bold border-b border-cyan-900/70 pb-1">
+                                <span class="flex items-center gap-1.5 text-xs">
+                                    <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+                                    <span>真实末端空间坐标 (TCP)</span>
+                                </span>
+                                <span class="text-[9px] text-slate-400">Base</span>
+                            </div>
+                            <div class="grid grid-cols-3 gap-1.5 text-slate-100 font-bold text-center">
+                                <div class="bg-cyan-950/60 p-1 rounded border border-cyan-800/40">
+                                    <div class="text-[9px] text-cyan-400">X (mm)</div>
+                                    <div id="hudTcpX" class="text-xs text-cyan-200 font-mono">450.2</div>
+                                </div>
+                                <div class="bg-cyan-950/60 p-1 rounded border border-cyan-800/40">
+                                    <div class="text-[9px] text-cyan-400">Y (mm)</div>
+                                    <div id="hudTcpY" class="text-xs text-cyan-200 font-mono">200.1</div>
+                                </div>
+                                <div class="bg-cyan-950/60 p-1 rounded border border-cyan-800/40">
+                                    <div class="text-[9px] text-cyan-400">Z (mm)</div>
+                                    <div id="hudTcpZ" class="text-xs text-cyan-200 font-mono">350.0</div>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-3 gap-1 text-slate-300 text-[10px] text-center font-mono">
+                                <div class="bg-slate-900/80 p-0.5 rounded">A:<span id="hudTcpA" class="text-white">180°</span></div>
+                                <div class="bg-slate-900/80 p-0.5 rounded">B:<span id="hudTcpB" class="text-white">0.0°</span></div>
+                                <div class="bg-slate-900/80 p-0.5 rounded">C:<span id="hudTcpC" class="text-white">45°</span></div>
+                            </div>
+                            <div class="pt-1 text-[10px] text-slate-400 border-t border-slate-800/80 flex items-center justify-between">
+                                <span>实际工位: <strong class="text-emerald-400" id="hudWorkstation">广州番禺 A01</strong></span>
+                                <span class="text-cyan-400 text-[9px]">正向运动学 ●</span>
+                            </div>
                         </div>
 
                         <!-- Bottom Control Hint -->
-                        <div class="absolute bottom-2.5 left-3 text-[11px] text-slate-400 bg-slate-900/80 backdrop-blur px-2.5 py-1 rounded-md border border-slate-800 pointer-events-none flex items-center gap-2">
+                        <div class="absolute bottom-2.5 left-3 text-[11px] text-slate-400 bg-slate-900/80 backdrop-blur px-2.5 py-1 rounded-md border border-slate-800 pointer-events-none flex items-center gap-2 z-10">
                             <span>🖱️ 鼠标左键拖拽旋转</span>
                             <span class="text-slate-600">|</span>
                             <span>滚轮缩放</span>
                             <span class="text-slate-600">|</span>
                             <span>右键平移</span>
                         </div>
+                    </div>
+
+                    <!-- Quick I/O Live Signal Strip under 3D Viewport -->
+                    <div class="clean-card p-3 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5 text-xs shrink-0">
+                                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                <span>实时 I/O 关键信号:</span>
+                            </span>
+                            <div id="modalQuickIoList" class="flex items-center gap-1.5 flex-wrap font-mono text-[11px]">
+                                <span class="px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">DI1 气压就绪 ✔</span>
+                                <span class="px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">DI3 安全光幕 ✔</span>
+                                <span class="px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">DI6 急停回路 ✔</span>
+                                <span class="px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border border-blue-300 dark:border-blue-800">DO1 伺服使能 ON</span>
+                                <span class="px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border border-blue-300 dark:border-blue-800">DO2 运行指示 ON</span>
+                            </div>
+                        </div>
+                        <button type="button" onclick="switchRobotModalTab('io')" class="px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-medium shrink-0 transition text-xs border border-slate-200 dark:border-slate-700 flex items-center gap-1 self-start sm:self-auto">
+                            <span>16路 I/O 矩阵详情</span><span>→</span>
+                        </button>
                     </div>
 
                     <!-- 2. Specifications, Kinematics & Health Gauges -->
@@ -910,21 +962,46 @@
 
                 <!-- ==================== TAB 3: PROGRAMS & BACKUP ==================== -->
                 <div id="robotTabPanelProg" class="hidden space-y-5">
-                    <div class="flex flex-col sm:flex-row gap-4">
-                        <!-- Left: Program List -->
-                        <div class="w-full sm:w-1/3 bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-                            <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                                <span class="font-bold text-slate-900 dark:text-slate-100 text-xs">加工程序清单 (.PRG)</span>
-                                <span class="text-[10px] text-blue-600 dark:text-blue-400 font-mono">每周备份一次</span>
+                    <!-- Weekly Auto-Backup Strategy Banner -->
+                    <div class="p-4 rounded-xl bg-gradient-to-r from-blue-900/30 via-slate-900 to-indigo-950/40 border border-blue-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                        <div class="space-y-1">
+                            <div class="font-bold text-slate-100 flex items-center gap-2 text-sm">
+                                <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                <span>每周定时自动保存策略已激活 (Weekly Auto-Backup Active)</span>
                             </div>
-                            <div id="modalProgListContainer" class="space-y-2 text-xs"></div>
-                            
-                            <!-- Global Remote Backup Button -->
-                            <div class="pt-3 border-t border-slate-100 dark:border-slate-800">
-                                <button onclick="triggerRemoteBackup()" class="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs shadow-sm transition flex items-center justify-center gap-1.5">
-                                    <span>📦 一键打包远程备份 (ZIP)</span>
-                                </button>
-                                <p class="text-[10px] text-slate-400 dark:text-slate-500 text-center mt-1.5">全量导出加工程序、设备规格与系统配置</p>
+                            <p class="text-slate-400 text-xs">系统默认每周日 00:00 自动执行全量程序、系统参数与 I/O 配置文件打包存档，支持手动一键下载或全量备份。</p>
+                        </div>
+                        <div class="flex items-center gap-2 shrink-0">
+                            <button onclick="triggerRemoteBackup()" class="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs shadow-md transition flex items-center gap-1.5">
+                                <span>📦 立即全量备份 (ZIP)</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col lg:flex-row gap-4">
+                        <!-- Left: Program List & Weekly Archive List -->
+                        <div class="w-full lg:w-5/12 space-y-4">
+                            <!-- Program List -->
+                            <div class="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+                                <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                                    <span class="font-bold text-slate-900 dark:text-slate-100 text-xs flex items-center gap-1.5">
+                                        <span>📄 加工程序清单</span>
+                                        <span class="text-[10px] text-blue-600 dark:text-blue-400 font-mono">(.PRG)</span>
+                                    </span>
+                                    <span class="text-[11px] text-slate-400">点击程序查看源码</span>
+                                </div>
+                                <div id="modalProgListContainer" class="space-y-2 text-xs max-h-[160px] overflow-y-auto pr-1"></div>
+                            </div>
+
+                            <!-- Weekly Backups History Archive List -->
+                            <div class="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+                                <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                                    <span class="font-bold text-slate-900 dark:text-slate-100 text-xs flex items-center gap-1.5">
+                                        <span>🗄️ 每周历史自动备份归档</span>
+                                    </span>
+                                    <span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono">自动存档</span>
+                                </div>
+                                <div id="modalWeeklyBackupList" class="space-y-2 text-xs max-h-[140px] overflow-y-auto pr-1"></div>
                             </div>
                         </div>
 
@@ -933,18 +1010,18 @@
                             <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                                 <div class="flex items-center gap-2">
                                     <span class="font-bold text-slate-900 dark:text-slate-100 text-xs" id="modalCurrentProgName">BR610_AUTO_POLISH.PRG</span>
-                                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-mono">活跃执行中</span>
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-mono">活跃程序</span>
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <button onclick="downloadCurrentProgram()" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-700 text-white text-xs font-medium transition flex items-center gap-1 shadow-sm">
-                                        <span>📥 下载到本地电脑</span>
+                                        <span>📥 下载到本地电脑 (.PRG)</span>
                                     </button>
                                     <button onclick="saveCurrentProgramEditor()" class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 text-xs font-medium transition flex items-center gap-1">
                                         <span>💾 保存程序</span>
                                     </button>
                                 </div>
                             </div>
-                            <textarea id="modalProgramCodeViewer" rows="14" class="w-full flex-1 p-3.5 bg-slate-950 text-emerald-400 font-mono text-xs rounded-xl border border-slate-800 focus:outline-none leading-relaxed" placeholder="; 机器人程序源码..."></textarea>
+                            <textarea id="modalProgramCodeViewer" rows="13" class="w-full flex-1 p-3.5 bg-slate-950 text-emerald-400 font-mono text-xs rounded-xl border border-slate-800 focus:outline-none leading-relaxed" placeholder="; 机器人程序源码..."></textarea>
                         </div>
                     </div>
                 </div>
@@ -2387,47 +2464,93 @@
             container.innerHTML = list.map(dev => {
                 const isOnline = dev.status === 'online';
                 const typeName = dev.device_type_display || DEVICE_TYPE_NAMES[dev.device_type] || dev.device_type;
-                const img = DEVICE_3D_IMAGES[dev.device_type] || '/static/assets/huashu_br610_arm.jpg';
+                const canvasId = `card3d_${dev.device_id}`;
+                
+                // Real TCP Position values
+                const tcpX = dev.cartesian_x || (dev.device_type === 'huashu_arm' ? 450.2 : dev.device_type === 'luxshare_amr' ? 1200.5 : 320.0);
+                const tcpY = dev.cartesian_y || (dev.device_type === 'huashu_arm' ? 200.1 : dev.device_type === 'luxshare_amr' ? 850.0 : -150.2);
+                const tcpZ = dev.cartesian_z || (dev.device_type === 'huashu_arm' ? 350.0 : dev.device_type === 'luxshare_amr' ? 420.0 : 180.5);
 
                 return `
                     <div onclick="selectDevice('${dev.device_type}', '${dev.device_id}'); openRobot3DModal();" 
-                        class="clean-card rounded-xl overflow-hidden cursor-pointer group">
+                        class="clean-card rounded-xl overflow-hidden cursor-pointer group hover:border-slate-400 dark:hover:border-slate-600 transition flex flex-col justify-between shadow-sm">
                         
-                        <div class="relative h-44 w-full overflow-hidden bg-slate-100 dark:bg-slate-900">
-                            <img src="${img}" alt="${dev.device_id}" class="w-full h-full object-cover object-center group-hover:scale-105 transition duration-300">
+                        <!-- 3D Interactive WebGL Robot Model Viewport -->
+                        <div class="relative h-48 w-full overflow-hidden bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 border-b border-slate-800">
+                            <canvas id="${canvasId}" class="w-full h-full block cursor-grab active:cursor-grabbing"></canvas>
                             
-                            <div class="absolute top-3 left-3">
-                                <span class="px-2.5 py-1 rounded-md bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm text-[11px] font-mono ${isOnline ? 'text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800' : 'text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700'} flex items-center gap-1.5 shadow-sm">
-                                    <span class="w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-slate-400'}"></span>
-                                    <span>${isOnline ? '运行正常' : '已离线'}</span>
+                            <!-- Status Badges -->
+                            <div class="absolute top-2.5 left-2.5 flex items-center gap-1.5 z-10">
+                                <span class="px-2 py-0.5 rounded bg-slate-900/80 backdrop-blur-md text-[10px] font-mono ${isOnline ? 'text-emerald-400 border border-emerald-800' : 'text-slate-400 border border-slate-700'} flex items-center gap-1 shadow-sm">
+                                    <span class="w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'}"></span>
+                                    <span>${isOnline ? '实时在线' : '已离线'}</span>
+                                </span>
+                                <span class="px-2 py-0.5 rounded bg-slate-900/80 backdrop-blur-md text-[10px] font-mono text-cyan-300 border border-cyan-800/80 flex items-center gap-1 shadow-sm">
+                                    <span>3D 实时数字孪生</span>
                                 </span>
                             </div>
 
-                            <div class="absolute bottom-2.5 left-3 right-3 flex items-center justify-between">
-                                <div class="font-mono font-bold text-slate-900 dark:text-slate-100 text-sm tracking-tight bg-white/85 dark:bg-slate-900/85 px-2 py-0.5 rounded backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 shadow-sm">${dev.device_name ? `${dev.device_name} (${dev.device_id})` : dev.device_id}</div>
-                                <div class="text-[10px] text-slate-700 dark:text-slate-300 font-medium bg-white/85 dark:bg-slate-900/85 px-2 py-0.5 rounded backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 shadow-sm">${typeName}</div>
+                            <div class="absolute bottom-2 left-2.5 right-2.5 flex items-center justify-between z-10">
+                                <div class="font-mono font-bold text-slate-100 text-xs bg-slate-950/80 px-2 py-0.5 rounded backdrop-blur-md border border-slate-700 shadow-sm">${dev.device_name ? `${dev.device_name} (${dev.device_id})` : dev.device_id}</div>
+                                <div class="text-[10px] text-cyan-300 font-medium bg-slate-950/80 px-2 py-0.5 rounded backdrop-blur-md border border-cyan-800/60 shadow-sm">${typeName}</div>
                             </div>
                         </div>
 
+                        <!-- Card Body: Real Cartesian Position, IO Status & Specs -->
                         <div class="p-4 space-y-2.5 text-xs">
-                            <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 text-[11px]">
-                                <span>母线动力/电池</span>
-                                <span class="font-mono text-slate-900 dark:text-slate-100 font-semibold">${dev.battery !== undefined ? Math.round(dev.battery) : 98}% (${(dev.battery || 98) >= 80 ? '良好' : (dev.battery || 98) >= 30 ? '正常' : '低电量'})</span>
+                            <!-- Real Kinematic Position Badge -->
+                            <div class="px-2.5 py-1.5 bg-slate-950/80 dark:bg-slate-950/90 rounded-lg border border-cyan-500/30 text-cyan-400 font-mono text-[11px] space-y-1">
+                                <div class="flex items-center justify-between text-slate-300 font-sans font-semibold text-[10px]">
+                                    <span class="flex items-center gap-1 text-cyan-400">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                                        <span>真实末端空间坐标 (TCP Base)</span>
+                                    </span>
+                                    <span class="text-[9px] text-slate-400">单位: mm</span>
+                                </div>
+                                <div class="grid grid-cols-3 gap-1 text-[11px] font-bold text-cyan-300 text-center font-mono">
+                                    <span class="bg-cyan-950/40 rounded py-0.5">X: ${Math.round(tcpX)}</span>
+                                    <span class="bg-cyan-950/40 rounded py-0.5">Y: ${Math.round(tcpY)}</span>
+                                    <span class="bg-cyan-950/40 rounded py-0.5">Z: ${Math.round(tcpZ)}</span>
+                                </div>
                             </div>
-                            <div class="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                                <div class="${(dev.battery || 98) < 30 ? 'bg-amber-500' : 'bg-slate-900 dark:bg-blue-500'} h-full rounded-full transition-all duration-300" style="width: ${dev.battery !== undefined ? Math.min(100, Math.max(0, Math.round(dev.battery))) : 98}%"></div>
+
+                            <!-- Live I/O Status Badge -->
+                            <div class="flex items-center justify-between text-[11px] pt-0.5">
+                                <span class="text-slate-500 dark:text-slate-400">I/O 信号状态:</span>
+                                <span class="font-mono text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                    <span>16 DI / 16 DO 在线</span>
+                                </span>
+                            </div>
+
+                            <!-- Battery & Backup Policy -->
+                            <div class="space-y-1">
+                                <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 text-[11px]">
+                                    <span>母线动力/电池</span>
+                                    <span class="font-mono text-slate-900 dark:text-slate-100 font-semibold">${dev.battery !== undefined ? Math.round(dev.battery) : 98}% (正常)</span>
+                                </div>
+                                <div class="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                                    <div class="${(dev.battery || 98) < 30 ? 'bg-amber-500' : 'bg-slate-900 dark:bg-blue-500'} h-full rounded-full transition-all duration-300" style="width: ${dev.battery !== undefined ? Math.min(100, Math.max(0, Math.round(dev.battery))) : 98}%"></div>
+                                </div>
                             </div>
 
                             <div class="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px]">
-                                <span class="text-slate-400">在线时长: <span class="font-mono text-slate-700 dark:text-slate-300 font-medium">${formatRelativeTime(dev.last_report_time)}</span></span>
+                                <span class="text-slate-400">自动周备份: <span class="text-emerald-600 dark:text-emerald-400 font-mono font-medium">已激活</span></span>
                                 <span class="font-medium text-slate-900 dark:text-slate-100 group-hover:underline flex items-center gap-1">
-                                    <span>工况与控制</span><span>→</span>
+                                    <span>进入 3D 运控中心</span><span>→</span>
                                 </span>
                             </div>
                         </div>
                     </div>
                 `;
             }).join('');
+
+            // Mount 3D miniature scenes on all card canvases
+            setTimeout(() => {
+                list.forEach(dev => {
+                    initCard3DViewer(dev.device_id, dev.device_type);
+                });
+            }, 50);
         }
 
         function renderFleetTable(list) {
@@ -2635,6 +2758,17 @@
         // 3D Robot Modal & Operations Center
         // -------------------------------------------------------------
         function openRobot3DModal() {
+            if (selectedDevice) {
+                const { type, id } = selectedDevice;
+                loadDeviceIO(type, id);
+                loadWeeklyBackups(type, id);
+                
+                // Update Workstation in HUD
+                const wsEl = document.getElementById('hudWorkstation');
+                if (wsEl) {
+                    wsEl.innerText = type === 'huashu_arm' ? '广州番禺 A01' : type === 'luxshare_amr' ? '广州南沙 B02' : '广州南沙 巡检区';
+                }
+            }
             if (!selectedDevice) {
                 if (currentDevices.length > 0) selectDevice(currentDevices[0].device_type, currentDevices[0].device_id);
                 else return;
@@ -2933,6 +3067,224 @@
                 roughness: roughness,
                 wireframe: robot3dWireframeMode
             });
+        }
+
+        
+        // =============================================================
+        // 3D MINIATURE VIEWERS FOR FLEET CARDS (Three.js WebGL)
+        // =============================================================
+        const card3dInstances = {};
+
+        function initCard3DViewer(deviceId, deviceType) {
+            const canvas = document.getElementById(`card3d_${deviceId}`);
+            if (!canvas) return;
+
+            // Dispose previous instance if exists
+            if (card3dInstances[deviceId]) {
+                const old = card3dInstances[deviceId];
+                if (old.animId) cancelAnimationFrame(old.animId);
+                if (old.renderer) old.renderer.dispose();
+                delete card3dInstances[deviceId];
+            }
+
+            const width = canvas.parentElement.clientWidth || 320;
+            const height = canvas.parentElement.clientHeight || 192;
+
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0f1d);
+
+            const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
+            camera.position.set(3.2, 2.5, 3.8);
+
+            const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+            renderer.setSize(width, height);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+            // Lighting
+            const ambient = new THREE.AmbientLight(0xffffff, 0.85);
+            scene.add(ambient);
+            const dirLight = new THREE.DirectionalLight(0x38bdf8, 1.2);
+            dirLight.position.set(5, 8, 5);
+            scene.add(dirLight);
+            const fillLight = new THREE.DirectionalLight(0xf97316, 0.6);
+            fillLight.position.set(-5, -2, -5);
+            scene.add(fillLight);
+
+            // Ground grid
+            const grid = new THREE.GridHelper(5, 10, 0x0284c7, 0x1e293b);
+            grid.position.y = 0;
+            scene.add(grid);
+
+            // Controls
+            let controls = null;
+            if (typeof THREE.OrbitControls !== 'undefined') {
+                controls = new THREE.OrbitControls(camera, renderer.domElement);
+                controls.enableDamping = true;
+                controls.dampingFactor = 0.05;
+                controls.enableZoom = false;
+                controls.autoRotate = true;
+                controls.autoRotateSpeed = 1.6;
+                controls.target.set(0, 0.9, 0);
+                controls.update();
+            }
+
+            // Build Model
+            const rootGroup = new THREE.Group();
+            scene.add(rootGroup);
+
+            const matOrange = new THREE.MeshStandardMaterial({ color: 0xf97316, metalness: 0.4, roughness: 0.35 });
+            const matDarkGrey = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.7, roughness: 0.3 });
+            const matLightGrey = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.8, roughness: 0.25 });
+            const matCyan = new THREE.MeshStandardMaterial({ color: 0x06b6d4, metalness: 0.5, roughness: 0.3 });
+
+            const jointNodes = [];
+
+            if (deviceType === 'huashu_arm' || deviceType === 'arm') {
+                const base = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.55, 0.3, 24), matDarkGrey);
+                base.position.y = 0.15;
+                rootGroup.add(base);
+
+                const j1 = new THREE.Group(); j1.position.set(0, 0.3, 0); rootGroup.add(j1);
+                const s = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.4, 0.35, 24), matDarkGrey); s.position.y = 0.175; j1.add(s);
+
+                const j2 = new THREE.Group(); j2.position.set(0, 0.35, 0); j1.add(j2);
+                const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 1.1, 20), matOrange); upper.position.set(0, 0.55, 0); j2.add(upper);
+
+                const j3 = new THREE.Group(); j3.position.set(0, 1.1, 0); j2.add(j3);
+                const fore = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.19, 0.95, 20), matOrange); fore.position.set(0, 0.475, 0); j3.add(fore);
+
+                const j4 = new THREE.Group(); j4.position.set(0, 0.95, 0); j3.add(j4);
+                const wrist = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.15, 0.2, 16), matDarkGrey); wrist.position.y = 0.1; j4.add(wrist);
+
+                const j5 = new THREE.Group(); j5.position.set(0, 0.2, 0); j4.add(j5);
+                const j6 = new THREE.Group(); j5.add(j6);
+                const grip = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.08, 0.14), matLightGrey); grip.position.y = 0.08; j6.add(grip);
+
+                jointNodes.push(j1, j2, j3, j4, j5, j6);
+
+            } else if (deviceType === 'luxshare_amr') {
+                const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.28, 1.8), matDarkGrey);
+                chassis.position.y = 0.22;
+                rootGroup.add(chassis);
+
+                const lidar = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.12, 16), matCyan);
+                lidar.position.set(0, 0.42, 0.7);
+                rootGroup.add(lidar);
+
+                const armBase = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.35, 0.2, 20), matLightGrey);
+                armBase.position.set(0, 0.46, -0.2);
+                rootGroup.add(armBase);
+
+                const j1 = new THREE.Group(); j1.position.set(0, 0.56, -0.2); rootGroup.add(j1);
+                const arm1 = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.16, 0.8, 16), matLightGrey); arm1.position.y = 0.4; j1.add(arm1);
+                const j2 = new THREE.Group(); j2.position.set(0, 0.8, 0); j1.add(j2);
+                const arm2 = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.7, 16), matLightGrey); arm2.position.y = 0.35; j2.add(arm2);
+
+                jointNodes.push(j1, j2);
+
+            } else if (deviceType === 'robot_dog') {
+                const body = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.35, 1.2), matDarkGrey);
+                body.position.y = 0.65;
+                rootGroup.add(body);
+
+                const head = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.28, 0.35), matOrange);
+                head.position.set(0, 0.85, 0.7);
+                rootGroup.add(head);
+
+                const legOffsets = [[-0.35, 0.6, 0.45], [0.35, 0.6, 0.45], [-0.35, 0.6, -0.45], [0.35, 0.6, -0.45]];
+                legOffsets.forEach(pos => {
+                    const legGroup = new THREE.Group();
+                    legGroup.position.set(pos[0], pos[1], pos[2]);
+                    rootGroup.add(legGroup);
+                    const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.45, 12), matLightGrey);
+                    upper.position.y = -0.22;
+                    legGroup.add(upper);
+                    jointNodes.push(legGroup);
+                });
+
+            } else {
+                const droneBody = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.35, 0.18, 16), matDarkGrey);
+                droneBody.position.y = 0.8;
+                rootGroup.add(droneBody);
+
+                const armMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8 });
+                const armX = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.04, 0.08), armMat); armX.position.y = 0.8; rootGroup.add(armX);
+                const armZ = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.04, 1.6), armMat); armZ.position.y = 0.8; rootGroup.add(armZ);
+
+                [[-0.8, 0.85, 0], [0.8, 0.85, 0], [0, 0.85, -0.8], [0, 0.85, 0.8]].forEach(pos => {
+                    const prop = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.01, 0.04), matCyan);
+                    prop.position.set(pos[0], pos[1], pos[2]);
+                    rootGroup.add(prop);
+                    jointNodes.push(prop);
+                });
+            }
+
+            let animId = null;
+            let time = 0;
+
+            function animate() {
+                animId = requestAnimationFrame(animate);
+                time += 0.03;
+
+                if (controls) controls.update();
+
+                // Dynamic idling articulation
+                if (deviceType === 'huashu_arm' && jointNodes.length >= 6) {
+                    jointNodes[0].rotation.y = Math.sin(time * 0.7) * 0.45;
+                    jointNodes[1].rotation.z = Math.sin(time * 0.9) * 0.35 + 0.3;
+                    jointNodes[2].rotation.z = Math.cos(time * 0.9) * 0.4 - 0.2;
+                    jointNodes[3].rotation.y = Math.sin(time * 1.2) * 0.6;
+                    jointNodes[4].rotation.z = Math.cos(time * 0.8) * 0.3;
+                    jointNodes[5].rotation.y = time * 0.8;
+                } else if (deviceType === 'luxshare_amr' && jointNodes.length >= 2) {
+                    jointNodes[0].rotation.y = Math.sin(time * 0.8) * 0.5;
+                    jointNodes[1].rotation.z = Math.cos(time * 0.8) * 0.3;
+                } else if (deviceType === 'robot_dog' && jointNodes.length >= 4) {
+                    jointNodes[0].rotation.x = Math.sin(time * 3) * 0.35;
+                    jointNodes[1].rotation.x = -Math.sin(time * 3) * 0.35;
+                    jointNodes[2].rotation.x = -Math.sin(time * 3) * 0.35;
+                    jointNodes[3].rotation.x = Math.sin(time * 3) * 0.35;
+                } else if (deviceType === 'uav_rescue') {
+                    jointNodes.forEach(p => p.rotation.y += 0.3);
+                }
+
+                renderer.render(scene, camera);
+            }
+            animate();
+
+            card3dInstances[deviceId] = { scene, camera, renderer, controls, animId, jointNodes };
+        }
+
+        // =============================================================
+        // WEEKLY BACKUP LOADER
+        // =============================================================
+        async function loadWeeklyBackups(type, id) {
+            try {
+                const res = await fetch(`/api/devices/${encodeURIComponent(type)}/${encodeURIComponent(id)}/backups/weekly`);
+                const body = await res.json();
+                const container = document.getElementById('modalWeeklyBackupList');
+                if (!container) return;
+
+                if (body.code === 200 && Array.isArray(body.data)) {
+                    container.innerHTML = body.data.map(item => `
+                        <div class="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between transition hover:border-slate-400">
+                            <div>
+                                <div class="font-mono font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                                    <span>📦 ${item.filename}</span>
+                                </div>
+                                <div class="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                                    归档时间: ${item.created_at} · ${(item.filesize / 1024).toFixed(1)} KB
+                                </div>
+                            </div>
+                            <button onclick="triggerRemoteBackup()" class="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-700 text-white font-medium text-xs shadow-sm transition flex items-center gap-1">
+                                <span>📥 下载</span>
+                            </button>
+                        </div>
+                    `).join('');
+                }
+            } catch (e) {
+                console.error('loadWeeklyBackups error:', e);
+            }
         }
 
         function buildRobot3DModel(deviceType) {

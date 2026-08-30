@@ -81,6 +81,7 @@ from database import (
     cleanup_old_alarms,
     get_device_io,
     update_device_io,
+    get_weekly_backups_list,
 )
 
 # ---------------------------------------------------------------------------
@@ -1976,6 +1977,14 @@ async def backup_device_system_api(device_type: str, device_id: str):
         "Content-Type": "application/zip"
     }
     return Response(content=zip_buffer.getvalue(), media_type="application/zip", headers=headers)
+
+
+@app.get("/api/devices/{device_type}/{device_id}/backups/weekly")
+async def get_weekly_backups_api(device_type: str, device_id: str):
+    """获取每周自动备份文件列表"""
+    data = get_weekly_backups_list(device_id)
+    return api_response(code=200, message="success", data=data)
+
 
 
 @app.get("/api/alarms/knowledge_base")
