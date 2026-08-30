@@ -766,14 +766,14 @@
                             </button>
                         </div>
 
-                        <!-- PROMINENT REAL POSITION & POSE HUD (Top Right) -->
-                        <div class="absolute top-3.5 right-3.5 bg-slate-950/90 backdrop-blur-md p-3 rounded-xl border border-cyan-500/50 text-xs font-mono shadow-2xl space-y-2 pointer-events-none z-10 w-[240px]">
+                        <!-- PROMINENT REAL POSITION & POSE HUD (Top Right - Clickable for Map) -->
+                        <div onclick="openFactoryLocationModal()" class="absolute top-3.5 right-3.5 bg-slate-950/90 backdrop-blur-md p-3 rounded-xl border border-cyan-500/50 hover:border-cyan-400 text-xs font-mono shadow-2xl space-y-2 cursor-pointer z-10 w-[245px] transition group/hud" title="点击查看车间与园区真实地理位置数字孪生地图">
                             <div class="flex items-center justify-between text-cyan-400 font-bold border-b border-cyan-900/70 pb-1">
                                 <span class="flex items-center gap-1.5 text-xs">
                                     <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
-                                    <span>真实末端空间坐标 (TCP)</span>
+                                    <span>真实空间坐标 (TCP Base)</span>
                                 </span>
-                                <span class="text-[9px] text-slate-400">Base</span>
+                                <span class="text-[9px] px-1 py-0.2 rounded bg-cyan-950 text-cyan-300 border border-cyan-800 group-hover/hud:bg-cyan-600 group-hover/hud:text-white transition">🗺️ 查看地图</span>
                             </div>
                             <div class="grid grid-cols-3 gap-1.5 text-slate-100 font-bold text-center">
                                 <div class="bg-cyan-950/60 p-1 rounded border border-cyan-800/40">
@@ -795,8 +795,8 @@
                                 <div class="bg-slate-900/80 p-0.5 rounded">C:<span id="hudTcpC" class="text-white">45°</span></div>
                             </div>
                             <div class="pt-1 text-[10px] text-slate-400 border-t border-slate-800/80 flex items-center justify-between">
-                                <span>实际工位: <strong class="text-emerald-400" id="hudWorkstation">广州番禺 A01</strong></span>
-                                <span class="text-cyan-400 text-[9px]">正向运动学 ●</span>
+                                <span>工位: <strong class="text-emerald-400" id="hudWorkstation">广州番禺 A01</strong></span>
+                                <span class="text-cyan-400 text-[9px] underline flex items-center gap-0.5"><span>车间坐标</span><span>→</span></span>
                             </div>
                         </div>
 
@@ -841,18 +841,15 @@
                             <div class="space-y-2 text-slate-600 dark:text-slate-300 text-[11px]" id="modalSpecList"></div>
                         </div>
 
-                        <!-- Kinematics -->
+                        <!-- Kinematics (J1 ~ J6 Joint Posture) -->
                         <div class="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
                             <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                                <span class="font-bold text-slate-900 dark:text-slate-100">运动学姿态</span>
-                                <span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono">1.0s 实时刷新</span>
+                                <div class="flex items-center gap-1.5 font-bold text-slate-900 dark:text-slate-100">
+                                    <span>🔄 运动学各轴姿态</span>
+                                </div>
+                                <span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-medium">J1 ~ J6 实时转角</span>
                             </div>
-                            <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700 space-y-1">
-                                <span class="text-[10px] text-slate-500 dark:text-slate-400">末端空间坐标 (mm/°)</span>
-                                <div class="font-mono text-xs text-slate-900 dark:text-slate-100 font-bold truncate" id="modalCartesianPos">X: 450.2 | Y: 200.1 | Z: 350.0</div>
-                                <div class="font-mono text-[10px] text-slate-500 dark:text-slate-400 truncate" id="modalEulerAngles">A: 180.0° | B: 0.0° | C: 45.0°</div>
-                            </div>
-                            <div class="space-y-1.5" id="modalJointsContainer"></div>
+                            <div class="space-y-2 pt-1" id="modalJointsContainer"></div>
                         </div>
 
                         <!-- Currents & Health -->
@@ -2757,6 +2754,45 @@
         // -------------------------------------------------------------
         // 3D Robot Modal & Operations Center
         // -------------------------------------------------------------
+        
+        // =============================================================
+        // FACTORY FLOOR SPATIAL LOCATION DIGITAL TWIN MAP
+        // =============================================================
+        function openFactoryLocationModal() {
+            const modal = document.getElementById('factoryLocationModal');
+            if (!modal) return;
+
+            const dev = selectedDevice || { type: 'huashu_arm', id: 'arm_001' };
+            const subTitle = document.getElementById('mapModalSubTitle');
+            const infoBase = document.getElementById('mapInfoBase');
+            const infoUwb = document.getElementById('mapInfoUwb');
+            const beacon = document.getElementById('mapDeviceBeacon');
+
+            if (dev.type === 'huashu_arm' || dev.type === 'arm') {
+                if (subTitle) subTitle.innerText = `设备: ${dev.id} | 所在基地: 广州番禺智造中心 · A栋 1F 柔性加工示范车间`;
+                if (infoBase) infoBase.innerText = "广州番禺智造中心 · A栋 1F";
+                if (infoUwb) infoUwb.innerText = "X: 18.52m | Y: 12.30m | Z: 0.00m";
+                if (beacon) beacon.setAttribute('transform', 'translate(140, 152)');
+            } else if (dev.type === 'luxshare_amr') {
+                if (subTitle) subTitle.innerText = `设备: ${dev.id} | 所在基地: 广州南沙创新港 · B栋 2F 智能中转区`;
+                if (infoBase) infoBase.innerText = "广州南沙创新港 · B栋 2F";
+                if (infoUwb) infoUwb.innerText = "X: 45.00m | Y: 16.80m | Z: 0.00m";
+                if (beacon) beacon.setAttribute('transform', 'translate(505, 152)');
+            } else {
+                if (subTitle) subTitle.innerText = `设备: ${dev.id} | 所在基地: 广州南沙创新港 · 巡检待命区`;
+                if (infoBase) infoBase.innerText = "广州南沙创新港 · 全域巡检通道";
+                if (infoUwb) infoUwb.innerText = "X: 28.60m | Y: 35.40m | Z: 0.00m";
+                if (beacon) beacon.setAttribute('transform', 'translate(215, 357)');
+            }
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeFactoryLocationModal() {
+            const modal = document.getElementById('factoryLocationModal');
+            if (modal) modal.classList.add('hidden');
+        }
+
         function openRobot3DModal() {
             if (selectedDevice) {
                 const { type, id } = selectedDevice;
@@ -3316,20 +3352,28 @@
         function switchRobotModalTab(tabKey) {
             currentActiveModalTab = tabKey;
             
+            const tabMap = { '3d': '3D', 'io': 'IO', 'prog': 'Prog', 'alarm': 'Alarm' };
             const tabs = ['3d', 'io', 'prog', 'alarm'];
             tabs.forEach(t => {
-                const btn = document.getElementById(`tabBtnRobot${t.toUpperCase() === '3D' ? '3D' : t.charAt(0).toUpperCase() + t.slice(1)}`);
-                const panel = document.getElementById(`robotTabPanel${t.toUpperCase() === '3D' ? '3D' : t.charAt(0).toUpperCase() + t.slice(1)}`);
+                const suffix = tabMap[t] || (t.charAt(0).toUpperCase() + t.slice(1));
+                const btn = document.getElementById(`tabBtnRobot${suffix}`);
+                const panel = document.getElementById(`robotTabPanel${suffix}`);
                 if (t === tabKey) {
                     if (btn) {
                         btn.className = "px-3.5 py-2.5 font-bold text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 flex items-center gap-1.5 transition";
                     }
-                    if (panel) panel.classList.remove('hidden');
+                    if (panel) {
+                        panel.classList.remove('hidden');
+                        panel.style.display = 'block';
+                    }
                 } else {
                     if (btn) {
                         btn.className = "px-3.5 py-2.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border-b-2 border-transparent flex items-center gap-1.5 transition";
                     }
-                    if (panel) panel.classList.add('hidden');
+                    if (panel) {
+                        panel.classList.add('hidden');
+                        panel.style.display = 'none';
+                    }
                 }
             });
 
@@ -3366,14 +3410,32 @@
                     const diGrid = document.getElementById('modalDiGrid');
                     if (diGrid) {
                         diGrid.innerHTML = data.di.map(item => `
-                            <div class="p-2.5 rounded-lg border ${item.state ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800' : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700'} flex items-center justify-between transition">
+                            <div class="p-3 rounded-xl border ${item.state ? 'bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700' : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700'} flex items-center justify-between transition shadow-sm">
                                 <div>
                                     <div class="font-mono font-bold ${item.state ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400'}">DI_${String(item.index).padStart(2, '0')}</div>
-                                    <div class="text-[11px] text-slate-700 dark:text-slate-300 truncate max-w-[110px]" title="${item.name}">${item.name}</div>
+                                    <div class="text-[11px] text-slate-700 dark:text-slate-300 truncate max-w-[120px] font-medium" title="${item.name}">${item.name}</div>
                                 </div>
-                                <span class="w-3 h-3 rounded-full ${item.state ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-slate-300 dark:bg-slate-600'}"></span>
+                                <span class="w-3.5 h-3.5 rounded-full ${item.state ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.9)]' : 'bg-slate-300 dark:bg-slate-600'}"></span>
                             </div>
                         `).join('');
+                    }
+
+                    // Also update Quick I/O status pills in Tab 1
+                    const quickIo = document.getElementById('modalQuickIoList');
+                    if (quickIo) {
+                        const topDi = data.di.slice(0, 3);
+                        const topDo = data.do.slice(0, 2);
+                        const diPills = topDi.map(item => `
+                            <span class="px-2 py-0.5 rounded ${item.state ? 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-300 dark:border-slate-700'}">
+                                DI${item.index} ${item.name.slice(0, 4)} ${item.state ? '✔' : 'OFF'}
+                            </span>
+                        `).join('');
+                        const doPills = topDo.map(item => `
+                            <span class="px-2 py-0.5 rounded ${item.state ? 'bg-blue-100 dark:bg-blue-950/70 text-blue-800 dark:text-blue-300 border border-blue-300 dark:border-blue-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-300 dark:border-slate-700'}">
+                                DO${item.index} ${item.name.slice(0, 4)} ${item.state ? 'ON' : 'OFF'}
+                            </span>
+                        `).join('');
+                        quickIo.innerHTML = diPills + doPills;
                     }
 
                     const doGrid = document.getElementById('modalDoGrid');
@@ -4843,5 +4905,139 @@
             }, 5000);
         });
     </script>
+
+    <!-- ============================================================= -->
+    <!-- MODAL 6: FACTORY FLOOR SPATIAL LOCATION MAP (车间真实位置地图) -->
+    <!-- ============================================================= -->
+    <div id="factoryLocationModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-md transition-all duration-300">
+        <div class="clean-modal rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+            <!-- Modal Header -->
+            <div class="px-6 py-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-sm shadow-sm">
+                        🗺️
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-2">
+                            <span>车间与园区真实空间地理位置数字孪生地图</span>
+                            <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-mono font-bold">UWB 毫米级高精定位</span>
+                        </h3>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 font-mono" id="mapModalSubTitle">设备: arm_001 | 所在基地: 广州番禺智造中心 · A栋 1F 柔性加工示范车间</p>
+                    </div>
+                </div>
+                <button onclick="closeFactoryLocationModal()" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 flex items-center justify-center transition">✕</button>
+            </div>
+
+            <!-- Modal Map Body -->
+            <div class="p-6 space-y-4 overflow-y-auto bg-slate-50 dark:bg-slate-950 flex-1">
+                <!-- Interactive High-Tech Workshop Map SVG Layout -->
+                <div class="relative w-full h-80 sm:h-96 rounded-xl overflow-hidden bg-slate-950 border border-slate-800 shadow-inner flex items-center justify-center">
+                    <!-- Factory Grid & Floor Cells Canvas SVG -->
+                    <svg viewBox="0 0 800 450" class="w-full h-full select-none">
+                        <!-- Background Grid -->
+                        <defs>
+                            <pattern id="gridPattern" width="40" height="40" patternUnits="userSpaceOnUse">
+                                <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(56, 189, 248, 0.08)" stroke-width="1"/>
+                            </pattern>
+                            <linearGradient id="cellGradA" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="rgba(14, 165, 233, 0.15)"/>
+                                <stop offset="100%" stop-color="rgba(3, 105, 161, 0.05)"/>
+                            </linearGradient>
+                            <linearGradient id="cellGradB" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="rgba(16, 185, 129, 0.15)"/>
+                                <stop offset="100%" stop-color="rgba(4, 120, 87, 0.05)"/>
+                            </linearGradient>
+                        </defs>
+
+                        <rect width="800" height="450" fill="url(#gridPattern)" />
+
+                        <!-- Outer Factory Boundary -->
+                        <rect x="30" y="30" width="740" height="390" rx="12" fill="none" stroke="#1e293b" stroke-width="2"/>
+                        
+                        <!-- Workshop Zones -->
+                        <!-- Zone 1: A栋 精密打磨与焊接示范区 -->
+                        <rect x="60" y="60" width="310" height="160" rx="8" fill="url(#cellGradA)" stroke="#0284c7" stroke-width="1.5" stroke-dasharray="4,4"/>
+                        <text x="75" y="85" fill="#38bdf8" font-size="12" font-weight="bold" font-family="monospace">🏭 A区: 精密加工与打磨示范线</text>
+                        
+                        <!-- Workstation A01 (Robot Arm Target Cell) -->
+                        <rect id="mapCellA01" x="80" y="105" width="120" height="95" rx="6" fill="rgba(14, 165, 233, 0.25)" stroke="#38bdf8" stroke-width="2"/>
+                        <text x="95" y="130" fill="#f8fafc" font-size="11" font-weight="bold" font-family="monospace">A01 工位</text>
+                        <text x="95" y="148" fill="#94a3b8" font-size="9" font-family="sans-serif">华数 BR610 打磨</text>
+                        <text x="95" y="165" fill="#38bdf8" font-size="9" font-family="monospace">X:18.5m Y:12.3m</text>
+
+                        <!-- Workstation A02 -->
+                        <rect x="230" y="105" width="120" height="95" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#334155" stroke-width="1"/>
+                        <text x="245" y="130" fill="#cbd5e1" font-size="11" font-weight="bold" font-family="monospace">A02 工位</text>
+                        <text x="245" y="148" fill="#64748b" font-size="9" font-family="sans-serif">自动装配单元</text>
+
+                        <!-- Zone 2: B区 复合移动与物流调度区 -->
+                        <rect x="420" y="60" width="320" height="160" rx="8" fill="url(#cellGradB)" stroke="#059669" stroke-width="1.5" stroke-dasharray="4,4"/>
+                        <text x="435" y="85" fill="#34d399" font-size="12" font-weight="bold" font-family="monospace">🚚 B区: 复合移动与物料中转区</text>
+
+                        <!-- Workstation B01 (AMR Target Cell) -->
+                        <rect id="mapCellB01" x="440" y="105" width="130" height="95" rx="6" fill="rgba(16, 185, 129, 0.2)" stroke="#10b981" stroke-width="1.5"/>
+                        <text x="455" y="130" fill="#f8fafc" font-size="11" font-weight="bold" font-family="monospace">B01 搬运工位</text>
+                        <text x="455" y="148" fill="#94a3b8" font-size="9" font-family="sans-serif">珞石 XMS3 AMR</text>
+                        <text x="455" y="165" fill="#34d399" font-size="9" font-family="monospace">X:45.0m Y:16.8m</text>
+
+                        <!-- Workstation B02 -->
+                        <rect x="590" y="105" width="130" height="95" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#334155" stroke-width="1"/>
+                        <text x="605" y="130" fill="#cbd5e1" font-size="11" font-weight="bold" font-family="monospace">B02 码垛暂存</text>
+                        <text x="605" y="148" fill="#64748b" font-size="9" font-family="sans-serif">智能立体料仓</text>
+
+                        <!-- Transport Main AGV Route Corridor -->
+                        <path d="M 60 270 L 740 270" stroke="rgba(245, 158, 11, 0.4)" stroke-width="28" stroke-dasharray="8,8"/>
+                        <text x="350" y="275" fill="#f59e0b" font-size="10" font-weight="bold" font-family="monospace">⮀ 5G 工业主干物料通道 (AGV Route) ⮀</text>
+
+                        <!-- Zone 3: 巡检与充电停泊区 -->
+                        <rect x="60" y="315" width="310" height="85" rx="8" fill="rgba(15, 23, 42, 0.6)" stroke="#334155" stroke-width="1"/>
+                        <text x="75" y="340" fill="#94a3b8" font-size="11" font-weight="bold" font-family="monospace">🐕 巡检机器狗待命与自平衡校准坪</text>
+                        <text x="75" y="360" fill="#64748b" font-size="9" font-family="sans-serif">巡检路线覆盖: A/B跨区全长 320 米通道</text>
+
+                        <!-- Zone 4: 自动充电桩矩阵 -->
+                        <rect x="420" y="315" width="320" height="85" rx="8" fill="rgba(15, 23, 42, 0.6)" stroke="#334155" stroke-width="1"/>
+                        <text x="435" y="340" fill="#94a3b8" font-size="11" font-weight="bold" font-family="monospace">⚡ 无线快速自动回充桩矩阵 (1~4号桩)</text>
+                        <text x="435" y="360" fill="#64748b" font-size="9" font-family="sans-serif">当前空闲: 3 桩 | 充电功率: 48V 30A 快充</text>
+
+                        <!-- Dynamic Active Device Pulsing Beacon (SVG) -->
+                        <g id="mapDeviceBeacon" transform="translate(140, 152)">
+                            <circle r="20" fill="rgba(14, 165, 233, 0.25)">
+                                <animate attributeName="r" values="10;28;10" dur="2s" repeatCount="indefinite"/>
+                                <animate attributeName="opacity" values="1;0;1" dur="2s" repeatCount="indefinite"/>
+                            </circle>
+                            <circle r="8" fill="#0284c7" stroke="#ffffff" stroke-width="2"/>
+                            <circle r="3" fill="#38bdf8"/>
+                        </g>
+                    </svg>
+                </div>
+
+                <!-- Location Spec Cards -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                    <div class="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
+                        <div class="text-slate-400 text-[11px]">园区与车间部署位置</div>
+                        <div class="font-bold text-slate-900 dark:text-slate-100" id="mapInfoBase">广州番禺智造中心 · A栋1F</div>
+                        <div class="text-[10px] text-slate-500 font-mono">示范车间精密加工 A-01 单元</div>
+                    </div>
+                    <div class="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
+                        <div class="text-slate-400 text-[11px]">UWB 空间坐标 (室内绝对基准)</div>
+                        <div class="font-bold text-cyan-600 dark:text-cyan-400 font-mono" id="mapInfoUwb">X: 18.52m | Y: 12.30m | Z: 0.00m</div>
+                        <div class="text-[10px] text-slate-500 font-mono">定位精度: ±5mm (超宽带基站)</div>
+                    </div>
+                    <div class="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
+                        <div class="text-slate-400 text-[11px]">5G 工业专网接入信息</div>
+                        <div class="font-bold text-slate-900 dark:text-slate-100 font-mono">IP: 192.168.10.101</div>
+                        <div class="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono">专网延迟: 1.8ms (总线畅通)</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="px-6 py-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500">
+                <span>真实位置数据来源于厂房 UWB 空间几何基准与控制柜拓扑</span>
+                <button onclick="closeFactoryLocationModal()" class="px-4 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-700 text-white font-medium transition">完成并返回</button>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>
