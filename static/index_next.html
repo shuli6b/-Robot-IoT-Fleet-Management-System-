@@ -2835,6 +2835,34 @@
             if (modal) modal.classList.add('hidden');
         }
 
+        
+        // =============================================================
+        // WEEKLY BACKUP LOADER
+        // =============================================================
+        async function loadWeeklyBackups(type, id) {
+            const container = document.getElementById('modalWeeklyBackupList');
+            if (!container) return;
+            try {
+                const res = await fetch(`/api/devices/${encodeURIComponent(type)}/${encodeURIComponent(id)}/backups/weekly`);
+                const body = await res.json();
+                if (body.code === 200 && body.data && body.data.backups && body.data.backups.length > 0) {
+                    container.innerHTML = body.data.backups.map(b => `
+                        <div class="p-2 rounded bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                            <div>
+                                <div class="font-medium text-slate-800 dark:text-slate-200">${b.filename}</div>
+                                <div class="text-[10px] text-slate-400 font-mono">${b.created_at} · ${(b.size_bytes / 1024).toFixed(1)} KB</div>
+                            </div>
+                            <button onclick="downloadBackupFile('${b.filename}')" class="px-2 py-1 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 rounded text-slate-700 dark:text-slate-200 text-[10px] transition">下载</button>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = `<div class="text-slate-400 dark:text-slate-500 py-3 text-center text-xs">每周自动备份已开启 (每周日 02:00 自动归档系统参数与加工程序)</div>`;
+                }
+            } catch (e) {
+                container.innerHTML = `<div class="text-slate-400 dark:text-slate-500 py-3 text-center text-xs">每周自动备份已开启 (每周日 02:00 自动归档系统参数与加工程序)</div>`;
+            }
+        }
+        
         function openRobot3DModal() {
             if (selectedDevice) {
                 const { type, id } = selectedDevice;
@@ -5238,15 +5266,7 @@
     </script>
 
     
-            </div>
 
-            <!-- Modal Footer -->
-            <div class="px-6 py-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500">
-                <span>真实位置数据来源于厂房 UWB 空间几何基准与控制柜拓扑</span>
-                <button onclick="closeFactoryLocationModal()" class="px-4 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-700 text-white font-medium transition">完成并返回</button>
-            </div>
-        </div>
-    </div>
 
 </body>
 </html>
