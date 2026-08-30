@@ -3446,7 +3446,7 @@
                         if (jointNodes[4]) jointNodes[4].rotation.y = THREE.MathUtils.lerp(jointNodes[4].rotation.y, -(rads[4] || 0), speed);
                         if (jointNodes[5]) jointNodes[5].rotation.z = THREE.MathUtils.lerp(jointNodes[5].rotation.z, rads[5] || 0, speed);
                     } else if (deviceType === 'robot_dog' && jointNodes.length >= 4) {
-                        const dogSpeed = (payload.speed !== undefined) ? payload.speed : 1.0;
+                        const dogSpeed = (payload.speed !== undefined) ? payload.speed : 0.0;
                         if (dogSpeed > 0 && dev.status === 'online') {
                             const swing = Math.sin(time * dogSpeed * 4) * 0.35;
                             jointNodes[0].rotation.x = swing;
@@ -3460,7 +3460,7 @@
                             jointNodes[3].rotation.x = THREE.MathUtils.lerp(jointNodes[3].rotation.x, 0, speed);
                         }
                     } else if (deviceType === 'uav_rescue') {
-                        const isFlying = (payload.altitude === undefined || payload.altitude > 0) && dev.status === 'online';
+                        const isFlying = (payload.altitude !== undefined && payload.altitude > 0) && dev.status === 'online';
                         if (isFlying) {
                             jointNodes.forEach(p => p.rotation.y += 0.45);
                         }
@@ -3691,9 +3691,9 @@
                 if (robot3dJointNodes[4]) robot3dJointNodes[4].userData.target = { axis: 'z', val: rads[4] || 0 };
                 if (robot3dJointNodes[5]) robot3dJointNodes[5].userData.target = { axis: 'y', val: rads[5] || 0 };
             } else if (deviceType === 'robot_dog') {
-                window.modalDogSpeed = (parsedPayload.speed !== undefined) ? parsedPayload.speed : 1.0;
+                window.modalDogSpeed = (parsedPayload.speed !== undefined) ? parsedPayload.speed : 0.0;
             } else if (deviceType === 'uav_rescue') {
-                window.modalDroneFlying = (parsedPayload.altitude === undefined || parsedPayload.altitude > 0);
+                window.modalDroneFlying = (parsedPayload.altitude !== undefined && parsedPayload.altitude > 0);
             }
         }
 
