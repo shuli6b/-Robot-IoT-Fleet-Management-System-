@@ -2441,14 +2441,57 @@
             if (filter) {
                 list = list.filter(d => d.device_type === filter);
             }
-            document.getElementById('fleetCountBadge').innerText = `${list.length} 台设备`;
+            const countBadge = document.getElementById('fleetCountBadge');
+            if(countBadge) countBadge.innerText = `${list.length} 台设备`;
 
             if (currentFleetLayout === 'grid') {
-                renderFleetCards(list);
+                const container = document.getElementById('fleetGridContainer');
+                if (container && container.children.length === list.length && list.length > 0 && document.getElementById(`card3d_${list[0].device_id}`)) {
+                    updateFleetCards(list);
+                } else {
+                    renderFleetCards(list);
+                }
             } else {
                 renderFleetTable(list);
             }
         }
+
+        function updateFleetCards(list) {
+            list.forEach(dev => {
+                const isOnline = dev.status === 'online';
+                const elName = document.getElementById(`card_name_${dev.device_id}`);
+                const elTcpX = document.getElementById(`card_tcpx_${dev.device_id}`);
+                const elTcpY = document.getElementById(`card_tcpy_${dev.device_id}`);
+                const elTcpZ = document.getElementById(`card_tcpz_${dev.device_id}`);
+                const elBat  = document.getElementById(`card_bat_${dev.device_id}`);
+                const elBatB = document.getElementById(`card_bat_bar_${dev.device_id}`);
+                const elStat = document.getElementById(`card_stat_${dev.device_id}`);
+                
+                if (elName) elName.innerText = dev.device_name ? `${dev.device_name} (${dev.device_id})` : dev.device_id;
+                
+                const tcpX = dev.cartesian_x || (dev.device_type === 'huashu_arm' ? 450.2 : dev.device_type === 'luxshare_amr' ? 1200.5 : 320.0);
+                const tcpY = dev.cartesian_y || (dev.device_type === 'huashu_arm' ? 200.1 : dev.device_type === 'luxshare_amr' ? 850.0 : -150.2);
+                const tcpZ = dev.cartesian_z || (dev.device_type === 'huashu_arm' ? 350.0 : dev.device_type === 'luxshare_amr' ? 420.0 : 180.5);
+                
+                if (elTcpX) elTcpX.innerText = `X: ${Math.round(tcpX)}`;
+                if (elTcpY) elTcpY.innerText = `Y: ${Math.round(tcpY)}`;
+                if (elTcpZ) elTcpZ.innerText = `Z: ${Math.round(tcpZ)}`;
+                
+                const bat = dev.battery !== undefined ? Math.round(dev.battery) : 98;
+                if (elBat) elBat.innerText = `${bat}% (正常)`;
+                if (elBatB) {
+                    elBatB.style.width = `${Math.min(100, Math.max(0, bat))}%`;
+                    elBatB.className = (bat < 30 ? 'bg-amber-500' : 'bg-slate-900 dark:bg-blue-500') + ' h-full rounded-full transition-all duration-300';
+                }
+                if (elStat) {
+                    elStat.innerHTML = isOnline 
+                        ? `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span><span>实时在线</span>` 
+                        : `<span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span><span>已离线</span>`;
+                    elStat.className = `px-2 py-0.5 rounded bg-slate-900/80 backdrop-blur-md text-[10px] font-mono ${isOnline ? 'text-emerald-400 border border-emerald-800' : 'text-slate-400 border border-slate-700'} flex items-center gap-1 shadow-sm`;
+                }
+            });
+        }
+
 
         function renderFleetCards(list) {
             const container = document.getElementById('fleetGridContainer');
@@ -2477,7 +2520,7 @@
                             
                             <!-- Status Badges -->
                             <div class="absolute top-2.5 left-2.5 flex items-center gap-1.5 z-10">
-                                <span class="px-2 py-0.5 rounded bg-slate-900/80 backdrop-blur-md text-[10px] font-mono ${isOnline ? 'text-emerald-400 border border-emerald-800' : 'text-slate-400 border border-slate-700'} flex items-center gap-1 shadow-sm">
+                                <span id="card_stat_${dev.device_id}" class="px-2 py-0.5 rounded bg-slate-900/80 backdrop-blur-md text-[10px] font-mono ${isOnline ? 'text-emerald-400 border border-emerald-800' : 'text-slate-400 border border-slate-700'} flex items-center gap-1 shadow-sm">
                                     <span class="w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'}"></span>
                                     <span>${isOnline ? '实时在线' : '已离线'}</span>
                                 </span>
@@ -2487,7 +2530,7 @@
                             </div>
 
                             <div class="absolute bottom-2 left-2.5 right-2.5 flex items-center justify-between z-10">
-                                <div class="font-mono font-bold text-slate-100 text-xs bg-slate-950/80 px-2 py-0.5 rounded backdrop-blur-md border border-slate-700 shadow-sm">${dev.device_name ? `${dev.device_name} (${dev.device_id})` : dev.device_id}</div>
+                                <div id="card_name_${dev.device_id}" class="font-mono font-bold text-slate-100 text-xs bg-slate-950/80 px-2 py-0.5 rounded backdrop-blur-md border border-slate-700 shadow-sm">${dev.device_name ? `${dev.device_name} (${dev.device_id})` : dev.device_id}</div>
                                 <div class="text-[10px] text-cyan-300 font-medium bg-slate-950/80 px-2 py-0.5 rounded backdrop-blur-md border border-cyan-800/60 shadow-sm">${typeName}</div>
                             </div>
                         </div>
@@ -2504,9 +2547,9 @@
                                     <span class="text-[9px] text-slate-400">单位: mm</span>
                                 </div>
                                 <div class="grid grid-cols-3 gap-1 text-[11px] font-bold text-cyan-300 text-center font-mono">
-                                    <span class="bg-cyan-950/40 rounded py-0.5">X: ${Math.round(tcpX)}</span>
-                                    <span class="bg-cyan-950/40 rounded py-0.5">Y: ${Math.round(tcpY)}</span>
-                                    <span class="bg-cyan-950/40 rounded py-0.5">Z: ${Math.round(tcpZ)}</span>
+                                    <span id="card_tcpx_${dev.device_id}" class="bg-cyan-950/40 rounded py-0.5">X: ${Math.round(tcpX)}</span>
+                                    <span id="card_tcpy_${dev.device_id}" class="bg-cyan-950/40 rounded py-0.5">Y: ${Math.round(tcpY)}</span>
+                                    <span id="card_tcpz_${dev.device_id}" class="bg-cyan-950/40 rounded py-0.5">Z: ${Math.round(tcpZ)}</span>
                                 </div>
                             </div>
 
@@ -2523,10 +2566,10 @@
                             <div class="space-y-1">
                                 <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 text-[11px]">
                                     <span>母线动力/电池</span>
-                                    <span class="font-mono text-slate-900 dark:text-slate-100 font-semibold">${dev.battery !== undefined ? Math.round(dev.battery) : 98}% (正常)</span>
+                                    <span id="card_bat_${dev.device_id}" class="font-mono text-slate-900 dark:text-slate-100 font-semibold">${dev.battery !== undefined ? Math.round(dev.battery) : 98}% (正常)</span>
                                 </div>
                                 <div class="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                                    <div class="${(dev.battery || 98) < 30 ? 'bg-amber-500' : 'bg-slate-900 dark:bg-blue-500'} h-full rounded-full transition-all duration-300" style="width: ${dev.battery !== undefined ? Math.min(100, Math.max(0, Math.round(dev.battery))) : 98}%"></div>
+                                    <div id="card_bat_bar_${dev.device_id}" class="${(dev.battery || 98) < 30 ? 'bg-amber-500' : 'bg-slate-900 dark:bg-blue-500'} h-full rounded-full transition-all duration-300" style="width: ${dev.battery !== undefined ? Math.min(100, Math.max(0, Math.round(dev.battery))) : 98}%"></div>
                                 </div>
                             </div>
 
@@ -3110,7 +3153,17 @@
         // =============================================================
         const card3dInstances = {};
 
+        
+        window.fleetCardAnimIds = window.fleetCardAnimIds || {};
+        window.fleetCardRenderers = window.fleetCardRenderers || {};
+
         function initCard3DViewer(deviceId, deviceType) {
+            if (window.fleetCardAnimIds[deviceId]) cancelAnimationFrame(window.fleetCardAnimIds[deviceId]);
+            if (window.fleetCardRenderers[deviceId]) {
+                window.fleetCardRenderers[deviceId].dispose();
+                window.fleetCardRenderers[deviceId].forceContextLoss();
+            }
+
             const canvas = document.getElementById(`card3d_${deviceId}`);
             if (!canvas) return;
 
@@ -3259,6 +3312,7 @@
 
             function animate() {
                 animId = requestAnimationFrame(animate);
+                window.fleetCardAnimIds[deviceId] = animId;
                 time += 0.03;
 
                 if (controls) controls.update();
