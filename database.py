@@ -524,24 +524,53 @@ def get_all_devices(
                 except Exception:
                     pass
 
-            # 读取最新状态报文中的真实遥测指标 (电量/故障码/使能)
+            # 读取最新状态报文中的真实遥测指标 (包含 6 轴关节角度、空间坐标、电量与状态)
             try:
                 cur_data = conn.execute(
-                    "SELECT raw_payload FROM device_data WHERE device_type = ? AND device_id = ? AND data_type = 'state' ORDER BY received_at DESC, id DESC LIMIT 1",
+                    "SELECT raw_payload FROM device_data WHERE device_type = ? AND device_id = ? ORDER BY received_at DESC, id DESC LIMIT 1",
                     (d["device_type"], d["device_id"]),
                 )
                 row_data = cur_data.fetchone()
                 if row_data:
-                    parsed_s = json.loads(row_data[0])
+                    try:
+                        parsed_s = json.loads(row_data[0])
+                        if not isinstance(parsed_s, dict):
+                            parsed_s = {}
+                    except Exception:
+                        parsed_s = {}
+
                     d["battery"] = parsed_s.get("battery", 96.0)
                     d["error_code"] = parsed_s.get("error_code", 0)
                     d["error_msg"] = parsed_s.get("error_msg", "")
                     d["enabled"] = parsed_s.get("enabled", True)
                     d["emergency_stop"] = parsed_s.get("emergency_stop", False)
+                    
+                    # 关键字段下发：提供给前端 3D 缩略图与大屏实时驱动
+                    d["latest_state"] = {
+                        "raw_payload": row_data[0],
+                        "parsed_payload": parsed_s
+                    }
+                    d["joint_angles"] = parsed_s.get("joint_angles", parsed_s.get("arm_sr3_pose", [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]))
+                    pos = parsed_s.get("cartesian_pos", parsed_s.get("position", {}))
+                    if isinstance(pos, dict):
+                        d["cartesian_x"] = pos.get("x")
+                        d["cartesian_y"] = pos.get("y")
+                        d["cartesian_z"] = pos.get("z")
+                    d["cartesian_pos"] = pos
                 else:
                     d["battery"] = 96.0
-            except Exception:
+                    d["joint_angles"] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+                    d["latest_state"] = {
+                        "raw_payload": "{}",
+                        "parsed_payload": {
+                            "joint_angles": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                            "cartesian_pos": {"x": 450.0, "y": 200.0, "z": 350.0}
+                        }
+                    }
+            except Exception as e:
                 d["battery"] = 96.0
+                d["joint_angles"] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+                d["latest_state"] = {"parsed_payload": {"joint_angles": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}
 
             if status and d["status"] != status:
                 continue
