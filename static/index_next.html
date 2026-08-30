@@ -3322,14 +3322,15 @@
                 if (dev && dev.latest_state && dev.latest_state.parsed_payload) {
                     const payload = dev.latest_state.parsed_payload;
                     const joints = payload.joint_angles || payload.arm_sr3_pose || [0,0,0,0,0,0];
-                    if ((deviceType === 'huashu_arm' || deviceType === 'luxshare_amr') && jointNodes.length >= 6) {
+                    if (deviceType === 'huashu_arm' || deviceType === 'luxshare_amr') {
                         const rads = joints.map(deg => THREE.MathUtils.degToRad(typeof deg === 'number' ? deg : parseFloat(deg) || 0));
-                        jointNodes[0].rotation.y = rads[0] || 0;
-                        jointNodes[1].rotation.z = rads[1] || 0;
-                        jointNodes[2].rotation.z = rads[2] || 0;
-                        jointNodes[3].rotation.y = rads[3] || 0;
-                        jointNodes[4].rotation.z = rads[4] || 0;
-                        jointNodes[5].rotation.y = rads[5] || 0;
+                        const speed = 0.08;
+                        if (jointNodes[0]) jointNodes[0].rotation.y = THREE.MathUtils.lerp(jointNodes[0].rotation.y, rads[0] || 0, speed);
+                        if (jointNodes[1]) jointNodes[1].rotation.z = THREE.MathUtils.lerp(jointNodes[1].rotation.z, rads[1] || 0, speed);
+                        if (jointNodes[2]) jointNodes[2].rotation.z = THREE.MathUtils.lerp(jointNodes[2].rotation.z, rads[2] || 0, speed);
+                        if (jointNodes[3]) jointNodes[3].rotation.y = THREE.MathUtils.lerp(jointNodes[3].rotation.y, rads[3] || 0, speed);
+                        if (jointNodes[4]) jointNodes[4].rotation.z = THREE.MathUtils.lerp(jointNodes[4].rotation.z, rads[4] || 0, speed);
+                        if (jointNodes[5]) jointNodes[5].rotation.y = THREE.MathUtils.lerp(jointNodes[5].rotation.y, rads[5] || 0, speed);
                     } else if (deviceType === 'robot_dog' && jointNodes.length >= 4) {
                         const speed = payload.speed || 0;
                         if (speed > 0) {
@@ -3607,12 +3608,12 @@
             if (deviceType === 'huashu_arm' || deviceType === 'luxshare_amr') {
                 const rads = joints.map(deg => THREE.MathUtils.degToRad(typeof deg === 'number' ? deg : parseFloat(deg) || 0));
                 
-                if (robot3dJointNodes[0]) robot3dJointNodes[0].rotation.y = rads[0] || 0;
-                if (robot3dJointNodes[1]) robot3dJointNodes[1].rotation.z = rads[1] || 0;
-                if (robot3dJointNodes[2]) robot3dJointNodes[2].rotation.z = rads[2] || 0;
-                if (robot3dJointNodes[3]) robot3dJointNodes[3].rotation.y = rads[3] || 0;
-                if (robot3dJointNodes[4]) robot3dJointNodes[4].rotation.z = rads[4] || 0;
-                if (robot3dJointNodes[5]) robot3dJointNodes[5].rotation.y = rads[5] || 0;
+                if (robot3dJointNodes[0]) robot3dJointNodes[0].userData.targetY = rads[0] || 0;
+                if (robot3dJointNodes[1]) robot3dJointNodes[1].userData.targetZ = rads[1] || 0;
+                if (robot3dJointNodes[2]) robot3dJointNodes[2].userData.targetZ = rads[2] || 0;
+                if (robot3dJointNodes[3]) robot3dJointNodes[3].userData.targetY = rads[3] || 0;
+                if (robot3dJointNodes[4]) robot3dJointNodes[4].userData.targetZ = rads[4] || 0;
+                if (robot3dJointNodes[5]) robot3dJointNodes[5].userData.targetY = rads[5] || 0;
 
             } else if (deviceType === 'robot_dog') {
                 const speed = parsedPayload.speed || 0.5;
@@ -3634,6 +3635,29 @@
         function animateRobot3D() {
             robot3dAnimFrame = requestAnimationFrame(animateRobot3D);
             if (robot3dControls) robot3dControls.update();
+            
+            const speed = 0.08;
+            if (robot3dJointNodes && robot3dJointNodes.length > 0) {
+                if (robot3dJointNodes[0] && robot3dJointNodes[0].userData.targetY !== undefined) {
+                    robot3dJointNodes[0].rotation.y = THREE.MathUtils.lerp(robot3dJointNodes[0].rotation.y, robot3dJointNodes[0].userData.targetY, speed);
+                }
+                if (robot3dJointNodes[1] && robot3dJointNodes[1].userData.targetZ !== undefined) {
+                    robot3dJointNodes[1].rotation.z = THREE.MathUtils.lerp(robot3dJointNodes[1].rotation.z, robot3dJointNodes[1].userData.targetZ, speed);
+                }
+                if (robot3dJointNodes[2] && robot3dJointNodes[2].userData.targetZ !== undefined) {
+                    robot3dJointNodes[2].rotation.z = THREE.MathUtils.lerp(robot3dJointNodes[2].rotation.z, robot3dJointNodes[2].userData.targetZ, speed);
+                }
+                if (robot3dJointNodes[3] && robot3dJointNodes[3].userData.targetY !== undefined) {
+                    robot3dJointNodes[3].rotation.y = THREE.MathUtils.lerp(robot3dJointNodes[3].rotation.y, robot3dJointNodes[3].userData.targetY, speed);
+                }
+                if (robot3dJointNodes[4] && robot3dJointNodes[4].userData.targetZ !== undefined) {
+                    robot3dJointNodes[4].rotation.z = THREE.MathUtils.lerp(robot3dJointNodes[4].rotation.z, robot3dJointNodes[4].userData.targetZ, speed);
+                }
+                if (robot3dJointNodes[5] && robot3dJointNodes[5].userData.targetY !== undefined) {
+                    robot3dJointNodes[5].rotation.y = THREE.MathUtils.lerp(robot3dJointNodes[5].rotation.y, robot3dJointNodes[5].userData.targetY, speed);
+                }
+            }
+
             if (robot3dRenderer && robot3dScene && robot3dCamera) {
                 robot3dRenderer.render(robot3dScene, robot3dCamera);
             }
