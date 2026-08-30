@@ -1,0 +1,283 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="XMS3-R580-W4G3B4C">
+  <!-- Constants for robot dimensions -->
+  <material name="black">
+    <color rgba="0.0 0.0 0.0 1.0"/>
+  </material>
+  <material name="blue">
+    <color rgba="0.0 0.0 0.8 1.0"/>
+  </material>
+  <material name="green">
+    <color rgba="0.0 0.8 0.0 1.0"/>
+  </material>
+  <material name="grey">
+    <color rgba="0.2 0.2 0.2 1.0"/>
+  </material>
+  <material name="orange">
+    <color rgba="1.0 0.423529411765 0.0392156862745 1.0"/>
+  </material>
+  <material name="brown">
+    <color rgba="0.870588235294 0.811764705882 0.764705882353 1.0"/>
+  </material>
+  <material name="red">
+    <color rgba="0.8 0.0 0.0 1.0"/>
+  </material>
+  <material name="white">
+    <color rgba="1.0 1.0 1.0 1.0"/>
+  </material>
+  <material name="Beige">
+    <color rgba="1.0 0.784 0.5765 1.0"/>
+  </material>
+  <!-- Used for fixing robot to Gazebo 'base_link' -->
+  <link name="world"/>
+  <joint name="fixed" type="fixed">
+    <parent link="world"/>
+    <child link="XMS3-R580-W4G3B4C_base"/>
+  </joint>
+  <!--base-->
+  <link name="XMS3-R580-W4G3B4C_base">
+    <visual>
+      <geometry>
+        <mesh filename="package://XMS3-R580-W4G3B4C_description/meshes/XMS3-R580-W4G3B4C_base.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0.0 0.0 0.0"/>
+      <material name="white"/>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="package://XMS3-R580-W4G3B4C_description/meshes/XMS3-R580-W4G3B4C_base.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0.0 0.0 0.0"/>
+    </collision>
+  </link>
+  <joint name="XMS3-R580-W4G3B4C_joint_1" type="revolute">
+    <parent link="XMS3-R580-W4G3B4C_base"/>
+    <child link="XMS3-R580-W4G3B4C_link1"/>
+    <limit effort="66" lower="-6.2832" upper="6.2832" velocity="3.141592653589793"/>
+    <axis xyz="0 0 1"/>
+    <origin rpy="0 0 0" xyz="0.0 0.0 0.313"/>
+  </joint>
+  <transmission name="tran1">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="XMS3-R580-W4G3B4C_joint_7">
+      <hardwareInterface>EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="motor1">
+      <hardwareInterface>EffortJointInterface</hardwareInterface>
+      <mechanicalReduction>1</mechanicalReduction>
+    </actuator>
+  </transmission>
+  <!--link 1-->
+  <link name="XMS3-R580-W4G3B4C_link1">
+    <visual>
+      <geometry>
+        <mesh filename="package://XMS3-R580-W4G3B4C_description/meshes/XMS3-R580-W4G3B4C_link1.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <material name="white"/>
+    </visual>
+    <inertial>
+      <mass value="2.52"/>
+      <inertia ixx="0.02136934" ixy="0.00000011" ixz="-0.00000383" iyy="0.02093072" iyz="-0.00176308" izz="0.00418226"/>
+      <origin rpy="0 0 0" xyz="2.2e-05 -0.008728 0.225433"/>
+    </inertial>
+    <collision>
+      <geometry>
+        <mesh filename="package://XMS3-R580-W4G3B4C_description/meshes/XMS3-R580-W4G3B4C_link1.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </collision>
+  </link>
+  <joint name="XMS3-R580-W4G3B4C_joint_2" type="revolute">
+    <parent link="XMS3-R580-W4G3B4C_link1"/>
+    <child link="XMS3-R580-W4G3B4C_link2"/>
+    <limit effort="66" lower="-2.7053" upper="2.4435" velocity="3.141592653589793"/>
+    <axis xyz="0 1 0"/>
+    <origin rpy="0 0 0" xyz="0.0 0.0 0.0"/>
+  </joint>
+  <transmission name="tran2">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="xmate_joint_2">
+      <hardwareInterface>EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="motor2">
+      <hardwareInterface>EffortJointInterface</hardwareInterface>
+      <mechanicalReduction>1</mechanicalReduction>
+    </actuator>
+  </transmission>
+  <!--link 2-->
+  <link name="XMS3-R580-W4G3B4C_link2">
+    <visual>
+      <geometry>
+        <mesh filename="package://XMS3-R580-W4G3B4C_description/meshes/XMS3-R580-W4G3B4C_link2.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0.0"/>
+      <material name="white"/>
+    </visual>
+    <inertial>
+      <mass value="3.268"/>
+      <inertia ixx="0.06329590" ixy="0.00052497" ixz="0.00906184" iyy="0.06353038" iyz="-0.00017148" izz="0.00911622"/>
+      <origin rpy="0 0 0" xyz="0.019368 -0.068585 0.146373"/>
+    </inertial>
+    <collision>
+      <geometry>
+        <mesh filename="package://XMS3-R580-W4G3B4C_description/meshes/XMS3-R580-W4G3B4C_link2.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0.0"/>
+    </collision>
+  </link>
+  <joint name="XMS3-R580-W4G3B4C_joint_3" type="revolute">
+    <parent link="XMS3-R580-W4G3B4C_link2"/>
+    <child link="XMS3-R580-W4G3B4C_link3"/>
+    <limit effort="66" lower="-3.0543" upper="2.3562" velocity="3.141592653589793"/>
+    <axis xyz="0 -1 0"/>
+    <origin rpy="0 0 0" xyz="0.05 0.0 0.29"/>
+  </joint>
+  <transmission name="tran3">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="xmate_joint_3">
+      <hardwareInterface>EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="motor3">
+      <hardwareInterface>EffortJointInterface</hardwareInterface>
+      <mechanicalReduction>1</mechanicalReduction>
+    </actuator>
+  </transmission>
+  <!--link 3-->
+  <link name="XMS3-R580-W4G3B4C_link3">
+    <visual>
+      <geometry>
+        <mesh filename="package://XMS3-R580-W4G3B4C_description/meshes/XMS3-R580-W4G3B4C_link3.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <material name="white"/>
+    </visual>
+    <inertial>
+      <mass value="1.662"/>
+      <inertia ixx="0.00677409" ixy="-0.00057585" ixz="0.00177077" iyy="0.00718819" iyz="-0.00090210" izz="0.00351816"/>
+      <origin rpy="0 0 0" xyz="0.024114999999999998 0.012803 0.039802"/>
+    </inertial>
+    <collision>
+      <geometry>
+        <mesh filename="package://XMS3-R580-W4G3B4C_description/meshes/XMS3-R580-W4G3B4C_link3.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </collision>
+  </link>
+  <joint name="XMS3-R580-W4G3B4C_joint_4" type="revolute">
+    <parent link="XMS3-R580-W4G3B4C_link3"/>
+    <child link="XMS3-R580-W4G3B4C_link4"/>
+    <limit effort="16" lower="-6.2832" upper="6.2832" velocity="3.141592653589793"/>
+    <!--     lower="-6.2832" upper="6.2832" -->
+    <axis xyz="0 0 1"/>
+    <!--     <origin rpy="0 0 0" xyz=-0.05 0.0 0.29/> -->
+    <origin rpy="0 0 0" xyz="-0.05 0.0 0.29"/>
+  </joint>
+  <transmission name="tran4">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="xmate_joint_4">
+      <hardwareInterface>EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="motor4">
+      <hardwareInterface>EffortJointInterface</hardwareInterface>
+      <mechanicalReduction>1</mechanicalReduction>
+    </actuator>
+  </transmission>
+  <!--link 4-->
+  <link name="XMS3-R580-W4G3B4C_link4">
+    <visual>
+      <geometry>
+        <mesh filename="package://XMS3-R580-W4G3B4C_description/meshes/XMS3-R580-W4G3B4C_link4.stl" scale=".001 0.001 0.001"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0.0 0.0 0.0"/>
+      <material name="white"/>
+    </visual>
+    <inertial>
+      <mass value="1.882"/>
+      <inertia ixx="0.01331985" ixy="-0.00000185" ixz="0.00000087" iyy="0.01251989" iyz="-0.00143894" izz="0.00278828"/>
+      <origin rpy="0 0 0" xyz="-2.5e-05 -0.010923 -0.071267"/>
+    </inertial>
+    <collision>
+      <geometry>
+        <mesh filename="package://XMS3-R580-W4G3B4C_description/meshes/XMS3-R580-W4G3B4C_link4.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0.0 0.0 0.0"/>
+    </collision>
+  </link>
+  <joint name="XMS3-R580-W4G3B4C_joint_5" type="revolute">
+    <parent link="XMS3-R580-W4G3B4C_link4"/>
+    <child link="XMS3-R580-W4G3B4C_link5"/>
+    <limit effort="16" lower="-6.2832" upper="6.2832" velocity="3.141592653589793"/>
+    <axis xyz="0 -1 0"/>
+    <origin rpy="0 0 0" xyz="0.0 0.136 0.0"/>
+  </joint>
+  <transmission name="tran5">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="xmate_joint_5">
+      <hardwareInterface>EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="motor5">
+      <hardwareInterface>EffortJointInterface</hardwareInterface>
+      <mechanicalReduction>1</mechanicalReduction>
+    </actuator>
+  </transmission>
+  <!--link 5-->
+  <link name="XMS3-R580-W4G3B4C_link5">
+    <visual>
+      <geometry>
+        <mesh filename="package://XMS3-R580-W4G3B4C_description/meshes/XMS3-R580-W4G3B4C_link5.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <material name="white"/>
+    </visual>
+    <inertial>
+      <mass value="1.507"/>
+      <inertia ixx="0.00503262" ixy="-0.00000608" ixz="-0.00000129" iyy="0.00261442" iyz="-0.00033165" izz="0.00394480"/>
+      <origin rpy="0 0 0" xyz="3e-06 0.029172999999999998 0.007019"/>
+    </inertial>
+    <collision>
+      <geometry>
+        <mesh filename="package://XMS3-R580-W4G3B4C_description/meshes/XMS3-R580-W4G3B4C_link5.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </collision>
+  </link>
+  <joint name="XMS3-R580-W4G3B4C_joint_6" type="revolute">
+    <parent link="XMS3-R580-W4G3B4C_link5"/>
+    <child link="XMS3-R580-W4G3B4C_link6"/>
+    <limit effort="16" lower="-6.2832" upper="6.2832" velocity="3.141592653589793"/>
+    <axis xyz="0 0 1"/>
+    <origin rpy="0.0 0.0 0" xyz="0.0 0.0 0.1035"/>
+  </joint>
+  <transmission name="tran6">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="xmate_joint_6">
+      <hardwareInterface>EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="motor6">
+      <hardwareInterface>EffortJointInterface</hardwareInterface>
+      <mechanicalReduction>1</mechanicalReduction>
+    </actuator>
+  </transmission>
+  <!--link 6-->
+  <link name="XMS3-R580-W4G3B4C_link6">
+    <visual>
+      <geometry>
+        <mesh filename="package://XMS3-R580-W4G3B4C_description/meshes/XMS3-R580-W4G3B4C_link6.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0.0 0.0 0.0"/>
+      <material name="white"/>
+    </visual>
+    <inertial>
+      <mass value="0.634"/>
+      <inertia ixx="0.00099702" ixy="-0.00000138" ixz="0.00000090" iyy="0.00100253" iyz="0.00000158" izz="0.00044795"/>
+      <origin rpy="0 0 0" xyz="7.3e-05 7.9e-05 -0.044853000000000004"/>
+    </inertial>
+    <collision>
+      <geometry>
+        <mesh filename="package://XMS3-R580-W4G3B4C_description/meshes/XMS3-R580-W4G3B4C_link6.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0.0 0.0 0.0"/>
+    </collision>
+  </link>
+</robot>

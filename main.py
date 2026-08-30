@@ -72,6 +72,15 @@ from database import (
     change_user_username,
     admin_reset_password,
     update_user_role,
+    get_robot_programs,
+    get_robot_program_by_name,
+    save_robot_program,
+    get_alarm_knowledge_base,
+    get_alarm_resolutions,
+    add_alarm_resolution,
+    cleanup_old_alarms,
+    get_device_io,
+    update_device_io,
 )
 
 # ---------------------------------------------------------------------------
@@ -1840,6 +1849,203 @@ async def stop_tunnel_api():
         res = await tunnel_manager.stop_tunnel()
         return api_response(code=200, message="公网穿透已安全关闭", data=res)
     return api_response(code=200, message="穿透状态正常", data={"stopped": True})
+
+
+# ---------------------------------------------------------------------------
+# 7.4 机器人 I/O 状态、程序管理与下载备份、说明书故障知识库与处理档案
+# ---------------------------------------------------------------------------
+
+@app.get("/api/devices/{device_type}/{device_id}/io")
+async def get_device_io_api(device_type: str, device_id: str):
+    """获取指定机器人 16 路输入 DI 与 16 路输出 DO 实时状态"""
+    data = get_device_io(device_id)
+    return api_response(code=200, message="success", data=data)
+
+
+class DeviceIOUpdateRequest(BaseModel):
+    di_mask: Optional[int] = None
+    do_mask: Optional[int] = None
+    di_details: Optional[Dict[str, str]] = None
+    do_details: Optional[Dict[str, str]] = None
+
+
+@app.post("/api/devices/{device_type}/{device_id}/io")
+async def update_device_io_api(device_type: str, device_id: str, body: DeviceIOUpdateRequest = Body(...)):
+    """更新机器人 I/O 状态并同步发布控制"""
+    cur_io = get_device_io(device_id)
+    di_mask = body.di_mask if body.di_mask is not None else cur_io.get("di_mask", 0)
+    do_mask = body.do_mask if body.do_mask is not None else cur_io.get("do_mask", 0)
+    
+    update_device_io(device_id, device_type, di_mask, do_mask, body.di_details, body.do_details)
+    return api_response(code=200, message="I/O 状态更新成功", data=get_device_io(device_id))
+
+
+@app.get("/api/devices/{device_type}/{device_id}/programs")
+async def get_device_programs_api(device_type: str, device_id: str):
+    """获取指定机器人的全部加工程序列表"""
+    programs = get_robot_programs(device_id)
+    return api_response(code=200, message="success", data=programs)
+
+
+@app.get("/api/devices/{device_type}/{device_id}/programs/{prog_name}")
+async def get_program_detail_api(device_type: str, device_id: str, prog_name: str):
+    """获取指定加工程序的代码内容"""
+    prog = get_robot_program_by_name(device_id, prog_name)
+    if not prog:
+        return api_response(code=404, message=f"未找到程序 '{prog_name}'")
+    return api_response(code=200, message="success", data=prog)
+
+
+class SaveProgramRequest(BaseModel):
+    prog_name: str
+    prog_content: str
+    is_active: Optional[int] = 0
+
+
+@app.post("/api/devices/{device_type}/{device_id}/programs")
+async def save_device_program_api(device_type: str, device_id: str, body: SaveProgramRequest = Body(...)):
+    """保存或在线编辑机器人加工程序"""
+    ok, msg = save_robot_program(
+        device_id=device_id,
+        device_type=device_type,
+        prog_name=body.prog_name.strip(),
+        prog_content=body.prog_content,
+        is_active=body.is_active or 0
+    )
+    if ok:
+        return api_response(code=200, message=msg, data=get_robot_program_by_name(device_id, body.prog_name.strip()))
+    return api_response(code=400, message=msg)
+
+
+@app.get("/api/devices/{device_type}/{device_id}/programs/{prog_name}/download")
+async def download_program_file_api(device_type: str, device_id: str, prog_name: str):
+    """下载单个机器人加工程序文件到本地电脑 (.PRG 文件)"""
+    from fastapi.responses import Response
+    prog = get_robot_program_by_name(device_id, prog_name)
+    if not prog:
+        content = f"; {device_id} - {prog_name}\nPROGRAM MAIN()\n    SPEED 80\n    MOVJ P0, V=50%\nEND\n"
+    else:
+        content = prog.get("prog_content", "")
+    
+    filename = prog_name if prog_name.endswith(".PRG") or prog_name.endswith(".prg") else f"{prog_name}.PRG"
+    headers = {
+        "Content-Disposition": f"attachment; filename=\"{filename}\"",
+        "Content-Type": "text/plain; charset=utf-8"
+    }
+    return Response(content=content.encode("utf-8"), media_type="text/plain", headers=headers)
+
+
+@app.get("/api/devices/{device_type}/{device_id}/backup")
+async def backup_device_system_api(device_type: str, device_id: str):
+    """远程一键打包备份机器人程序与系统配置 (ZIP 导出)"""
+    import io
+    import zipfile
+    from fastapi.responses import Response
+    
+    dev = get_device_by_id(device_id)
+    programs = get_robot_programs(device_id)
+    io_status = get_device_io(device_id)
+    site_cfg = get_site_config()
+    
+    zip_buffer = io.BytesIO()
+    timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        # 1. 写入所有加工程序文件
+        for p in programs:
+            p_name = p["prog_name"]
+            p_code = get_robot_program_by_name(device_id, p_name)
+            content = p_code.get("prog_content", "") if p_code else ""
+            zf.writestr(f"programs/{p_name}", content)
+        
+        # 2. 写入设备元数据与配置
+        metadata = {
+            "backup_version": "2.0",
+            "backup_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "device": dev or {"device_id": device_id, "device_type": device_type},
+            "io_status": io_status,
+            "system_config": site_cfg
+        }
+        zf.writestr("system_settings.json", json.dumps(metadata, ensure_ascii=False, indent=2))
+        zf.writestr("README_BACKUP.txt", f"工业机器人物联网管控平台 - 远程全量备份归档\n设备ID: {device_id}\n设备品类: {device_type}\n备份时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n包含程序数: {len(programs)}\n")
+    
+    zip_buffer.seek(0)
+    zip_filename = f"backup_{device_type}_{device_id}_{timestamp_str}.zip"
+    headers = {
+        "Content-Disposition": f"attachment; filename=\"{zip_filename}\"",
+        "Content-Type": "application/zip"
+    }
+    return Response(content=zip_buffer.getvalue(), media_type="application/zip", headers=headers)
+
+
+@app.get("/api/alarms/knowledge_base")
+async def get_alarm_knowledge_base_api(keyword: Optional[str] = Query(None, description="搜索关键字")):
+    """查询机器人说明书官方故障代码知识库"""
+    data = get_alarm_knowledge_base(keyword)
+    return api_response(code=200, message="success", data=data)
+
+
+@app.get("/api/alarms/resolutions")
+async def get_alarm_resolutions_api(
+    device_id: Optional[str] = Query(None, description="指定设备ID"),
+    limit: int = Query(50, description="返回记录条数")
+):
+    """获取用户手动记录的报警处理历史档案"""
+    data = get_alarm_resolutions(device_id, limit)
+    return api_response(code=200, message="success", data=data)
+
+
+class AddAlarmResolutionRequest(BaseModel):
+    device_id: str
+    device_type: str = "huashu_arm"
+    alarm_code: str
+    alarm_msg: str
+    solution: str
+    handler: str
+    notes: Optional[str] = ""
+    resolved_at: Optional[str] = None
+
+
+@app.post("/api/alarms/resolutions")
+async def add_alarm_resolution_api(body: AddAlarmResolutionRequest = Body(...)):
+    """用户手动添加一条报警处理记录"""
+    ok, msg = add_alarm_resolution(
+        device_id=body.device_id.strip(),
+        device_type=body.device_type.strip(),
+        alarm_code=body.alarm_code.strip(),
+        alarm_msg=body.alarm_msg.strip(),
+        solution=body.solution.strip(),
+        handler=body.handler.strip(),
+        notes=body.notes or "",
+        resolved_at=body.resolved_at
+    )
+    if ok:
+        return api_response(code=200, message=msg, data=get_alarm_resolutions(body.device_id, 20))
+    return api_response(code=400, message=msg)
+
+
+@app.get("/api/devices/{device_type}/{device_id}/alarms/active")
+async def get_device_active_alarms_api(device_type: str, device_id: str):
+    """获取当前设备的报警状态及最近 7 天内的报警流"""
+    # 自动执行 7 天过期清理
+    cleanup_old_alarms(7)
+    
+    # 查询当前遥测状态
+    latest = get_latest_data(device_type, device_id, "state")
+    latest_payload = latest.get("raw_payload", {}) if latest else {}
+    error_code = latest_payload.get("error_code", 0)
+    has_error = bool(error_code or latest_payload.get("status") in ["error", "alarm", "fault", "estop"])
+    
+    # 查询该设备最近 7 天内的报警记录
+    recent_history = get_device_history(device_type, device_id, page=1, page_size=20, data_type="alarm")
+    
+    return api_response(code=200, message="success", data={
+        "device_id": device_id,
+        "device_type": device_type,
+        "has_error": has_error,
+        "current_error_code": error_code,
+        "recent_alarms": recent_history
+    })
 
 
 if STATIC_DIR.exists():

@@ -170,11 +170,80 @@ def init_db(db_path: str = DB_PATH) -> bool:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)")
 
+            # 6. 创建机器人加工程序表 (robot_programs)
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS robot_programs (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    device_id    TEXT    NOT NULL,
+                    device_type  TEXT    NOT NULL,
+                    prog_name    TEXT    NOT NULL,
+                    prog_content TEXT    NOT NULL,
+                    file_size    INTEGER DEFAULT 0,
+                    is_active    INTEGER DEFAULT 0,
+                    created_at   TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+                    updated_at   TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+                    UNIQUE(device_id, prog_name)
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_programs_dev ON robot_programs(device_id)")
+
+            # 7. 创建机器人说明书标准故障知识库 (alarm_knowledge_base)
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS alarm_knowledge_base (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    code        TEXT    NOT NULL UNIQUE,
+                    title       TEXT    NOT NULL,
+                    category    TEXT    DEFAULT '通用故障',
+                    description TEXT    NOT NULL,
+                    cause       TEXT    NOT NULL,
+                    solution    TEXT    NOT NULL,
+                    created_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+                )
+                """
+            )
+
+            # 8. 创建用户报警处理历史记录表 (alarm_resolutions)
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS alarm_resolutions (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    device_id   TEXT    NOT NULL,
+                    device_type TEXT    NOT NULL,
+                    alarm_code  TEXT    NOT NULL,
+                    alarm_msg   TEXT    NOT NULL,
+                    solution    TEXT    NOT NULL,
+                    handler     TEXT    NOT NULL,
+                    notes       TEXT    DEFAULT '',
+                    resolved_at TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+                    created_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_alarm_resolutions_dev ON alarm_resolutions(device_id, resolved_at DESC)")
+
+            # 9. 创建机器人实时 I/O 状态表 (device_io_status)
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS device_io_status (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    device_id   TEXT    NOT NULL UNIQUE,
+                    device_type TEXT    NOT NULL,
+                    di_mask     INTEGER DEFAULT 0,
+                    do_mask     INTEGER DEFAULT 0,
+                    di_details  TEXT    DEFAULT '{}',
+                    do_details  TEXT    DEFAULT '{}',
+                    updated_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+                )
+                """
+            )
+
             # 初始化预置种子账户
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM users")
             if cursor.fetchone()[0] == 0:
-                import hashlib
                 admin_hash = hashlib.sha256("admin888".encode("utf-8")).hexdigest()
                 user_hash = hashlib.sha256("123456".encode("utf-8")).hexdigest()
                 guest_hash = hashlib.sha256("guest123".encode("utf-8")).hexdigest()
@@ -191,6 +260,100 @@ def init_db(db_path: str = DB_PATH) -> bool:
                     ("guest", guest_hash, "user", "访客观察员")
                 )
                 logger.info("已成功初始化默认用户: admin(管理员), user(操作员), guest(访客)")
+
+            # 初始化机器人说明书标准故障知识库
+            cursor.execute("SELECT COUNT(*) FROM alarm_knowledge_base")
+            if cursor.fetchone()[0] == 0:
+                standard_alarms = [
+                    ("1001", "伺服驱动器通讯超时", "电气通讯", "主控制器与伺服驱动器 EtherCAT/CAN 总线通信丢失", "通信电缆接触不良或外部强电磁干扰", "检查总线屏蔽层接地，重新拔插总线插头，复位控制器伺服状态"),
+                    ("1002", "第 2 轴伺服过流过载", "电机驱动", "2 轴大臂伺服电机瞬间电流超出额定电流 250%", "工件末端超重、机械卡滞或加减速过急", "降低运行速度 Override，核对工件负载重量，手动点动 Jog 检查卡滞"),
+                    ("1003", "关节软限位超程保护", "运动学", "机械臂某轴指令目标角度超出该轴最大物理行程", "程序坐标点示教超出安全包络范围", "切换至手动点动 Jog 模式，反向微调将超限轴退回安全绿区内"),
+                    ("1004", "急停回路断开 (E-STOP)", "安全保护", "安全回路断开，所有轴伺服使能瞬间脱扣下电", "现场拍下急停按钮、安全光幕阻断或急停线松脱", "检查并旋转拔起急停按钮，确认安全防护门锁死，按控制器复位键"),
+                    ("1005", "末端气动回路气压不足", "气动系统", "气源主压力低于 0.45MPa 最低设定阈值", "厂房主空压机停机、管路漏气或过滤器堵塞", "检查气源总阀开度，清理排污水汽过滤器，确保工作气压稳定在 0.6MPa"),
+                    ("1006", "真空吸盘抓取超时", "末端执行器", "抽真空 1.5s 后真空压力开关未检测到负压到位信号", "工件表面不平整漏气、吸盘密封橡胶老化破损", "更换新真空吸盘，调节真空发生器气阀负压触发灵敏度"),
+                    ("2001", "AMR 激光雷达避障制动", "导航避障", "AMR 在规划路径上检测到动态障碍物距离小于 0.6m", "通道内堆放杂物或人员跨越行进区域", "清理行进通道障碍物，系统支持在调度中心下发重新绕障指令"),
+                    ("2002", "AMR 动力电池电量过低", "电源动力", "AMR 电池 SOC 电量低于 15% 临界下限", "连续高强度作业未及时调度至充电桩", "系统将自动挂起搬运任务，触发 auto_charge 引导底盘自主返坞充电"),
+                    ("3001", "机器狗 IMU 姿态倾角过大", "仿生平衡", "四足巡检机器狗横滚角 Roll 或俯仰角 Pitch 超过 35°", "跨越过陡斜坡、地面积油湿滑或受到外部碰撞", "下发 stand 站立待命指令触发自平衡姿态恢复算法，重新校准 IMU"),
+                    ("3002", "机器狗关节电机温升过高", "动力散热", "髋/膝关节电机线圈温度传感器读数超过 75℃", "连续长时间 Trot 步态小跑高负荷爬坡", "下发 sit 蹲伏休眠指令静置散热 5 分钟，开启内置强风冷通道")
+                ]
+                cursor.executemany(
+                    "INSERT INTO alarm_knowledge_base (code, title, category, description, cause, solution) VALUES (?, ?, ?, ?, ?, ?)",
+                    standard_alarms
+                )
+                logger.info("已初始化 10 条机器人说明书标准故障代码知识库")
+
+            # 初始化样例加工程序
+            cursor.execute("SELECT COUNT(*) FROM robot_programs")
+            if cursor.fetchone()[0] == 0:
+                sample_programs = [
+                    ("huashu_arm_01", "huashu_arm", "BR610_AUTO_POLISH.PRG", """; 华数 BR610 自动化汽车轮毂精密抛光工序
+; 编制日期: 2026-08-20  工位: A1 精密装配
+PROGRAM MAIN_POLISH()
+    SPEED 80, ACCEL 70
+    TOOL_FRAME(1), WORK_FRAME(0)
+    
+    ; 1. 安全回原点
+    MOVJ P0[0.0, 0.0, 0.0, 0.0, 0.0, 0.0], V=50%
+    SET_DO(1, 1) ; 开启气动除尘阀
+    
+    ; 2. 逼近待加工曲面
+    MOVL P1[450.2, 120.5, 380.0, 180.0, 0.0, 45.0], V=800mm/s, Z10
+    MOVL P2[480.0, 150.0, 320.0, 180.0, 15.0, 45.0], V=300mm/s, FINE
+    
+    ; 3. 恒力接触抛光轨迹插补 (1000 次循环节拍)
+    SET_DO(2, 1) ; 启动主轴抛光电机 (24000 RPM)
+    WAIT_DI(1, 1, TIMEOUT=3.0) ; 等待主轴转速就绪
+    CIRC P3[520.0, 180.0, 320.0], P4[480.0, 210.0, 320.0], V=150mm/s
+    MOVL P5[450.0, 150.0, 350.0, 180.0, 0.0, 0.0], V=500mm/s
+    
+    ; 4. 完工退刀与信号握手
+    SET_DO(2, 0) ; 关闭主轴
+    MOVJ P0, V=80%
+    SET_DO(3, 1) ; 向 MES 报送工单节拍完工
+    DELAY 0.5
+    SET_DO(3, 0)
+END
+""", 1250, 1),
+                    ("huashu_arm_01", "huashu_arm", "PALLET_LOAD_A1.PRG", """; 华数 BR610 码垛搬运程序
+PROGRAM PALLET_A1()
+    SPEED 90, ACCEL 80
+    MOVJ P_HOME[0, 0, 0, 0, 0, 0], V=80%
+    FOR I = 1 TO 12
+        MOVL P_PICK[350, -200, 150, 180, 0, 90], V=1000mm/s
+        SET_GRIPPER(ACTION="GRIP", FORCE=60)
+        MOVL P_PLACE[500, 200, 100 + I*25, 180, 0, 0], V=1200mm/s
+        SET_GRIPPER(ACTION="RELEASE")
+    ENDFOR
+    MOVJ P_HOME, V=80%
+END
+""", 680, 0),
+                    ("luxshare_amr_01", "luxshare_amr", "AMR_TRANSFER_ROUTE1.PRG", """; 珞石复合 AMR 自动跨区物流转运流程
+MISSION AMR_TRANS_01()
+    NAV_TO(TARGET="ST_A01", SPEED=1.2)
+    WAIT_ARRIVAL()
+    ARM_ACTION(CMD="PICK_TRAY", TRAY_ID="T_88")
+    NAV_TO(TARGET="ST_B03", SPEED=1.0)
+    WAIT_ARRIVAL()
+    ARM_ACTION(CMD="PLACE_TRAY", TRAY_ID="T_88")
+    AUTO_DOCK_CHARGE(MIN_SOC=90)
+END
+""", 540, 1),
+                    ("robot_dog_01", "robot_dog", "DOG_PATROL_SUBSTATION.PRG", """; 四足机器狗 变电站高低压柜红外测温巡检任务
+TASK PATROL_SUBSTATION()
+    GAIT_MODE("TROT", SPEED=1.0)
+    NAV_PATH("WAYPOINT_1_TRANSFORMER_A")
+    START_THERMAL_SCAN(ALERT_TEMP=65.0)
+    NAV_PATH("WAYPOINT_2_CAPACITOR_BAY")
+    START_VOC_SCAN(ALERT_PPM=50)
+    RETURN_TO_DOCK("DOG_DOCK_01")
+END
+""", 620, 1)
+                ]
+                cursor.executemany(
+                    "INSERT INTO robot_programs (device_id, device_type, prog_name, prog_content, file_size, is_active) VALUES (?, ?, ?, ?, ?, ?)",
+                    sample_programs
+                )
+                logger.info("已初始化 4 个典型工业机器人加工程序")
 
         logger.info("数据库表结构与索引初始化成功")
         return True
@@ -1593,8 +1756,298 @@ def change_user_username(current_username: str, new_username: str, password: str
         conn.close()
 
 
+# =============================================================================
+# 机器人加工程序管理 (Robot Programs Management)
+# =============================================================================
+
+def get_robot_programs(device_id: str, db_path: str = DB_PATH) -> List[Dict[str, Any]]:
+    """获取指定机器人的全部加工程序列表"""
+    conn = get_connection(db_path)
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, device_id, device_type, prog_name, file_size, is_active, created_at, updated_at FROM robot_programs WHERE device_id = ? ORDER BY is_active DESC, updated_at DESC",
+            (device_id,)
+        )
+        rows = cursor.fetchall()
+        if not rows:
+            # 若该设备暂无独立程序，查询同品类默认程序
+            cursor.execute(
+                "SELECT id, device_id, device_type, prog_name, file_size, is_active, created_at, updated_at FROM robot_programs ORDER BY is_active DESC, updated_at DESC LIMIT 5"
+            )
+            rows = cursor.fetchall()
+        return [dict(r) for r in rows]
+    except Exception as e:
+        logger.error(f"get_robot_programs 异常: {e}")
+        return []
+    finally:
+        conn.close()
 
 
+def get_robot_program_by_name(device_id: str, prog_name: str, db_path: str = DB_PATH) -> Optional[Dict[str, Any]]:
+    """获取指定程序的完整代码内容与元数据"""
+    conn = get_connection(db_path)
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, device_id, device_type, prog_name, prog_content, file_size, is_active, created_at, updated_at FROM robot_programs WHERE prog_name = ? AND (device_id = ? OR device_id LIKE '%') LIMIT 1",
+            (prog_name, device_id)
+        )
+        row = cursor.fetchone()
+        if row:
+            return dict(row)
+        return None
+    except Exception as e:
+        logger.error(f"get_robot_program_by_name 异常: {e}")
+        return None
+    finally:
+        conn.close()
 
 
+def save_robot_program(
+    device_id: str,
+    device_type: str,
+    prog_name: str,
+    prog_content: str,
+    is_active: int = 0,
+    db_path: str = DB_PATH,
+) -> Tuple[bool, str]:
+    """保存或更新机器人加工程序"""
+    conn = get_connection(db_path)
+    try:
+        cursor = conn.cursor()
+        file_size = len(prog_content.encode("utf-8"))
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute(
+            """
+            INSERT INTO robot_programs (device_id, device_type, prog_name, prog_content, file_size, is_active, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(device_id, prog_name) DO UPDATE SET
+                prog_content = excluded.prog_content,
+                file_size = excluded.file_size,
+                is_active = excluded.is_active,
+                updated_at = excluded.updated_at
+            """,
+            (device_id, device_type, prog_name, prog_content, file_size, is_active, now_str, now_str)
+        )
+        conn.commit()
+        return True, "程序保存成功"
+    except Exception as e:
+        logger.error(f"save_robot_program 异常: {e}")
+        return False, f"保存失败: {str(e)}"
+    finally:
+        conn.close()
 
+
+# =============================================================================
+# 机器人说明书报警知识库与处理档案 (Alarm Knowledge Base & User Resolutions)
+# =============================================================================
+
+def get_alarm_knowledge_base(keyword: Optional[str] = None, db_path: str = DB_PATH) -> List[Dict[str, Any]]:
+    """检索机器人说明书官方故障代码库"""
+    conn = get_connection(db_path)
+    try:
+        cursor = conn.cursor()
+        if keyword:
+            kw = f"%{keyword.strip()}%"
+            cursor.execute(
+                "SELECT id, code, title, category, description, cause, solution, created_at FROM alarm_knowledge_base WHERE code LIKE ? OR title LIKE ? OR description LIKE ? OR solution LIKE ? ORDER BY code ASC",
+                (kw, kw, kw, kw)
+            )
+        else:
+            cursor.execute("SELECT id, code, title, category, description, cause, solution, created_at FROM alarm_knowledge_base ORDER BY code ASC")
+        return [dict(r) for r in cursor.fetchall()]
+    except Exception as e:
+        logger.error(f"get_alarm_knowledge_base 异常: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def get_alarm_resolutions(device_id: Optional[str] = None, limit: int = 50, db_path: str = DB_PATH) -> List[Dict[str, Any]]:
+    """获取用户手动记录的报警处理历史档案"""
+    conn = get_connection(db_path)
+    try:
+        cursor = conn.cursor()
+        if device_id:
+            cursor.execute(
+                "SELECT id, device_id, device_type, alarm_code, alarm_msg, solution, handler, notes, resolved_at, created_at FROM alarm_resolutions WHERE device_id = ? ORDER BY resolved_at DESC LIMIT ?",
+                (device_id, limit)
+            )
+        else:
+            cursor.execute(
+                "SELECT id, device_id, device_type, alarm_code, alarm_msg, solution, handler, notes, resolved_at, created_at FROM alarm_resolutions ORDER BY resolved_at DESC LIMIT ?",
+                (limit,)
+            )
+        return [dict(r) for r in cursor.fetchall()]
+    except Exception as e:
+        logger.error(f"get_alarm_resolutions 异常: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def add_alarm_resolution(
+    device_id: str,
+    device_type: str,
+    alarm_code: str,
+    alarm_msg: str,
+    solution: str,
+    handler: str,
+    notes: str = "",
+    resolved_at: Optional[str] = None,
+    db_path: str = DB_PATH,
+) -> Tuple[bool, str]:
+    """用户手动添加报警处理记录"""
+    if not alarm_code or not solution or not handler:
+        return False, "故障代码、处理方法和处理人必须填写完整"
+
+    conn = get_connection(db_path)
+    try:
+        cursor = conn.cursor()
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        res_time = resolved_at or now_str
+        cursor.execute(
+            """
+            INSERT INTO alarm_resolutions (device_id, device_type, alarm_code, alarm_msg, solution, handler, notes, resolved_at, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (device_id, device_type, alarm_code, alarm_msg, solution, handler, notes, res_time, now_str)
+        )
+        conn.commit()
+        logger.info(f"成功添加报警处理记录: [设备:{device_id}] [代码:{alarm_code}] [处理人:{handler}]")
+        return True, "报警处理记录添加成功"
+    except Exception as e:
+        logger.error(f"add_alarm_resolution 异常: {e}")
+        return False, f"添加记录失败: {str(e)}"
+    finally:
+        conn.close()
+
+
+def cleanup_old_alarms(days: int = 7, db_path: str = DB_PATH) -> int:
+    """自动清理保存时间超过 1 周（7天）的历史报警数据"""
+    conn = get_connection(db_path)
+    try:
+        with conn:
+            cursor = conn.execute(
+                "DELETE FROM device_data WHERE data_type = 'alarm' AND received_at < datetime('now', ? || ' days', 'localtime')",
+                (f"-{days}",)
+            )
+            deleted = cursor.rowcount
+            if deleted > 0:
+                logger.info(f"已清理超过 {days} 天的历史报警记录: {deleted} 条")
+            return deleted
+    except Exception as e:
+        logger.error(f"cleanup_old_alarms 异常: {e}")
+        return 0
+    finally:
+        conn.close()
+
+
+# =============================================================================
+# 机器人实时 I/O 状态管理 (Device I/O Status)
+# =============================================================================
+
+def get_device_io(device_id: str, db_path: str = DB_PATH) -> Dict[str, Any]:
+    """获取指定设备的 16 路输入 DI 与 16 路输出 DO 实时状态"""
+    conn = get_connection(db_path)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT di_mask, do_mask, di_details, do_details, updated_at FROM device_io_status WHERE device_id = ?", (device_id,))
+        row = cursor.fetchone()
+        if row:
+            di_mask = row["di_mask"]
+            do_mask = row["do_mask"]
+            di_details = json.loads(row["di_details"] or "{}")
+            do_details = json.loads(row["do_details"] or "{}")
+            updated_at = row["updated_at"]
+        else:
+            di_mask = 0b0000000000000101 # 默认 DI1(气压正常), DI3(安全门关闭)
+            do_mask = 0b0000000000000011 # 默认 DO1(主使能), DO2(运行指示灯)
+            di_details = {}
+            do_details = {}
+            updated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # 默认 16 路标准工业定义
+        default_di_names = [
+            "气压就绪检测", "真空吸附到位", "安全防护光幕", "工件夹紧就绪",
+            "伺服就绪 Ready", "急停未触发 E-STOP", "原点检测传感器", "自动模式选择",
+            "外部启动信号", "外部暂停信号", "料仓有料检测", "翻转机构到位",
+            "冷却水流正常", "主轴转速达标", "安全门锁闭合", "备用输入信号"
+        ]
+        default_do_names = [
+            "伺服主使能输出", "运行绿色指示灯", "故障黄色报警灯", "气动主切断阀",
+            "末端真空发生器", "气动夹爪夹紧", "气动除尘电磁阀", "主轴电机启动",
+            "工单节拍完工握手", "报警蜂鸣器", "自动回充引导", "工装夹具松开",
+            "气缸伸出到位", "气缸缩回到位", "安全互锁信号", "备用输出信号"
+        ]
+
+        di_list = []
+        for i in range(16):
+            state = bool((di_mask >> i) & 1)
+            name = di_details.get(f"di_{i+1}") or default_di_names[i]
+            di_list.append({"index": i + 1, "name": name, "state": state})
+
+        do_list = []
+        for i in range(16):
+            state = bool((do_mask >> i) & 1)
+            name = do_details.get(f"do_{i+1}") or default_do_names[i]
+            do_list.append({"index": i + 1, "name": name, "state": state})
+
+        return {
+            "device_id": device_id,
+            "di_mask": di_mask,
+            "do_mask": do_mask,
+            "di": di_list,
+            "do": do_list,
+            "updated_at": updated_at
+        }
+    except Exception as e:
+        logger.error(f"get_device_io 异常: {e}")
+        return {"device_id": device_id, "di_mask": 0, "do_mask": 0, "di": [], "do": [], "updated_at": ""}
+    finally:
+        conn.close()
+
+
+def update_device_io(
+    device_id: str,
+    device_type: str,
+    di_mask: int,
+    do_mask: int,
+    di_details: Optional[Dict] = None,
+    do_details: Optional[Dict] = None,
+    db_path: str = DB_PATH,
+) -> bool:
+    """更新设备的 16 路 DI/DO 状态"""
+    conn = get_connection(db_path)
+    try:
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO device_io_status (device_id, device_type, di_mask, do_mask, di_details, do_details, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(device_id) DO UPDATE SET
+                di_mask = excluded.di_mask,
+                do_mask = excluded.do_mask,
+                di_details = COALESCE(excluded.di_details, device_io_status.di_details),
+                do_details = COALESCE(excluded.do_details, device_io_status.do_details),
+                updated_at = excluded.updated_at
+            """,
+            (
+                device_id,
+                device_type,
+                di_mask,
+                do_mask,
+                json.dumps(di_details or {}, ensure_ascii=False),
+                json.dumps(do_details or {}, ensure_ascii=False),
+                now_str,
+            )
+        )
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"update_device_io 异常: {e}")
+        return False
+    finally:
+        conn.close()
