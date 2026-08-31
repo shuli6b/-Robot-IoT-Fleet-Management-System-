@@ -327,35 +327,8 @@ async def local_simulation_generator_task():
                 phase = idx * 0.8  # 每个设备错开相位，更显自然
 
                 if dev_type in ("huashu_arm", "arm"):
-                    j_huashu = [
-                        round(math.sin((t + phase) * 0.4) * 45.0, 2),
-                        round(math.sin((t + phase) * 0.5) * 30.0 - 10.0, 2),
-                        round(math.sin((t + phase) * 0.3) * 35.0 + 15.0, 2),
-                        round(math.cos((t + phase) * 0.6) * 40.0, 2),
-                        round(math.sin((t + phase) * 0.7) * 45.0, 2),
-                        round(math.cos((t + phase) * 0.9) * 60.0, 2)
-                    ]
-                    tcp_huashu = {
-                        "x": round(450.2 + math.sin((t + phase) * 0.5) * 60.0, 1),
-                        "y": round(200.1 + math.cos((t + phase) * 0.5) * 40.0, 1),
-                        "z": round(350.0 + math.sin((t + phase) * 0.3) * 30.0, 1),
-                        "a": 180.0, "b": 0.0, "c": j_huashu[5]
-                    }
-                    payload = {
-                        "device_id": dev_id,
-                        "device_type": dev_type,
-                        "status": "online",
-                        "timestamp": now_iso,
-                        "joint_angles": j_huashu,
-                        "cartesian_pos": tcp_huashu,
-                        "battery": 98.0,
-                        "enabled": True,
-                        "emergency_stop": False,
-                        "error_code": 0,
-                        "error_msg": "正常运行",
-                        "cycle_count": int(12480 + t * 2 + idx * 100),
-                        "running_hours": round(452.8 + t / 3600.0, 2)
-                    }
+                    # 华数机械臂已直连现场真实物理控制器 (192.168.1.168~170:23333)，由 huashu-bridge 真实采集，此处跳过仿真覆盖
+                    continue
                 elif dev_type == "luxshare_amr":
                     j_lux = [
                         round(math.sin((t + phase) * 0.35) * 35.0, 2),
