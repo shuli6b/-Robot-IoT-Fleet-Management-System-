@@ -2174,12 +2174,13 @@ if STATIC_DIR.exists():
 @app.get("/login", include_in_schema=False)
 async def serve_login_page():
     """纯净极简浅色登录页面"""
+    headers = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"}
     if LOGIN_HTML.exists():
-        return FileResponse(str(LOGIN_HTML))
+        return FileResponse(str(LOGIN_HTML), headers=headers)
     if INDEX_NEXT_HTML.exists():
-        return FileResponse(str(INDEX_NEXT_HTML))
+        return FileResponse(str(INDEX_NEXT_HTML), headers=headers)
     if INDEX_HTML.exists():
-        return FileResponse(str(INDEX_HTML))
+        return FileResponse(str(INDEX_HTML), headers=headers)
     return api_response(code=200, message="登录页面正在就绪中...")
 
 
@@ -2189,10 +2190,11 @@ async def serve_login_page():
 @app.get("/preview", include_in_schema=False)
 async def serve_index_next():
     """全新极简浅白企业版 UI 大屏"""
+    headers = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"}
     if INDEX_NEXT_HTML.exists():
-        return FileResponse(str(INDEX_NEXT_HTML))
+        return FileResponse(str(INDEX_NEXT_HTML), headers=headers)
     if INDEX_HTML.exists():
-        return FileResponse(str(INDEX_HTML))
+        return FileResponse(str(INDEX_HTML), headers=headers)
     return api_response(code=200, message="极简浅白版 UI 正在就绪中...")
 
 
@@ -2200,10 +2202,11 @@ async def serve_index_next():
 @app.get("/", include_in_schema=False)
 async def serve_index():
     """企业级机器人孪生大屏 UI"""
+    headers = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"}
     if INDEX_HTML.exists():
-        return FileResponse(str(INDEX_HTML))
+        return FileResponse(str(INDEX_HTML), headers=headers)
     if INDEX_NEXT_HTML.exists():
-        return FileResponse(str(INDEX_NEXT_HTML))
+        return FileResponse(str(INDEX_NEXT_HTML), headers=headers)
     return api_response(code=200, message="机器人物联网管理系统 API 服务正常运行中")
 
 
