@@ -759,17 +759,8 @@
 
                         <!-- Top Viewport Control Buttons -->
                         <div class="absolute top-3.5 right-[255px] hidden sm:flex items-center gap-1.5 z-10">
-                            <button type="button" onclick="toggleForearmMirror()" title="一键镜像小臂（左向/右向切换）" class="px-2 py-1 bg-cyan-950/90 hover:bg-cyan-900 text-cyan-200 rounded-lg border border-cyan-700/80 text-xs flex items-center gap-1 shadow-md transition font-medium">
-                                <span>↔️</span><span class="text-[11px]">小臂镜像</span>
-                            </button>
-                            <button type="button" onclick="toggleForearm180()" title="小臂 180° 翻转" class="px-2 py-1 bg-indigo-950/90 hover:bg-indigo-900 text-indigo-200 rounded-lg border border-indigo-700/80 text-xs flex items-center gap-1 shadow-md transition font-medium">
-                                <span>🔄</span><span class="text-[11px]">小臂180°</span>
-                            </button>
-                            <button type="button" onclick="toggleBase180()" title="基座 180° 调头" class="px-2 py-1 bg-purple-950/90 hover:bg-purple-900 text-purple-200 rounded-lg border border-purple-700/80 text-xs flex items-center gap-1 shadow-md transition font-medium">
-                                <span>🔃</span><span class="text-[11px]">基座180°</span>
-                            </button>
                             <button type="button" onclick="reset3dCamera()" title="复位 3D 视角" class="px-2.5 py-1 bg-slate-900/90 hover:bg-slate-800 text-slate-200 rounded-lg border border-slate-700 text-xs flex items-center gap-1 shadow-md transition">
-                                <span>🎯</span><span class="text-[11px]">视角复位</span>
+                                <span>🔄</span><span class="text-[11px]">视角复位</span>
                             </button>
                             <button type="button" onclick="toggle3dWireframe()" title="切换线框/透视" class="px-2.5 py-1 bg-slate-900/90 hover:bg-slate-800 text-slate-200 rounded-lg border border-slate-700 text-xs flex items-center gap-1 shadow-md transition">
                                 <span>🌐</span><span class="text-[11px]">透视模式</span>
@@ -3186,28 +3177,6 @@
             robot3dRenderer.setSize(width, height);
         }
 
-        let huashuJ3Invert = true; // Default to TRUE (left-down forearm)
-        let huashuJ3Offset180 = false;
-        let huashuBase180 = false;
-
-        function toggleForearmMirror() {
-            huashuJ3Invert = !huashuJ3Invert;
-            showToast(huashuJ3Invert ? '已切换为：小臂左向姿态（镜像模式）' : '已切换为：小臂右向姿态', '↔️');
-        }
-
-        function toggleForearm180() {
-            huashuJ3Offset180 = !huashuJ3Offset180;
-            showToast(huashuJ3Offset180 ? '已增加小臂 180° 旋转偏移' : '已清除小臂 180° 旋转偏移', '🔄');
-        }
-
-        function toggleBase180() {
-            huashuBase180 = !huashuBase180;
-            if (robot3dModel) {
-                robot3dModel.rotation.y = huashuBase180 ? Math.PI : 0;
-            }
-            showToast(huashuBase180 ? '已旋转基座 180°（电机朝向对调）' : '基座已恢复默认朝向', '🔃');
-        }
-
         function reset3dCamera() {
             if (!robot3dCamera || !robot3dControls) return;
             robot3dCamera.position.set(0.6, 2.2, 3.8);
@@ -3662,8 +3631,7 @@
                         if (deviceType === 'huashu_arm' || deviceType === 'arm') {
                             const a1 = rads[0] || 0;
                             const a2 = (rads[1] || 0) + Math.PI / 2;
-                            let a3 = huashuJ3Invert ? (Math.PI - (rads[2] || 0)) : ((rads[2] || 0) - Math.PI);
-                            if (huashuJ3Offset180) a3 += Math.PI;
+                            const a3 = Math.PI - (rads[2] || 0);
                             const a4 = rads[3] || 0;
                             const a5 = rads[4] || 0;
                             const a6 = rads[5] || 0;
@@ -3842,8 +3810,7 @@
             } else if (deviceType === 'huashu_arm' || deviceType === 'arm') {
                 const a1 = rads[0] || 0;
                 const a2 = (rads[1] || 0) + Math.PI / 2;
-                let a3 = huashuJ3Invert ? (Math.PI - (rads[2] || 0)) : ((rads[2] || 0) - Math.PI);
-                if (huashuJ3Offset180) a3 += Math.PI;
+                const a3 = Math.PI - (rads[2] || 0);
                 const a4 = rads[3] || 0;
                 const a5 = rads[4] || 0;
                 const a6 = rads[5] || 0;
