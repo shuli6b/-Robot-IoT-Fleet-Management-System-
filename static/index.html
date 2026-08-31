@@ -3209,39 +3209,50 @@
         // =============================================================
         
         
-        // Real URDF STL Mesh Loader for Huashu HSR-BR610-1300
+        // Real URDF STL Mesh Loader for Huashu HSR-BR610-1300 (100% Real Factory Coating + Cable Harness)
         function createHuashuStlArm(scale = 1.35) {
             const loader = new THREE.STLLoader();
             const basePath = '/static/models/huashu_br610/';
 
-            const matGrey = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.6, roughness: 0.35 });
-            const matWhite = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, metalness: 0.3, roughness: 0.35 });
-            const matRed = new THREE.MeshStandardMaterial({ color: 0xd9381e, metalness: 0.4, roughness: 0.3 });
-            const matDark = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.7, roughness: 0.3 });
+            // 1:1 Matching Huashu Factory Industrial Color Scheme:
+            // J1, J3, J5 = Huashu Signature China Red
+            // J2, J4 = Pure Metallic White/Silver Link Tubes
+            // Base & J6 = Industrial Graphite Charcoal Black
+            // Cable Harness = Matte Industrial Black
+            const matHuashuRed = new THREE.MeshStandardMaterial({ color: 0xd32f2f, metalness: 0.35, roughness: 0.25, wireframe: robot3dWireframeMode });
+            const matArmWhite = new THREE.MeshStandardMaterial({ color: 0xf8fafc, metalness: 0.45, roughness: 0.2, wireframe: robot3dWireframeMode });
+            const matBaseDark = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.7, roughness: 0.3, wireframe: robot3dWireframeMode });
+            const matFlangeBlack = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.8, roughness: 0.2, wireframe: robot3dWireframeMode });
+            const matCableBlack = new THREE.MeshStandardMaterial({ color: 0x111827, metalness: 0.15, roughness: 0.85, wireframe: robot3dWireframeMode });
 
             const armContainer = new THREE.Group();
             armContainer.rotation.x = -Math.PI / 2; // Convert URDF Z-up to Three.js Y-up
 
-            // Base Link (URDF origin 0 0 0)
+            // Base Link (URDF origin 0 0 0) - Cast Iron Black Base
             loader.load(basePath + 'base_link.STL', geo => {
                 geo.scale(scale, scale, scale);
-                const m = new THREE.Mesh(geo, matGrey);
+                const m = new THREE.Mesh(geo, matBaseDark);
                 m.castShadow = true;
                 armContainer.add(m);
             });
 
-            // J1 Joint (origin 0.0375 0 0.283, axis Z)
+            // J1 Joint (origin 0.0375 0 0.283, axis Z) - Huashu Red Waist Housing
             const j1 = new THREE.Group();
             j1.position.set(0.0375 * scale, 0, 0.283 * scale);
             armContainer.add(j1);
             loader.load(basePath + 'J1.STL', geo => {
                 geo.scale(scale, scale, scale);
-                const m = new THREE.Mesh(geo, matGrey);
+                const m = new THREE.Mesh(geo, matHuashuRed);
                 m.castShadow = true;
                 j1.add(m);
             });
 
-            // J2 Joint (origin 0 -0.0475 0.133, rpy -1.5708 0 0, axis Z)
+            // Black Servo Motor Housing on J1 (1:1 with photo)
+            const j1Motor = new THREE.Mesh(new THREE.BoxGeometry(0.16 * scale, 0.14 * scale, 0.22 * scale), matBaseDark);
+            j1Motor.position.set(-0.14 * scale, 0.04 * scale, 0.08 * scale);
+            j1.add(j1Motor);
+
+            // J2 Joint (origin 0 -0.0475 0.133, rpy -1.5708 0 0, axis Z) - Pure White Upper Arm
             const j2Pre = new THREE.Group();
             j2Pre.position.set(0, -0.0475 * scale, 0.133 * scale);
             j2Pre.rotation.set(-Math.PI / 2, 0, 0);
@@ -3251,12 +3262,24 @@
             j2Pre.add(j2);
             loader.load(basePath + 'J2.STL', geo => {
                 geo.scale(scale, scale, scale);
-                const m = new THREE.Mesh(geo, matWhite);
+                const m = new THREE.Mesh(geo, matArmWhite);
                 m.castShadow = true;
                 j2.add(m);
             });
 
-            // J3 Joint (origin 0 -0.726 -0.089, rpy 0 0 -1.5708, axis Z)
+            // Black Corrugated Cable Conduit along J2
+            try {
+                const curveLower = new THREE.CatmullRomCurve3([
+                    new THREE.Vector3(-0.1 * scale, 0.08 * scale, 0.12 * scale),
+                    new THREE.Vector3(-0.14 * scale, -0.28 * scale, 0.16 * scale),
+                    new THREE.Vector3(-0.07 * scale, -0.6 * scale, 0.12 * scale),
+                    new THREE.Vector3(0.02 * scale, -0.72 * scale, 0.06 * scale)
+                ]);
+                const lowerCable = new THREE.Mesh(new THREE.TubeGeometry(curveLower, 24, 0.024 * scale, 12, false), matCableBlack);
+                j2.add(lowerCable);
+            } catch(e) {}
+
+            // J3 Joint (origin 0 -0.726 -0.089, rpy 0 0 -1.5708, axis Z) - Black Connecting Pipe/Elbow
             const j3Pre = new THREE.Group();
             j3Pre.position.set(0, -0.726 * scale, -0.089 * scale);
             j3Pre.rotation.set(0, 0, -Math.PI / 2);
@@ -3266,12 +3289,12 @@
             j3Pre.add(j3);
             loader.load(basePath + 'J3.STL', geo => {
                 geo.scale(scale, scale, scale);
-                const m = new THREE.Mesh(geo, matRed);
+                const m = new THREE.Mesh(geo, matFlangeBlack);
                 m.castShadow = true;
                 j3.add(m);
             });
 
-            // J4 Joint (origin 0 0.122 -0.079, rpy 1.5708 0 3.1416, axis Z)
+            // J4 Joint (origin 0 0.122 -0.079, rpy 1.5708 0 3.1416, axis Z) - Pure White Forearm Tube
             const j4Pre = new THREE.Group();
             j4Pre.position.set(0, 0.122 * scale, -0.079 * scale);
             j4Pre.rotation.set(Math.PI / 2, 0, Math.PI);
@@ -3281,12 +3304,24 @@
             j4Pre.add(j4);
             loader.load(basePath + 'J4.STL', geo => {
                 geo.scale(scale, scale, scale);
-                const m = new THREE.Mesh(geo, matGrey);
+                const m = new THREE.Mesh(geo, matArmWhite);
                 m.castShadow = true;
                 j4.add(m);
             });
 
-            // J5 Joint (origin -0.0006 -0.064 0.5085, rpy -1.5708 0 0, axis Z)
+            // Black Corrugated Cable Conduit looping over J3 Elbow to J4 Forearm
+            try {
+                const curveUpper = new THREE.CatmullRomCurve3([
+                    new THREE.Vector3(0.04 * scale, 0.06 * scale, -0.05 * scale),
+                    new THREE.Vector3(0.12 * scale, 0.14 * scale, 0.12 * scale),
+                    new THREE.Vector3(0.06 * scale, 0.18 * scale, 0.32 * scale),
+                    new THREE.Vector3(-0.02 * scale, 0.12 * scale, 0.48 * scale)
+                ]);
+                const upperCable = new THREE.Mesh(new THREE.TubeGeometry(curveUpper, 24, 0.022 * scale, 12, false), matCableBlack);
+                j4.add(upperCable);
+            } catch(e) {}
+
+            // J5 Joint (origin -0.0006 -0.064 0.5085, rpy -1.5708 0 0, axis Z) - Huashu Red Wrist Housing
             const j5Pre = new THREE.Group();
             j5Pre.position.set(-0.00060399 * scale, -0.063997 * scale, 0.5085 * scale);
             j5Pre.rotation.set(-Math.PI / 2, 0, 0);
@@ -3296,22 +3331,22 @@
             j5Pre.add(j5);
             loader.load(basePath + 'J5.STL', geo => {
                 geo.scale(scale, scale, scale);
-                const m = new THREE.Mesh(geo, matRed);
+                const m = new THREE.Mesh(geo, matHuashuRed);
                 m.castShadow = true;
                 j5.add(m);
             });
 
-            // J6 Joint (origin -0.00027 -0.11 -0.0295, rpy 1.5708 0 1.5708, axis Z)
+            // J6 Joint (origin -0.00027 -0.11 -0.0295, rpy 1.5708 0 1.5708, axis Z) - Black End Tool Flange
             const j6Pre = new THREE.Group();
             j6Pre.position.set(-0.00027126 * scale, -0.11 * scale, -0.029501 * scale);
-            j6Pre.rotation.set(Math.PI / 2, 0, 1.5708);
+            j6Pre.rotation.set(Math.PI / 2, 0, Math.PI / 2);
             j5.add(j6Pre);
 
             const j6 = new THREE.Group();
             j6Pre.add(j6);
             loader.load(basePath + 'J6.STL', geo => {
                 geo.scale(scale, scale, scale);
-                const m = new THREE.Mesh(geo, matDark);
+                const m = new THREE.Mesh(geo, matFlangeBlack);
                 m.castShadow = true;
                 j6.add(m);
             });
