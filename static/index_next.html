@@ -3636,7 +3636,7 @@
                         if (deviceType === 'huashu_arm' || deviceType === 'arm') {
                             const a1 = rads[0] || 0;
                             const a2 = (rads[1] || 0) + Math.PI / 2;
-                            const a3 = (rads[2] || 0) - Math.PI;
+                            const a3 = Math.PI - (rads[2] || 0);
                             const a4 = rads[3] || 0;
                             const a5 = rads[4] || 0;
                             const a6 = rads[5] || 0;
@@ -3815,7 +3815,7 @@
             } else if (deviceType === 'huashu_arm' || deviceType === 'arm') {
                 const a1 = rads[0] || 0;
                 const a2 = (rads[1] || 0) + Math.PI / 2;
-                const a3 = (rads[2] || 0) - Math.PI;
+                const a3 = Math.PI - (rads[2] || 0);
                 const a4 = rads[3] || 0;
                 const a5 = rads[4] || 0;
                 const a6 = rads[5] || 0;
