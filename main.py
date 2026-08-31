@@ -481,8 +481,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="机器人物联网管理系统",
-    description="面向多品类机器人的物联网数据接入与可视化后台系统",
-    version="1.0.0",
+    description="面向多品类机器人的物联网数据接入与可视化后台系统 (v2.0 工业数字孪生与单 Canvas 视口裁剪引擎)",
+    version="2.0.0",
     lifespan=lifespan,
 )
 

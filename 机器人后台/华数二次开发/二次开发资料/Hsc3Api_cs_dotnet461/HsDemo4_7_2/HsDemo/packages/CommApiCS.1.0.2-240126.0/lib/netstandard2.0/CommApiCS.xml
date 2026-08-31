@@ -1,0 +1,653 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>CommApiCS</name>
+    </assembly>
+    <members>
+        <member name="M:Hsc3.Comm.ByteArrayRocks.DeserializeCmdResponse(System.String)">
+            <summary>
+            解析来自控制器的回调
+            </summary>
+            <param name="str"></param>
+            <returns></returns>
+        </member>
+        <member name="M:Hsc3.Comm.ByteArrayRocks.getFrameArr(System.Byte[],System.Byte[],System.Byte[]@)">
+            <summary>
+            拆帧和拼帧
+            </summary>
+            <param name="buffer">接受到的帧</param>
+            <param name="prevBuffer">上一次接收到的帧</param>
+            <param name="nextBuffer">下一次不完整的帧</param>
+            <returns></returns>
+        </member>
+        <member name="T:Hsc3.Comm.CommApi">
+            @class      CommApi
+            @brief      通信客户端
+            @details    提供接口包含：通信连接配置、连接控制、数据操作等。
+            @date       2019/06/14
+        </member>
+        <member name="P:Hsc3.Comm.CommApi.IsTimeoutDisconnectEnable">
+            <summary>
+            超时断连使能
+            </summary>
+        </member>
+        <member name="F:Hsc3.Comm.CommApi.responseHandler">
+            @brief   构造函数
+        </member>
+        <member name="P:Hsc3.Comm.CommApi.ServerIp">
+            <summary>
+            远程IP
+            </summary>
+        </member>
+        <member name="M:Hsc3.Comm.CommApi.SetUseUdp(System.Boolean)">
+            <summary>
+            配置UDP使能
+            </summary>
+            <param name="en">使能</param>
+        </member>
+        <member name="M:Hsc3.Comm.CommApi.GetUdpClient">
+            <summary>
+            获取UDP通信对象
+            </summary>
+            <returns>UDP 客户端对象</returns>
+        </member>
+        <member name="M:Hsc3.Comm.CommApi.GetFtpClient">
+            <summary>
+            获取FTP客户端
+            </summary>
+            <returns>FTP 客户端对象</returns>
+        </member>
+        <member name="M:Hsc3.Comm.CommApi.SetUseHeartBeat(System.Boolean)">
+            @brief       配置心跳功能 
+            @param       en        是否启用
+            @details     若启用心跳功能，在TCP通信已连接后，将自动发送心跳帧。 注：CommApi构造时默认启用心跳功能。建议在调用NetConnect接口前进行配置。 
+        </member>
+        <member name="M:Hsc3.Comm.CommApi.IsConnected">
+            @brief       查询是否已连接  
+            @return      返回 true - 已连接 false - 未连接 
+            @details     注：返回值仅表示TCP通信连接的状态，与UDP/FTP无关
+        </member>
+        <member name="M:Hsc3.Comm.CommApi.Connect(System.String,System.UInt16)">
+            @brief       连接  
+            @param        strIp   IP地址
+            @param        uPort   端口
+            @details     自动重连模式：使用该接口返回0x0表示成功触发自动重连功能（不能多次触发），不代表通信已连接。 非自动重连模式：使用该接口会阻塞调用线程，直至连接成功/超时（约3s）失败/其它原因导致的失败
+        </member>
+        <member name="M:Hsc3.Comm.CommApi.Disconnect">
+            @brief       断开连接  
+            @return        错误码（0x0成功） 
+            @details     注：自动重连模式下使用该接口，还会停止自动重连功能。 
+            
+        </member>
+        <member name="M:Hsc3.Comm.CommApi.ExecCmd(System.String,System.String@,System.Int32,System.Int32)">
+            @brief  执行命令
+            @details    注：使用该接口会阻塞调用线程，直至成功/超时（约3s）失败/其它原因导致的失败。
+            @param  strCmd      命令内容（参考华数III型控制器业务层接口协议文档填写命令）
+            @param  priority    优先级（值越小，优先级越高；建议使用CmdPriority枚举类型）
+            @param[out] strRet  返回信息
+            @return 错误码（0x0成功）
+        </member>
+        <member name="M:Hsc3.Comm.CommApi.GetAsyncMsg(System.String@)">
+            @brief  获取异步信息
+            @details    异步信息是控制器主动发送到客户端的信息。注：获取到信息后，客户端内部不会再保留该信息。
+            @param[out] strMsg  返回信息（无信息时返回空串）
+            @return 错误码（0x0成功，总是返回0x0）
+        </member>
+        <member name="M:Hsc3.Comm.CommApi.ClearAsyncMsg">
+            @brief  清空异步信息
+            @details    清空客户端内部所有的异步信息。
+            @details    注：获取到信息后，客户端内部不会再保留该信息。
+            @return 错误码（0x0成功，总是返回0x0）
+        </member>
+        <member name="M:Hsc3.Comm.CommApi.GetVersion">
+            @brief  获取版本信息
+            @return 版本信息字符串
+        </member>
+        <member name="T:Hsc3.Comm.CommApi.ExecCmdIsMainThreadDelegate">
+            <summary>
+            命令执行线程提示（主线程调用提示）
+            </summary>
+            <param name="cmds">命令列表</param>
+        </member>
+        <member name="F:Hsc3.Comm.CommApi.execCmdIsMainThreadDelegate">
+            <summary>
+            委托
+            </summary>
+        </member>
+        <member name="M:Hsc3.Comm.CommApi.compareArr(System.Byte[],System.Byte[])">
+            <summary>
+            比较两个数组
+            </summary>
+            <param name="arr1"></param>
+            <param name="arr2"></param>
+            <returns></returns>
+        </member>
+        <member name="T:Hsc3.Comm.CmdPriority">
+            @brief      命令优先级枚举
+        </member>
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.CmdPriority.PRIORITY_HIGH" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.CmdPriority.PRIORITY_NORMAL" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.CmdPriority.PRIORITY_LOW" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.CmdPriority.PRIORITY_LOWEST" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.CmdPriority.PRIORITY_MAX" -->
+        <member name="T:Hsc3.Comm.UdpDataType">
+            @brief      UDP消息类型
+        </member>
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.UdpDataType.UDP_DATA_TYPE_COOP" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.UdpDataType.UDP_DATA_TYPE_MAX" -->
+        <member name="T:Hsc3.Comm.MFileInfo">
+            @brief      文件信息
+        </member>
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.MFileInfo.ulSize" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.MFileInfo.ucType" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.MFileInfo.strModifyTime" -->
+        <member name="T:Hsc3.Comm.Hsc3Info">
+            @brief      控制器信息
+        </member>
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.Hsc3Info.strName" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.Hsc3Info.strSn" -->
+        <member name="F:Hsc3.Comm.Protocol.Tail">
+            <summary>
+            帧尾
+            </summary>
+        </member>
+        <member name="F:Hsc3.Comm.Protocol.Head">
+            <summary>
+            帧头
+            </summary>
+        </member>
+        <member name="F:Hsc3.Comm.Protocol.MSG_TYPE.MSG_TYPE_ASYNC">
+            <summary>
+            异步消息
+            </summary>
+        </member>
+        <member name="F:Hsc3.Comm.Protocol.MSG_TYPE.MSG_TYPE_SYNC">
+            <summary>
+            同步消息
+            </summary>
+        </member>
+        <member name="F:Hsc3.Comm.Protocol.MSG_TYPE.MSG_TYPE_BIND">
+            <summary>
+            Udp session id
+            </summary>
+        </member>
+        <member name="F:Hsc3.Comm.Protocol.MSG_TYPE.MSG_TYPE_COLL">
+             <summary>
+            采集
+             </summary>
+        </member>
+        <member name="F:Hsc3.Comm.Protocol.MSG_TYPE.MSG_TYPE_BCAST">
+            <summary>
+            扫描
+            </summary>
+        </member>
+        <member name="F:Hsc3.Comm.Protocol.MSG_TYPE.MSG_TYPE_COOP">
+            <summary>
+            协调
+            </summary>
+        </member>
+        <member name="T:Hsc3.Comm.ErrDef">
+            @class      ErrDef
+            @brief      华数III型控制器二次开发接口错误码定义
+        </member>
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.PROD_COMM" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.PROD_HSC3" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.PROD_CLIENT" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.PROD_FTP" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_OK" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_BAD" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_TIME_OUT" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_INVALID_UUID" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FAIL_CONN" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_BAD_IP" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_READY_CONNECTED" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FAIL_SEND_MSG" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FAIL_LOSE_MSG" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_NET_NOT_READY" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FAIL_PROTOCOL" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FAIL_DECODE" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_MISMATCH_MSG_CNT" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FAIL_BROADCAST" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_APP_TIME_OUT" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_APP_REPLY_TIME_OUT" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_CREATE_DATA" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_FILE_SERVE" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_FILE_LOCAL" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_DATA_OVERFLOW" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_APP_CONN" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_APP_SEND_ABORT" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_APP_WRTE_ABORT" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_APP_PASV" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_APP_CHECK_DATA" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_CMD_PASS" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_CMD_USER" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_CMD_PWD" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_CMD_CWD" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_CMD_TRANS" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_CMD_FILE_SIZE" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_CMD_DELE" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_CMD_RMD" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_CMD_MKD" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_SOCKET_ADDR" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_SOCKET_INVALID" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_SOCKET_CONN" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_SOCKET_SEND" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_SOCKET_RECV" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_SOCKET_SET" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_FAIL_CONNECT" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_FAIL_LOGIN" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_FAIL_GET" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_FAIL_PUT" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_FAIL_DEL" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_FAIL_RMD" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_FAIL_CH_FOLDER" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_FAIL_MK_FOLDER" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FTP_FAIL_FILE_LIST" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_INVALID_PARAM" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_FAIL_CONVERSION" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_INVALID_MESSAGE" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_NO_MESSAGE" -->
+        <!-- Badly formed XML comment ignored for member "F:Hsc3.Comm.ErrDef.KM_ERR_RETURN_FALSE" -->
+        <member name="T:Hsc3.Comm.DataFilter">
+            <summary>
+            帧过滤器（处理分包粘包）
+            </summary>
+        </member>
+        <member name="T:Hsc3.Comm.FtpClient">
+            @class      FtpClient
+            @brief      Ftp客户端
+        </member>
+        <member name="M:Hsc3.Comm.FtpClient.#ctor">
+            <summary>
+            构造函数
+            </summary>
+        </member>
+        <member name="M:Hsc3.Comm.FtpClient.#ctor(System.String,System.String,System.String)">
+            <summary>
+            构造函数
+            </summary>
+            <param name="IP">IP地址</param>
+            <param name="Id">用户ID</param>
+            <param name="PassWord">密码</param>
+        </member>
+        <member name="M:Hsc3.Comm.FtpClient.SetIp(System.String)">
+            <summary>
+            设置Ftp服务器ip地址
+            </summary>
+            <param name="ip">Ip地址</param>
+        </member>
+        <member name="M:Hsc3.Comm.FtpClient.SetId(System.String)">
+            <summary>
+            设置用户Id
+            </summary>
+            <param name="id">Id</param>
+        </member>
+        <member name="M:Hsc3.Comm.FtpClient.SetPassword(System.String)">
+            <summary>
+            设置登录密码
+            </summary>
+            <param name="password">密码</param>
+        </member>
+        <member name="M:Hsc3.Comm.FtpClient.GetDirList(System.String,System.Collections.Generic.List{Hsc3.Comm.MFileInfo}@)">
+            <summary>
+            获取目标文件夹信息
+            </summary>
+            <param name="DirPath">目标文件夹路径</param>
+            <param name="fileInfo">存放文件信息</param>
+        </member>
+        <member name="M:Hsc3.Comm.FtpClient.PushFile(System.String,System.String)">
+            <summary>
+            上传文件
+            </summary>
+            <param name="SrcFile">源文件（本地文件）</param>
+            <param name="TargetPath">目标路径</param>
+        </member>
+        <member name="M:Hsc3.Comm.FtpClient.GetFile(System.String,System.String)">
+            <summary>
+            下载文件
+            </summary>
+            <param name="SrcFile">源文件</param>
+            <param name="TargetPath">本地路径</param>
+            <returns></returns>
+        </member>
+        <member name="M:Hsc3.Comm.FtpClient.DeleteFile(System.String)">
+            <summary>
+            删除文件
+            </summary>
+            <param name="TargetPath">目标文件路径</param>
+            <returns></returns>
+        </member>
+        <member name="M:Hsc3.Comm.FtpClient.MkDir(System.String)">
+            <summary>
+            新建文件夹
+            </summary>
+            <param name="TargetPath">目标路径</param>
+            <returns></returns>
+        </member>
+        <member name="M:Hsc3.Comm.FtpClient.DeleteDir(System.String)">
+            <summary>
+            删除文件夹
+            </summary>
+            <param name="TargetPath">目标路径（只能删除空文件夹）</param>
+            <returns></returns>
+        </member>
+        <member name="M:Hsc3.Comm.FtpClient.IsFileExist(System.String)">
+            <summary>
+            
+            </summary>
+            <param name="filePath"></param>
+            <returns></returns>
+        </member>
+        <member name="M:Hsc3.Comm.FtpClient.IsDirectoryExist(System.String)">
+            <summary>
+            
+            </summary>
+            <param name="path"></param>
+            <returns></returns>
+        </member>
+        <member name="M:Hsc3.Comm.HeatBeatHandler.UserEventTriggered(DotNetty.Transport.Channels.IChannelHandlerContext,System.Object)">
+            <summary>
+            喂狗
+            </summary>
+            <param name="context"></param>
+            <param name="evt"></param>
+        </member>
+        <member name="T:Hsc3.Comm.I_FtpClient">
+            <summary>
+            FTP客户端
+            </summary>
+        </member>
+        <member name="M:Hsc3.Comm.I_FtpClient.SetIp(System.String)">
+            <summary>
+            设置Ftp服务器ip地址
+            </summary>
+            <param name="ip">Ip地址</param>
+        </member>
+        <member name="M:Hsc3.Comm.I_FtpClient.SetId(System.String)">
+            <summary>
+            设置用户Id
+            </summary>
+            <param name="id">Id</param>
+        </member>
+        <member name="M:Hsc3.Comm.I_FtpClient.SetPassword(System.String)">
+            <summary>
+            设置登录密码
+            </summary>
+            <param name="password">密码</param>
+        </member>
+        <member name="M:Hsc3.Comm.I_FtpClient.GetDirList(System.String,System.Collections.Generic.List{Hsc3.Comm.MFileInfo}@)">
+            <summary>
+            获取目标文件夹信息
+            </summary>
+            <param name="DirPath">目标文件夹路径</param>
+            <param name="fileInfo">存放文件信息</param>
+            <returns></returns>
+        </member>
+        <member name="M:Hsc3.Comm.I_FtpClient.PushFile(System.String,System.String)">
+            <summary>
+            上传文件
+            </summary>
+            <param name="SrcFile">源文件（本地文件）</param>
+            <param name="TargetPath">目标路径</param>
+            <returns></returns>
+        </member>
+        <member name="M:Hsc3.Comm.I_FtpClient.GetFile(System.String,System.String)">
+            <summary>
+            下载文件
+            </summary>
+            <param name="SrcFile">源文件</param>
+            <param name="TargetPath">本地路径</param>
+            <returns></returns>
+        </member>
+        <member name="M:Hsc3.Comm.I_FtpClient.DeleteFile(System.String)">
+            <summary>
+            删除文件
+            </summary>
+            <param name="TargetFile">目标文件路径</param>
+            <returns></returns>
+        </member>
+        <member name="M:Hsc3.Comm.I_FtpClient.MkDir(System.String)">
+            <summary>
+            新建文件夹
+            </summary>
+            <param name="TargetPath">目标路径</param>
+            <returns></returns>
+        </member>
+        <member name="M:Hsc3.Comm.I_FtpClient.DeleteDir(System.String)">
+            <summary>
+            删除文件夹
+            </summary>
+            <param name="TargetPath">目标路径（只能删除空文件夹）</param>
+            <returns></returns>
+        </member>
+        <member name="M:Hsc3.Comm.I_FtpClient.IsFileExist(System.String)">
+            <summary>
+            文件是否存在
+            </summary>
+            <param name="filePath">文件目录</param>
+            <returns></returns>
+        </member>
+        <member name="M:Hsc3.Comm.I_FtpClient.IsDirectoryExist(System.String)">
+            <summary>
+            目录是否存在
+            </summary>
+            <param name="path">目录</param>
+            <returns></returns>
+        </member>
+        <member name="T:Hsc3.Comm.I_Packer">
+            <summary>
+            封装帧接口
+            </summary>
+        </member>
+        <member name="M:Hsc3.Comm.I_Packer.push(System.String)">
+            <summary>
+            将命令压进链表
+            </summary>
+            <param name="cmd">命令</param>
+        </member>
+        <member name="M:Hsc3.Comm.I_Packer.pack(System.Int32)">
+            <summary>
+            生成帧
+            </summary>
+            <param name="type">通信类型</param>
+            <returns></returns>
+        </member>
+        <member name="M:Hsc3.Comm.I_TcpClient.SetLogPath(System.String)">
+            <summary>
+            设置日志目录
+            </summary>
+            <param name="dir">本地日志存储目录</param>
+        </member>
+        <member name="M:Hsc3.Comm.I_TcpClient.GetVersion">
+            <summary>
+            获取二次开发接口版本号
+            </summary>
+            <returns>版本号</returns>
+        </member>
+        <member name="M:Hsc3.Comm.I_TcpClient.SetUseUdp(System.Boolean)">
+            <summary>
+            设置UDP使能
+            </summary>
+            <param name="en">true：使能，false: 未使能 </param>
+        </member>
+        <member name="M:Hsc3.Comm.I_TcpClient.SetUseHeartBeat(System.Boolean)">
+            <summary>
+            设置心跳使能
+            </summary>
+            <param name="en">true: 启动心跳机制，false:不启动心跳 </param>
+        </member>
+        <member name="M:Hsc3.Comm.I_TcpClient.IsConnected">
+            <summary>
+            查询是否已连接
+            </summary>
+            <returns> true: 已连接，false : 未连接</returns>
+        </member>
+        <member name="M:Hsc3.Comm.I_TcpClient.Connect(System.String,System.UInt16)">
+            <summary>
+            连接
+            </summary>
+            <param name="ip">远端IP地址</param>
+            <param name="port">远端端口号</param>
+            <returns>错误码（0x0成功）</returns>
+        </member>
+        <member name="M:Hsc3.Comm.I_TcpClient.Disconnect">
+            <summary>
+            断开
+            </summary>
+            <returns>错误码（0x0成功）</returns>
+        </member>
+        <member name="M:Hsc3.Comm.I_TcpClient.ExecCmd(System.String,System.String@,System.Int32,System.Int32)">
+            <summary>
+            执行交互命令
+            </summary>
+            <param name="cmd">命令字符串</param>
+            <param name="strRet">返回数据</param>
+            <param name="priority">优先级</param>
+            <returns></returns>
+        </member>
+        <member name="M:Hsc3.Comm.I_TcpClient.ExecListCmd(System.Collections.Generic.List{System.String},System.Collections.Generic.List{System.Tuple{System.UInt64,System.String}}@,System.Int32,System.Int32)">
+            <summary>
+            执行命令
+            </summary>
+            <param name="listCmd">命令内容（字符串队列，参考华数III型控制器业务层接口协议文档填写命令）</param>
+            <param name="hmcResult">返回信息</param>
+            <param name="priority">优先级（值越小，优先级越高；建议使用CmdPriority枚举类型）</param>
+            <returns>错误码（0x0成功）</returns>
+        </member>
+        <member name="M:Hsc3.Comm.I_TcpClient.GetAsyncMsg(System.String@)">
+            <summary>
+            获取异步信息
+            异步信息是控制器主动发送到客户端的信息。注：获取到信息后，客户端内部不会再保留该信息。
+            </summary>
+            <param name="msg">返回信息（无信息时返回空串）</param>
+            <returns>错误码（0x0成功）</returns>
+        </member>
+        <member name="M:Hsc3.Comm.I_TcpClient.ClearAsyncMsg">
+            <summary>
+            清空客户端内部所有的异步信息。
+            获取到信息后，客户端内部不会再保留该信息。
+            </summary>
+        </member>
+        <member name="T:Hsc3.Comm.I_UdpCient">
+            <summary>
+            UDP客户端
+            </summary>
+        </member>
+        <member name="M:Hsc3.Comm.I_UdpCient.getUdpMsg(System.String@)">
+            <summary>
+            获取UDP信息
+            UDP信息是控制器通过UDP通信主动发送到客户端的信息。注：获取到信息后，客户端内部不会再保留该信息。
+            </summary>
+            <param name="msg">返回信息（无信息时返回空串）</param>
+            <returns>错误码（0x0成功，总是返回0x0）</returns>
+        </member>
+        <member name="M:Hsc3.Comm.I_UdpCient.getUdpMsg(Hsc3.Comm.UdpDataType,System.String@)">
+            <summary>
+            获取UDP信息
+            UDP信息是控制器通过UDP通信主动发送到客户端的信息。注：获取到信息后，客户端内部不会再保留该信息。
+            </summary>
+            <param name="type">UDP信息类型</param>
+            <param name="msg">返回信息（无信息时返回空串）</param>
+            <returns>错误码（0x0成功，总是返回0x0）</returns>
+        </member>
+        <member name="M:Hsc3.Comm.I_UdpCient.getUdpSessionId(System.Int32@)">
+            <summary>
+            获取UDP对话ID
+            注：配置启动UDP功能，TCP通信连接约3s后，待UDP通信已连接，方可获取到正常ID。
+            </summary>
+            <param name="id">对话ID（正常为大于0的整数，-1表示不存在UDP通信）</param>
+            <returns>错误码（0x0成功，总是返回0x0）</returns>
+        </member>
+        <member name="M:Hsc3.Comm.I_UdpCient.clearUdpMsg">
+            <summary>
+            清空缓存的UDP信息
+            </summary>
+        </member>
+        <member name="T:Hsc3.Comm.JPack">
+            <summary>
+            实现封装帧接口
+            </summary>
+        </member>
+        <member name="P:Hsc3.Comm.ResponseData.m_iType">
+            <summary>
+            通信类型
+            </summary>
+        </member>
+        <member name="T:Hsc3.Comm.TcpResponseData">
+            <summary>
+            返回帧数据
+            </summary>
+        </member>
+        <member name="P:Hsc3.Comm.TcpResponseData.m_uuid">
+            <summary>
+            识别号
+            </summary>
+        </member>
+        <!-- Badly formed XML comment ignored for member "P:Hsc3.Comm.TcpResponseData.m_arrayValue" -->
+        <member name="T:Hsc3.Comm.ResponseHandler">
+            <summary>
+            返回帧数据
+            </summary>
+        </member>
+        <member name="M:Hsc3.Comm.TcpClientInitializer.InitChannel(DotNetty.Transport.Channels.Sockets.ISocketChannel)">
+            <summary>
+            处理器管道配置
+            </summary>
+            <param name="channel"></param>
+        </member>
+        <member name="M:Hsc3.Comm.UdpClient.getUdpMsg(System.String@)">
+            <summary>
+            获取UDP信息
+            UDP信息是控制器通过UDP通信主动发送到客户端的信息。注：获取到信息后，客户端内部不会再保留该信息。
+            </summary>
+            <param name="msg">返回信息（无信息时返回空串）</param>
+            <returns>错误码（0x0成功，总是返回0x0）</returns>
+        </member>
+        <member name="M:Hsc3.Comm.UdpClient.getUdpMsg(Hsc3.Comm.UdpDataType,System.String@)">
+            <summary>
+            获取UDP信息
+            UDP信息是控制器通过UDP通信主动发送到客户端的信息。注：获取到信息后，客户端内部不会再保留该信息。
+            </summary>
+            <param name="type">UDP信息类型</param>
+            <param name="msg">返回信息（无信息时返回空串）</param>
+            <returns>错误码（0x0成功，总是返回0x0）</returns>
+        </member>
+        <member name="M:Hsc3.Comm.UdpClient.getUdpSessionId(System.Int32@)">
+            <summary>
+            获取UDP对话ID
+            注：配置启动UDP功能，TCP通信连接约3s后，待UDP通信已连接，方可获取到正常ID。
+            </summary>
+            <param name="id">对话ID（正常为大于0的整数，-1表示不存在UDP通信）</param>
+            <returns>错误码（0x0成功，总是返回0x0）</returns>
+        </member>
+        <member name="M:Hsc3.Comm.UdpClient.clearUdpMsg">
+            <summary>
+            清空缓存的UDP信息
+            </summary>
+        </member>
+        <member name="M:Hsc3.Comm.UdpHeatBeatHandler.UserEventTriggered(DotNetty.Transport.Channels.IChannelHandlerContext,System.Object)">
+            <summary>
+            喂狗
+            </summary>
+            <param name="context"></param>
+            <param name="evt"></param>
+        </member>
+        <member name="T:Hsc3.Comm.Version">
+            <summary>
+            版本信息类
+            </summary>
+        </member>
+        <member name="M:Hsc3.Comm.Version.GetAssemblyVersion">
+            <summary>
+            获取文件版本号
+            </summary>
+            <returns>版本号</returns>
+        </member>
+        <member name="M:Hsc3.Comm.Version.GetProductVersion">
+            <summary>
+            获取产品版本号
+            </summary>
+            <returns>版本号</returns>
+        </member>
+    </members>
+</doc>

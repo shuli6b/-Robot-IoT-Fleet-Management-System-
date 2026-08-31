@@ -1,0 +1,395 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+  name="HSR-BR610-1300-2026825">
+  <link
+    name="base_link">
+    <inertial>
+      <origin
+        xyz="-0.00947525692440264 -2.09394986025804E-07 0.130870576816009"
+        rpy="0 0 0" />
+      <mass
+        value="11.3648443242494" />
+      <inertia
+        ixx="0.0941610098443713"
+        ixy="2.86107374747134E-06"
+        ixz="-0.00563813071143465"
+        iyy="0.125919418577362"
+        iyz="-2.59919899401709E-09"
+        izz="0.0788237378414867" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://HSR-BR610-1300-2026825/meshes/base_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.294117647058824 0.294117647058824 0.294117647058824 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://HSR-BR610-1300-2026825/meshes/base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="J1">
+    <inertial>
+      <origin
+        xyz="-0.00170707525087675 0.0454046589538665 0.0989929087377179"
+        rpy="0 0 0" />
+      <mass
+        value="5.7592246311655" />
+      <inertia
+        ixx="0.0575951663806666"
+        ixy="0.00134872849814164"
+        ixz="0.000398242207826708"
+        iyy="0.031239131871014"
+        iyz="-0.00906366083539025"
+        izz="0.0503094164574005" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://HSR-BR610-1300-2026825/meshes/J1.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.529411764705882 0.549019607843137 0.549019607843137 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://HSR-BR610-1300-2026825/meshes/J1.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="J1"
+    type="revolute">
+    <origin
+      xyz="0.0375 0 0.283"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="J1" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-2.7"
+      upper="2.7"
+      effort="110"
+      velocity="6.2" />
+  </joint>
+  <link
+    name="J2">
+    <inertial>
+      <origin
+        xyz="-9.27217139909154E-05 -0.396205929499671 -0.0435575868135686"
+        rpy="0 0 0" />
+      <mass
+        value="6.5951117334012" />
+      <inertia
+        ixx="0.38666838815466"
+        ixy="-0.000197955602163329"
+        ixz="4.50801235554094E-05"
+        iyy="0.0129682532637907"
+        iyz="0.00658602686747636"
+        izz="0.384843238184399" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://HSR-BR610-1300-2026825/meshes/J2.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://HSR-BR610-1300-2026825/meshes/J2.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="J2"
+    type="revolute">
+    <origin
+      xyz="0 -0.0475 0.133"
+      rpy="-1.5708 0 0" />
+    <parent
+      link="J1" />
+    <child
+      link="J2" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-3.1"
+      upper="-0.03"
+      effort="110"
+      velocity="4.3" />
+  </joint>
+  <link
+    name="J3">
+    <inertial>
+      <origin
+        xyz="0.000151615811517125 -0.0150645626724696 -0.076610299827678"
+        rpy="0 0 0" />
+      <mass
+        value="3.47855787129341" />
+      <inertia
+        ixx="0.0116544037035361"
+        ixy="8.35116148186985E-06"
+        ixz="8.63881231505848E-07"
+        iyy="0.00845553176433113"
+        iyz="-0.000435559054150244"
+        izz="0.00918508747854132" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://HSR-BR610-1300-2026825/meshes/J3.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.874509803921569 0.149019607843137 0 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://HSR-BR610-1300-2026825/meshes/J3.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="J3"
+    type="revolute">
+    <origin
+      xyz="0 -0.726 -0.089"
+      rpy="0 0 -1.5708" />
+    <parent
+      link="J2" />
+    <child
+      link="J3" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="2"
+      upper="7.3"
+      effort="55"
+      velocity="6.2" />
+  </joint>
+  <link
+    name="J4">
+    <inertial>
+      <origin
+        xyz="-1.70391788643087E-05 -0.00179102086498159 0.286182837282508"
+        rpy="0 0 0" />
+      <mass
+        value="3.12272451478143" />
+      <inertia
+        ixx="0.0894635500616638"
+        ixy="-3.88791373071095E-07"
+        ixz="1.21653667004422E-05"
+        iyy="0.0894184137188769"
+        iyz="0.00130984243738576"
+        izz="0.00305547347391822" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://HSR-BR610-1300-2026825/meshes/J4.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.529411764705882 0.549019607843137 0.549019607843137 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://HSR-BR610-1300-2026825/meshes/J4.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="J4"
+    type="revolute">
+    <origin
+      xyz="0 0.122 -0.079"
+      rpy="1.5708 0 3.1416" />
+    <parent
+      link="J3" />
+    <child
+      link="J4" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-3.3"
+      upper="3.3"
+      effort="20.4"
+      velocity="8.3" />
+  </joint>
+  <link
+    name="J5">
+    <inertial>
+      <origin
+        xyz="-0.000256817518454966 -0.022426558547908 -0.0286496891644227"
+        rpy="0 0 0" />
+      <mass
+        value="0.872957259280263" />
+      <inertia
+        ixx="0.0020195438874612"
+        ixy="4.96790439628782E-07"
+        ixz="1.76565321108469E-06"
+        iyy="0.000812183602825857"
+        iyz="-1.51619730994868E-05"
+        izz="0.00220613118035737" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://HSR-BR610-1300-2026825/meshes/J5.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.650980392156863 0.16078431372549 0.109803921568627 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://HSR-BR610-1300-2026825/meshes/J5.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="J5"
+    type="revolute">
+    <origin
+      xyz="-0.00060399 -0.063997 0.5085"
+      rpy="-1.5708 0 0" />
+    <parent
+      link="J4" />
+    <child
+      link="J5" />
+    <axis
+      xyz="0.0094374 0 0.99996" />
+    <limit
+      lower="-2.8"
+      upper="2.8"
+      effort="20.4"
+      velocity="6.2" />
+  </joint>
+  <link
+    name="J6">
+    <inertial>
+      <origin
+        xyz="-0.00576494855732945 1.33945984875927E-06 0.000115306652561653"
+        rpy="0 0 0" />
+      <mass
+        value="0.0270769176758824" />
+      <inertia
+        ixx="1.01791524117559E-05"
+        ixy="5.87106324215361E-11"
+        ixz="-6.22077349599095E-09"
+        iyy="5.33725017105807E-06"
+        iyz="-1.88944281506334E-09"
+        izz="5.53743109744358E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://HSR-BR610-1300-2026825/meshes/J6.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0 0 0 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://HSR-BR610-1300-2026825/meshes/J6.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="J6"
+    type="revolute">
+    <origin
+      xyz="-0.00027126 -0.11 -0.029501"
+      rpy="1.5708 0 1.5708" />
+    <parent
+      link="J5" />
+    <child
+      link="J6" />
+    <axis
+      xyz="-1 0 0" />
+    <limit
+      lower="-6.2"
+      upper="6.2"
+      effort="12.7"
+      velocity="7.8" />
+  </joint>
+</robot>

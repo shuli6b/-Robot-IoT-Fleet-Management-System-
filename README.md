@@ -1,5 +1,11 @@
-# 机器人物联网管控平台 (Robot IoT Fleet Management System)
+# 机器人物联网管控平台 (Robot IoT Fleet Management System) - v2.0.0 🚀
 
+> 🏷️ **Release v2.0.0 重大里程碑**：
+> - 🚀 **单 Canvas 视口裁剪架构（Scissor Multi-Viewport）**：全场无限设备 3D 渲染仅占用单个 GPU WebGL 上下文，彻底根除浏览器上下文丢失与崩溃。
+> - 🦾 **华数 HSR-BR610-1300 真实 URDF STL 1:1 物理分件数字孪生**：全物理分件上色（纯白高光大臂小臂金属筒 + 华数中国红大肘与轴承转接圈 + 黑色铸铁底座 + 跨肘黑色粗波纹管线包）。
+> - 📐 **全设备 1:1 严格物理运动学遥测绑定**：机械臂六轴、四足机器狗 8 自由度（髋+膝）与复合 AMR 姿态数据内外毫秒级双向精确同步，绝无伪造摇晃。
+> - 📱 **移动端极简 HUD 与响应式体验**：详情弹窗支持极简折叠 HUD，大屏/移动端无遮挡 360° 交互。
+>
 > 📘 **重要技术文档导航**：
 > - **[《交付与运维操作手册 (HANDOVER_GUIDE.md)》](./HANDOVER_GUIDE.md)**：包含公网访问入口、默认凭据、开机自启机制、双机热备与常用运维指令。
 > - **[《现场接入新机器人实战指南 (ROBOT_INTEGRATION_GUIDE.md)》](./ROBOT_INTEGRATION_GUIDE.md)**：包含华数机械臂、复合 AMR、四足机器狗、无人机编队的详细接入教程、Python/ROS 代码模板与报文字典。
