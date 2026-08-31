@@ -3304,12 +3304,6 @@
                 j3.add(m);
             });
 
-            // Black Servo Motor on J3 Elbow (1:1 with photo)
-            const j3Motor = new THREE.Mesh(new THREE.CylinderGeometry(0.055 * scale, 0.055 * scale, 0.1 * scale, 16), matBaseDark);
-            j3Motor.rotation.x = Math.PI / 2;
-            j3Motor.position.set(0.04 * scale, -0.04 * scale, 0.11 * scale);
-            j3.add(j3Motor);
-
             // J4 Joint (origin 0 0.122 -0.079, rpy 1.5708 0 3.1416, axis Z) - Forearm Link
             const j4Pre = new THREE.Group();
             j4Pre.position.set(0, 0.122 * scale, -0.079 * scale);
