@@ -29,11 +29,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger("HuashuRealBridge")
 
+# 现场唯一真实物理机械臂控制器配置
 ROBOTS = [
-    {"device_id": "arm_001", "ip": "192.168.1.168", "name": "华数BR610六轴工业机械臂_01"},
-    {"device_id": "arm_002", "ip": "192.168.1.169", "name": "华数BR610六轴工业机械臂_02"},
-    {"device_id": "arm_003", "ip": "192.168.1.144", "name": "华数BR610六轴工业机械臂_03"},
-    {"device_id": "arm_004", "ip": "192.168.1.170", "name": "华数BR610六轴工业机械臂_04"},
+    {"device_id": "arm_001", "ip": "192.168.1.169", "name": "华数BR610六轴工业机械臂"},
 ]
 
 MQTT_HOST = "127.0.0.1"
