@@ -746,7 +746,7 @@
                 <!-- ==================== TAB 1: 3D DIGITAL TWIN & CONTROL ==================== -->
                 <div id="robotTabPanel3D" class="space-y-5">
                     <!-- 1. 3D Digital Twin WebGL Canvas with Cyberpunk Real-Position HUD -->
-                    <div id="robot3dCanvasContainer" class="w-full h-80 sm:h-96 relative rounded-2xl overflow-hidden border border-slate-700/80 shadow-2xl bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
+                    <div id="robot3dCanvasContainer" class="w-full h-[360px] sm:h-96 md:h-[420px] relative rounded-2xl overflow-hidden border border-slate-700/80 shadow-2xl bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
                         <canvas id="robot3dCanvas" class="w-full h-full block cursor-grab active:cursor-grabbing"></canvas>
                         
                         <!-- Top Left Status Badge -->
@@ -766,37 +766,45 @@
                             </button>
                         </div>
 
-                                                <!-- PROMINENT REAL POSITION & POSE HUD (Top Right) -->
-                        <div class="absolute top-3.5 right-3.5 bg-slate-950/90 backdrop-blur-md p-3 rounded-xl border border-cyan-500/50 text-xs font-mono shadow-2xl space-y-2 pointer-events-none z-10 w-[240px]">
-                            <div class="flex items-center justify-between text-cyan-400 font-bold border-b border-cyan-900/70 pb-1">
-                                <span class="flex items-center gap-1.5 text-xs">
+                                                <!-- PROMINENT REAL POSITION & POSE HUD (Top Right - Responsive Collapsible on Mobile) -->
+                        <div id="modalRealPositionHud" class="absolute top-2.5 right-2.5 sm:top-3.5 sm:right-3.5 bg-slate-950/90 backdrop-blur-md rounded-xl border border-cyan-500/50 text-xs font-mono shadow-2xl z-20 transition-all duration-300 w-auto max-w-[240px]">
+                            <!-- Header / Clickable Toggle on Mobile -->
+                            <div onclick="toggleMobileHud()" class="flex items-center justify-between gap-2 text-cyan-400 font-bold p-2 sm:p-2.5 cursor-pointer select-none hover:bg-cyan-950/40 rounded-xl transition">
+                                <span class="flex items-center gap-1.5 text-[11px] sm:text-xs shrink-0">
                                     <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
-                                    <span>真实空间坐标 (TCP Base)</span>
+                                    <span>真实坐标 (TCP)</span>
                                 </span>
-                                <span class="text-[9px] text-slate-400 font-normal">正向运动学</span>
-                            </div>
-                            <div class="grid grid-cols-3 gap-1.5 text-slate-100 font-bold text-center">
-                                <div class="bg-cyan-950/60 p-1 rounded border border-cyan-800/40">
-                                    <div class="text-[9px] text-cyan-400">X (mm)</div>
-                                    <div id="hudTcpX" class="text-xs text-cyan-200 font-mono">450.2</div>
-                                </div>
-                                <div class="bg-cyan-950/60 p-1 rounded border border-cyan-800/40">
-                                    <div class="text-[9px] text-cyan-400">Y (mm)</div>
-                                    <div id="hudTcpY" class="text-xs text-cyan-200 font-mono">200.1</div>
-                                </div>
-                                <div class="bg-cyan-950/60 p-1 rounded border border-cyan-800/40">
-                                    <div class="text-[9px] text-cyan-400">Z (mm)</div>
-                                    <div id="hudTcpZ" class="text-xs text-cyan-200 font-mono">350.0</div>
+                                <div class="flex items-center gap-1.5">
+                                    <span id="hudCompactPos" class="text-[10px] text-cyan-200 font-mono sm:hidden">X:450 | Y:200</span>
+                                    <span id="hudToggleIcon" class="text-[10px] text-slate-400 px-1 py-0.5 rounded bg-slate-900 border border-slate-700">▼</span>
                                 </div>
                             </div>
-                            <div class="grid grid-cols-3 gap-1 text-slate-300 text-[10px] text-center font-mono">
-                                <div class="bg-slate-900/80 p-0.5 rounded">A:<span id="hudTcpA" class="text-white">180°</span></div>
-                                <div class="bg-slate-900/80 p-0.5 rounded">B:<span id="hudTcpB" class="text-white">0.0°</span></div>
-                                <div class="bg-slate-900/80 p-0.5 rounded">C:<span id="hudTcpC" class="text-white">45°</span></div>
-                            </div>
-                            <div class="pt-1 text-[10px] text-slate-400 border-t border-slate-800/80 flex items-center justify-between">
-                                <span>运动学模型: <strong class="text-emerald-400">URDF 1:1 姿态解算</strong></span>
-                                <span class="text-cyan-400 text-[9px]">实时遥测 ●</span>
+                            
+                            <!-- Expandable Detail Body (hidden by default on mobile < 640px, block on desktop >= 640px) -->
+                            <div id="hudDetailContent" class="hidden sm:block p-3 pt-0 space-y-2 border-t border-cyan-900/40">
+                                <div class="grid grid-cols-3 gap-1.5 text-slate-100 font-bold text-center">
+                                    <div class="bg-cyan-950/60 p-1 rounded border border-cyan-800/40">
+                                        <div class="text-[9px] text-cyan-400">X (mm)</div>
+                                        <div id="hudTcpX" class="text-xs text-cyan-200 font-mono">450.2</div>
+                                    </div>
+                                    <div class="bg-cyan-950/60 p-1 rounded border border-cyan-800/40">
+                                        <div class="text-[9px] text-cyan-400">Y (mm)</div>
+                                        <div id="hudTcpY" class="text-xs text-cyan-200 font-mono">200.1</div>
+                                    </div>
+                                    <div class="bg-cyan-950/60 p-1 rounded border border-cyan-800/40">
+                                        <div class="text-[9px] text-cyan-400">Z (mm)</div>
+                                        <div id="hudTcpZ" class="text-xs text-cyan-200 font-mono">350.0</div>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-3 gap-1 text-slate-300 text-[10px] text-center font-mono">
+                                    <div class="bg-slate-900/80 p-0.5 rounded">A:<span id="hudTcpA" class="text-white">180°</span></div>
+                                    <div class="bg-slate-900/80 p-0.5 rounded">B:<span id="hudTcpB" class="text-white">0.0°</span></div>
+                                    <div class="bg-slate-900/80 p-0.5 rounded">C:<span id="hudTcpC" class="text-white">45°</span></div>
+                                </div>
+                                <div class="pt-1 text-[10px] text-slate-400 border-t border-slate-800/80 flex items-center justify-between">
+                                    <span>运动学: <strong class="text-emerald-400">1:1 解算</strong></span>
+                                    <span class="text-cyan-400 text-[9px]">实时遥测 ●</span>
+                                </div>
                             </div>
                         </div>
 
@@ -2863,6 +2871,19 @@
             }
         }
         
+                function toggleMobileHud() {
+            const detail = document.getElementById('hudDetailContent');
+            const icon = document.getElementById('hudToggleIcon');
+            if (!detail) return;
+            if (detail.classList.contains('hidden')) {
+                detail.classList.remove('hidden');
+                if (icon) icon.innerText = '▲';
+            } else {
+                detail.classList.add('hidden');
+                if (icon) icon.innerText = '▼';
+            }
+        }
+
         function openRobot3DModal() {
             try {
                 if (!selectedDevice) {
@@ -2997,6 +3018,13 @@
                         } else {
                             cartEl.innerText = `X: 450.0 | Y: 200.0 | Z: 350.0 ${unit}`;
                         }
+                    }
+                    const compactHud = document.getElementById('hudCompactPos');
+                    if (compactHud) {
+                        const cx = cart.x !== undefined ? Math.round(cart.x) : 450;
+                        const cy = cart.y !== undefined ? Math.round(cart.y) : 200;
+                        const cz = cart.z !== undefined ? Math.round(cart.z) : 350;
+                        compactHud.innerText = `X:${cx} | Y:${cy} | Z:${cz}`;
                     }
                     if (eulerEl) {
                         if (cart.a !== undefined) {
