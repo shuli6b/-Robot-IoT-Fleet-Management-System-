@@ -524,13 +524,19 @@ def get_all_devices(
                 except Exception:
                     pass
 
-            # 读取最新状态报文中的真实遥测指标 (包含 6 轴关节角度、空间坐标、电量与状态)
+            # 读取最新状态报文中的真实遥测指标 (优先读取 state 包含 6 轴关节角度、空间坐标、电量与状态)
             try:
                 cur_data = conn.execute(
-                    "SELECT raw_payload FROM device_data WHERE device_type = ? AND device_id = ? ORDER BY received_at DESC, id DESC LIMIT 1",
+                    "SELECT raw_payload FROM device_data WHERE device_type = ? AND device_id = ? AND data_type = 'state' ORDER BY received_at DESC, id DESC LIMIT 1",
                     (d["device_type"], d["device_id"]),
                 )
                 row_data = cur_data.fetchone()
+                if not row_data:
+                    cur_data = conn.execute(
+                        "SELECT raw_payload FROM device_data WHERE device_type = ? AND device_id = ? ORDER BY received_at DESC, id DESC LIMIT 1",
+                        (d["device_type"], d["device_id"]),
+                    )
+                    row_data = cur_data.fetchone()
                 if row_data:
                     try:
                         parsed_s = json.loads(row_data[0])

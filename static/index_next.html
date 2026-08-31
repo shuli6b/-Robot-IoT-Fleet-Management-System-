@@ -3634,12 +3634,18 @@
                         const jn = item.jointNodes;
 
                         if (deviceType === 'huashu_arm' || deviceType === 'arm') {
-                            if (jn[0]) jn[0].rotation.z = THREE.MathUtils.lerp(jn[0].rotation.z, rads[0] || 0, speed);
-                            if (jn[1]) jn[1].rotation.z = THREE.MathUtils.lerp(jn[1].rotation.z, rads[1] || 0, speed);
-                            if (jn[2]) jn[2].rotation.z = THREE.MathUtils.lerp(jn[2].rotation.z, rads[2] || 0, speed);
-                            if (jn[3]) jn[3].rotation.z = THREE.MathUtils.lerp(jn[3].rotation.z, rads[3] || 0, speed);
-                            if (jn[4]) jn[4].rotation.z = THREE.MathUtils.lerp(jn[4].rotation.z, rads[4] || 0, speed);
-                            if (jn[5]) jn[5].rotation.z = THREE.MathUtils.lerp(jn[5].rotation.z, rads[5] || 0, speed);
+                            const a1 = rads[0] || 0;
+                            const a2 = (rads[1] || 0) + Math.PI / 2;
+                            const a3 = (rads[2] || 0) - Math.PI;
+                            const a4 = rads[3] || 0;
+                            const a5 = rads[4] || 0;
+                            const a6 = rads[5] || 0;
+                            if (jn[0]) jn[0].rotation.z = THREE.MathUtils.lerp(jn[0].rotation.z, a1, speed);
+                            if (jn[1]) jn[1].rotation.z = THREE.MathUtils.lerp(jn[1].rotation.z, a2, speed);
+                            if (jn[2]) jn[2].rotation.z = THREE.MathUtils.lerp(jn[2].rotation.z, a3, speed);
+                            if (jn[3]) jn[3].rotation.z = THREE.MathUtils.lerp(jn[3].rotation.z, a4, speed);
+                            if (jn[4]) jn[4].rotation.z = THREE.MathUtils.lerp(jn[4].rotation.z, a5, speed);
+                            if (jn[5]) jn[5].rotation.z = THREE.MathUtils.lerp(jn[5].rotation.z, a6, speed);
                         } else if (deviceType === 'luxshare_amr') {
                             if (jn[0]) jn[0].rotation.z = THREE.MathUtils.lerp(jn[0].rotation.z, rads[0] || 0, speed);
                             if (jn[1]) jn[1].rotation.y = THREE.MathUtils.lerp(jn[1].rotation.y, rads[1] || 0, speed);
@@ -3807,12 +3813,18 @@
                 if (robot3dJointNodes[4]) robot3dJointNodes[4].userData.target = { axis: 'y', val: -(rads[4] || 0) };
                 if (robot3dJointNodes[5]) robot3dJointNodes[5].userData.target = { axis: 'z', val: rads[5] || 0 };
             } else if (deviceType === 'huashu_arm' || deviceType === 'arm') {
-                if (robot3dJointNodes[0]) robot3dJointNodes[0].userData.target = { axis: 'z', val: rads[0] || 0 };
-                if (robot3dJointNodes[1]) robot3dJointNodes[1].userData.target = { axis: 'z', val: rads[1] || 0 };
-                if (robot3dJointNodes[2]) robot3dJointNodes[2].userData.target = { axis: 'z', val: rads[2] || 0 };
-                if (robot3dJointNodes[3]) robot3dJointNodes[3].userData.target = { axis: 'z', val: rads[3] || 0 };
-                if (robot3dJointNodes[4]) robot3dJointNodes[4].userData.target = { axis: 'z', val: rads[4] || 0 };
-                if (robot3dJointNodes[5]) robot3dJointNodes[5].userData.target = { axis: 'z', val: rads[5] || 0 };
+                const a1 = rads[0] || 0;
+                const a2 = (rads[1] || 0) + Math.PI / 2;
+                const a3 = (rads[2] || 0) - Math.PI;
+                const a4 = rads[3] || 0;
+                const a5 = rads[4] || 0;
+                const a6 = rads[5] || 0;
+                if (robot3dJointNodes[0]) robot3dJointNodes[0].userData.target = { axis: 'z', val: a1 };
+                if (robot3dJointNodes[1]) robot3dJointNodes[1].userData.target = { axis: 'z', val: a2 };
+                if (robot3dJointNodes[2]) robot3dJointNodes[2].userData.target = { axis: 'z', val: a3 };
+                if (robot3dJointNodes[3]) robot3dJointNodes[3].userData.target = { axis: 'z', val: a4 };
+                if (robot3dJointNodes[4]) robot3dJointNodes[4].userData.target = { axis: 'z', val: a5 };
+                if (robot3dJointNodes[5]) robot3dJointNodes[5].userData.target = { axis: 'z', val: a6 };
             } else if (deviceType === 'robot_dog') {
                 if (robot3dJointNodes[0]) robot3dJointNodes[0].userData.target = { axis: 'x', val: rads[0] || 0 };
                 if (robot3dJointNodes[1]) robot3dJointNodes[1].userData.target = { axis: 'x', val: rads[1] || 0 };
