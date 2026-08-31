@@ -3104,7 +3104,7 @@
 
             // 2. Camera
             robot3dCamera = new THREE.PerspectiveCamera(42, width / height, 0.1, 100);
-            robot3dCamera.position.set(3.8, 3.2, 4.5);
+            robot3dCamera.position.set(0.6, 2.2, 3.8);
 
             // 3. Renderer
             robot3dRenderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true, powerPreference: "high-performance" });
@@ -3179,8 +3179,8 @@
 
         function reset3dCamera() {
             if (!robot3dCamera || !robot3dControls) return;
-            robot3dCamera.position.set(3.8, 3.2, 4.5);
-            robot3dControls.target.set(0, 1.1, 0);
+            robot3dCamera.position.set(0.6, 2.2, 3.8);
+            robot3dControls.target.set(0, 0.9, 0);
             robot3dControls.update();
         }
 
@@ -3228,6 +3228,7 @@
 
             const armContainer = new THREE.Group();
             armContainer.rotation.x = -Math.PI / 2; // Convert URDF Z-up to Three.js Y-up
+            armContainer.rotation.z = Math.PI;      // Align base terminal box to match real workbench front view
 
             // Base Link (URDF origin 0 0 0) - Cast Iron Black Base
             loader.load(basePath + 'base_link.STL', geo => {
@@ -3631,7 +3632,7 @@
                         if (deviceType === 'huashu_arm' || deviceType === 'arm') {
                             const a1 = rads[0] || 0;
                             const a2 = (rads[1] || 0) + Math.PI / 2;
-                            const a3 = Math.PI - (rads[2] || 0);
+                            const a3 = (rads[2] || 0) - Math.PI;
                             const a4 = rads[3] || 0;
                             const a5 = rads[4] || 0;
                             const a6 = rads[5] || 0;
@@ -3810,7 +3811,7 @@
             } else if (deviceType === 'huashu_arm' || deviceType === 'arm') {
                 const a1 = rads[0] || 0;
                 const a2 = (rads[1] || 0) + Math.PI / 2;
-                const a3 = Math.PI - (rads[2] || 0);
+                const a3 = (rads[2] || 0) - Math.PI;
                 const a4 = rads[3] || 0;
                 const a5 = rads[4] || 0;
                 const a6 = rads[5] || 0;
