@@ -2526,7 +2526,7 @@
                         <div id="card3d_viewport_${dev.device_id}" class="card3d-viewport relative h-48 w-full overflow-hidden bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 border-b border-slate-800" data-device-id="${dev.device_id}" data-device-type="${dev.device_type}">
                             
                             <!-- Status Badges -->
-                            <div class="absolute top-2.5 left-2.5 flex items-center gap-1.5 z-10">
+                            <div class="absolute top-2.5 left-2.5 flex items-center gap-1.5 z-30">
                                 <span id="card_stat_${dev.device_id}" class="px-2 py-0.5 rounded bg-slate-900/80 backdrop-blur-md text-[10px] font-mono ${isOnline ? 'text-emerald-400 border border-emerald-800' : 'text-slate-400 border border-slate-700'} flex items-center gap-1 shadow-sm">
                                     <span class="w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'}"></span>
                                     <span>${isOnline ? '实时在线' : '已离线'}</span>
@@ -2536,7 +2536,7 @@
                                 </span>
                             </div>
 
-                            <div class="absolute bottom-2 left-2.5 right-2.5 flex items-center justify-between z-10">
+                            <div class="absolute bottom-2 left-2.5 right-2.5 flex items-center justify-between z-30">
                                 <div id="card_name_${dev.device_id}" class="font-mono font-bold text-slate-100 text-xs bg-slate-950/80 px-2 py-0.5 rounded backdrop-blur-md border border-slate-700 shadow-sm">${dev.device_name ? `${dev.device_name} (${dev.device_id})` : dev.device_id}</div>
                                 <div class="text-[10px] text-cyan-300 font-medium bg-slate-950/80 px-2 py-0.5 rounded backdrop-blur-md border border-cyan-800/60 shadow-sm">${typeName}</div>
                             </div>
@@ -3314,6 +3314,7 @@
             fleetMasterRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             fleetMasterRenderer.setSize(window.innerWidth, window.innerHeight);
             fleetMasterRenderer.setScissorTest(true);
+            fleetMasterRenderer.autoClear = false;
 
             fleetMasterCamera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
             fleetMasterCamera.position.set(3.2, 2.5, 3.8);
@@ -3450,9 +3451,9 @@
                 fleetMasterRenderer.setSize(window.innerWidth, window.innerHeight);
             }
 
-            fleetMasterRenderer.setScissor(0, 0, window.innerWidth, window.innerHeight);
-            fleetMasterRenderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
+            fleetMasterRenderer.setScissorTest(false);
             fleetMasterRenderer.clear();
+            fleetMasterRenderer.setScissorTest(true);
 
             const placeholders = document.querySelectorAll('.card3d-viewport');
             const speed = 0.08;
