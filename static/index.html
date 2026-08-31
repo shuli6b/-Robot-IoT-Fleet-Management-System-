@@ -3248,11 +3248,6 @@
                 j1.add(m);
             });
 
-            // Black Servo Motor Housing on J1 (1:1 with photo)
-            const j1Motor = new THREE.Mesh(new THREE.BoxGeometry(0.16 * scale, 0.14 * scale, 0.22 * scale), matBaseDark);
-            j1Motor.position.set(-0.14 * scale, 0.04 * scale, 0.08 * scale);
-            j1.add(j1Motor);
-
             // J2 Joint (origin 0 -0.0475 0.133, rpy -1.5708 0 0, axis Z) - Upper Arm Link
             const j2Pre = new THREE.Group();
             j2Pre.position.set(0, -0.0475 * scale, 0.133 * scale);
