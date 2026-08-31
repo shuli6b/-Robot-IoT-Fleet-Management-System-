@@ -565,7 +565,8 @@
             </div>
 
             <!-- 1. Grid Mode Container -->
-            <div id="fleetGridContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"></div>
+            <canvas id="fleetMasterCanvas" class="fixed inset-0 pointer-events-none z-10" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 10;"></canvas>
+            <div id="fleetGridContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 relative z-0"></div>
 
             <!-- 2. List Mode Container (Hidden by default) -->
             <div id="fleetListContainer" class="hidden clean-card rounded-xl p-4 sm:p-5">
@@ -2591,12 +2592,11 @@
                 `;
             }).join('');
 
-            // Mount 3D miniature scenes on all card canvases
-            setTimeout(() => {
-                list.forEach(dev => {
-                    initCard3DViewer(dev.device_id, dev.device_type);
-                });
-            }, 50);
+            // Mount 3D miniature scenes on all card viewports
+            initFleetMasterRenderer();
+            list.forEach(dev => {
+                initCard3DViewer(dev.device_id, dev.device_type);
+            });
         }
 
         function renderFleetTable(list) {
@@ -3445,10 +3445,14 @@
             requestAnimationFrame(animateFleetMaster);
             if (!fleetMasterRenderer) return;
 
+            const masterCanvas = document.getElementById('fleetMasterCanvas');
+            if (!masterCanvas) return;
+
+            const w = window.innerWidth;
+            const h = window.innerHeight;
             const pixelRatio = fleetMasterRenderer.getPixelRatio();
-            const canvas = fleetMasterRenderer.domElement;
-            if (canvas.width !== window.innerWidth * pixelRatio || canvas.height !== window.innerHeight * pixelRatio) {
-                fleetMasterRenderer.setSize(window.innerWidth, window.innerHeight);
+            if (masterCanvas.width !== Math.floor(w * pixelRatio) || masterCanvas.height !== Math.floor(h * pixelRatio)) {
+                fleetMasterRenderer.setSize(w, h, false);
             }
 
             fleetMasterRenderer.setScissorTest(false);
@@ -3460,15 +3464,15 @@
 
             placeholders.forEach(el => {
                 const rect = el.getBoundingClientRect();
-                // If completely off-screen, skip (0% GPU cost)
-                if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) {
+                // If completely off-screen or element hidden, skip (0% GPU compute)
+                if (rect.bottom <= 0 || rect.top >= h || rect.right <= 0 || rect.left >= w || rect.width === 0 || rect.height === 0) {
                     return;
                 }
 
-                const width = rect.right - rect.left;
-                const height = rect.bottom - rect.top;
-                const left = rect.left;
-                const bottom = window.innerHeight - rect.bottom;
+                const width = Math.round(rect.width);
+                const height = Math.round(rect.height);
+                const left = Math.round(rect.left);
+                const bottom = Math.round(h - rect.bottom);
 
                 fleetMasterRenderer.setViewport(left, bottom, width, height);
                 fleetMasterRenderer.setScissor(left, bottom, width, height);
@@ -3522,6 +3526,7 @@
                 }
             });
         }
+
 
         function buildRobot3DModel(deviceType) {
             if (!robot3dScene) return;
