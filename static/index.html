@@ -3279,7 +3279,7 @@
                 j2.add(lowerCable);
             } catch(e) {}
 
-            // J3 Joint (origin 0 -0.726 -0.089, rpy 0 0 -1.5708, axis Z) - Black Connecting Pipe/Elbow
+            // J3 Joint (origin 0 -0.726 -0.089, rpy 0 0 -1.5708, axis Z) - Huashu Red Elbow Housing (Casting is Red, Cable is Black)
             const j3Pre = new THREE.Group();
             j3Pre.position.set(0, -0.726 * scale, -0.089 * scale);
             j3Pre.rotation.set(0, 0, -Math.PI / 2);
@@ -3289,7 +3289,7 @@
             j3Pre.add(j3);
             loader.load(basePath + 'J3.STL', geo => {
                 geo.scale(scale, scale, scale);
-                const m = new THREE.Mesh(geo, matFlangeBlack);
+                const m = new THREE.Mesh(geo, matHuashuRed);
                 m.castShadow = true;
                 j3.add(m);
             });
