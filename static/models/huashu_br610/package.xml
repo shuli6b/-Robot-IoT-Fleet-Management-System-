@@ -1,10 +1,10 @@
 <package format="2">
-  <name>HSR-BR610-1300-URDF</name>
+  <name>HSR-BR610-1300-2026825</name>
   <version>1.0.0</version>
   <description>
-    <p>URDF Description package for HSR-BR610-1300-URDF</p>
+    <p>URDF Description package for HSR-BR610-1300-2026825</p>
     <p>This package contains configuration data, 3D models and launch files
-for HSR-BR610-1300-URDF robot</p>
+for HSR-BR610-1300-2026825 robot</p>
   </description>
   <author>TODO</author>
   <maintainer email="TODO@email.com" />

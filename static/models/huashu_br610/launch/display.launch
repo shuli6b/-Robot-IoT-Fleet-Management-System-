@@ -3,7 +3,7 @@
     name="model" />
   <param
     name="robot_description"
-    textfile="$(find HSR-BR610-1300-URDF)/urdf/HSR-BR610-1300-URDF.urdf" />
+    textfile="$(find HSR-BR610-1300-2026825)/urdf/HSR-BR610-1300-2026825.urdf" />
   <node
     name="joint_state_publisher_gui"
     pkg="joint_state_publisher_gui"
@@ -16,5 +16,5 @@
     name="rviz"
     pkg="rviz"
     type="rviz"
-    args="-d $(find HSR-BR610-1300-URDF)/urdf.rviz" />
+    args="-d $(find HSR-BR610-1300-2026825)/urdf.rviz" />
 </launch>

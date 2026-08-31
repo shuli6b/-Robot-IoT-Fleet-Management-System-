@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.8.3)
 
-project(HSR-BR610-1300-URDF)
+project(HSR-BR610-1300-2026825)
 
 find_package(catkin REQUIRED)
 
