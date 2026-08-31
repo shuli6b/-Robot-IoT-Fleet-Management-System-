@@ -2522,9 +2522,8 @@
                     <div onclick="selectDevice('${dev.device_type}', '${dev.device_id}'); openRobot3DModal();" 
                         class="clean-card rounded-xl overflow-hidden cursor-pointer group hover:border-slate-400 dark:hover:border-slate-600 transition flex flex-col justify-between shadow-sm">
                         
-                        <!-- 3D Interactive WebGL Robot Model Viewport -->
-                        <div class="relative h-48 w-full overflow-hidden bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 border-b border-slate-800">
-                            <canvas id="${canvasId}" class="w-full h-full block pointer-events-none"></canvas>
+                        <!-- 3D Interactive WebGL Robot Model Viewport (Single-Canvas Multi-Viewport Scissor Placeholder) -->
+                        <div id="card3d_viewport_${dev.device_id}" class="card3d-viewport relative h-48 w-full overflow-hidden bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 border-b border-slate-800" data-device-id="${dev.device_id}" data-device-type="${dev.device_type}">
                             
                             <!-- Status Badges -->
                             <div class="absolute top-2.5 left-2.5 flex items-center gap-1.5 z-10">
@@ -3297,41 +3296,43 @@
     
         // 3D MINIATURE VIEWERS FOR FLEET CARDS (Three.js WebGL)
         // =============================================================
-        const card3dInstances = {};
-
         
-        window.fleetCardAnimIds = window.fleetCardAnimIds || {};
-        window.fleetCardRenderers = window.fleetCardRenderers || {};
+        // =============================================================
+        // SINGLE-CANVAS MULTI-VIEWPORT SCISSOR RENDERER (INDUSTRIAL ARCHITECTURE)
+        // Global 1 WebGL Context handles 4 to 1000+ devices seamlessly with 0% context limits
+        // =============================================================
+        let fleetMasterRenderer = null;
+        let fleetMasterCamera = null;
+        const fleetScenes = {}; // deviceId -> { scene, rootGroup, jointNodes, deviceType }
 
-        function initCard3DViewer(deviceId, deviceType) {
-            if (window.fleetCardAnimIds[deviceId]) cancelAnimationFrame(window.fleetCardAnimIds[deviceId]);
-            if (window.fleetCardRenderers[deviceId]) {
-                window.fleetCardRenderers[deviceId].dispose();
-                window.fleetCardRenderers[deviceId].forceContextLoss();
-            }
+        function initFleetMasterRenderer() {
+            if (fleetMasterRenderer || typeof THREE === 'undefined') return;
+            const masterCanvas = document.getElementById('fleetMasterCanvas');
+            if (!masterCanvas) return;
 
-            const canvas = document.getElementById(`card3d_${deviceId}`);
-            if (!canvas) return;
+            fleetMasterRenderer = new THREE.WebGLRenderer({ canvas: masterCanvas, antialias: true, alpha: true });
+            fleetMasterRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            fleetMasterRenderer.setSize(window.innerWidth, window.innerHeight);
+            fleetMasterRenderer.setScissorTest(true);
 
-            if (card3dInstances[deviceId]) {
-                const old = card3dInstances[deviceId];
-                if (old.animId) cancelAnimationFrame(old.animId);
-                if (old.renderer) old.renderer.dispose();
-                delete card3dInstances[deviceId];
-            }
+            fleetMasterCamera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
+            fleetMasterCamera.position.set(3.2, 2.5, 3.8);
+            fleetMasterCamera.lookAt(0, 0.9, 0);
 
-            const width = canvas.parentElement.clientWidth || 320;
-            const height = canvas.parentElement.clientHeight || 192;
+            window.addEventListener('resize', onFleetMasterResize);
+            animateFleetMaster();
+        }
+
+        function onFleetMasterResize() {
+            if (!fleetMasterRenderer) return;
+            fleetMasterRenderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function createDeviceFleetScene(deviceId, deviceType) {
+            if (fleetScenes[deviceId]) return fleetScenes[deviceId];
 
             const scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x0a0f1d);
-
-            const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
-            camera.position.set(3.2, 2.5, 3.8);
-
-            const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
-            renderer.setSize(width, height);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            scene.background = null; // transparent to show card backdrop
 
             const ambient = new THREE.AmbientLight(0xffffff, 0.85);
             scene.add(ambient);
@@ -3345,18 +3346,6 @@
             const grid = new THREE.GridHelper(5, 10, 0x0284c7, 0x1e293b);
             grid.position.y = 0;
             scene.add(grid);
-
-            let controls = null;
-            if (typeof THREE.OrbitControls !== 'undefined') {
-                controls = new THREE.OrbitControls(camera, renderer.domElement);
-                controls.enableDamping = true;
-                controls.dampingFactor = 0.05;
-                controls.enableZoom = false;
-                controls.autoRotate = false;
-                // controls.autoRotateSpeed = 0;
-                controls.target.set(0, 0.9, 0);
-                controls.update();
-            }
 
             const rootGroup = new THREE.Group();
             scene.add(rootGroup);
@@ -3380,17 +3369,18 @@
                 const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 1.1, 20), matOrange); upper.position.set(0, 0.55, 0); j2.add(upper);
 
                 const j3 = new THREE.Group(); j3.position.set(0, 1.1, 0); j2.add(j3);
-                const fore = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.19, 0.95, 20), matOrange); fore.position.set(0, 0.475, 0); j3.add(fore);
+                const fore = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.18, 0.95, 20), matOrange); fore.position.set(0, 0.475, 0); j3.add(fore);
 
                 const j4 = new THREE.Group(); j4.position.set(0, 0.95, 0); j3.add(j4);
-                const wrist = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.15, 0.2, 16), matDarkGrey); wrist.position.y = 0.1; j4.add(wrist);
+                const j4m = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.15, 0.2, 16), matDarkGrey); j4m.position.y = 0.1; j4.add(j4m);
 
                 const j5 = new THREE.Group(); j5.position.set(0, 0.2, 0); j4.add(j5);
-                const j6 = new THREE.Group(); j5.add(j6);
-                const grip = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.08, 0.14), matLightGrey); grip.position.y = 0.08; j6.add(grip);
+                const j5p = new THREE.Mesh(new THREE.SphereGeometry(0.13, 16, 16), matLightGrey); j5.add(j5p);
+
+                const j6 = new THREE.Group(); j6.position.set(0, 0.15, 0); j5.add(j6);
+                const flange = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.08, 16), matDarkGrey); flange.position.y = 0.04; j6.add(flange);
 
                 jointNodes.push(j1, j2, j3, j4, j5, j6);
-
             } else if (deviceType === 'luxshare_amr') {
                 const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.28, 1.8), matDarkGrey);
                 chassis.position.y = 0.14;
@@ -3400,12 +3390,10 @@
                 lidar.position.set(0, 0.34, 0.7);
                 rootGroup.add(lidar);
 
-                // Mount Real STL XMS3 Arm from URDF
                 const stlArm = createRokaeStlArm(1.4, 0xe2e8f0);
                 stlArm.container.position.set(0, 0.28, -0.2);
                 rootGroup.add(stlArm.container);
                 jointNodes.push(...stlArm.joints);
-
             } else if (deviceType === 'robot_dog') {
                 const body = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.35, 1.2), matDarkGrey);
                 body.position.y = 0.65;
@@ -3425,7 +3413,6 @@
                     legGroup.add(upper);
                     jointNodes.push(legGroup);
                 });
-
             } else {
                 const droneBody = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.35, 0.18, 16), matDarkGrey);
                 droneBody.position.y = 0.8;
@@ -3443,62 +3430,98 @@
                 });
             }
 
-            let animId = null;
-            let time = 0;
-
-            function animate() {
-                animId = requestAnimationFrame(animate);
-                window.fleetCardAnimIds[deviceId] = animId;
-
-                if (controls) controls.update();
-
-                const dev = typeof currentDevices !== 'undefined' ? currentDevices.find(d => d.device_id === deviceId) : null;
-                if (dev && dev.latest_state && dev.latest_state.parsed_payload) {
-                    const payload = dev.latest_state.parsed_payload;
-                    const speed = 0.08;
-                    const joints = payload.joint_angles || payload.arm_sr3_pose || [0,0,0,0,0,0];
-                    const rads = joints.map(deg => THREE.MathUtils.degToRad(typeof deg === 'number' ? deg : parseFloat(deg) || 0));
-
-                    if (deviceType === 'huashu_arm') {
-                        if (jointNodes[0]) jointNodes[0].rotation.y = THREE.MathUtils.lerp(jointNodes[0].rotation.y, rads[0] || 0, speed);
-                        if (jointNodes[1]) jointNodes[1].rotation.z = THREE.MathUtils.lerp(jointNodes[1].rotation.z, rads[1] || 0, speed);
-                        if (jointNodes[2]) jointNodes[2].rotation.z = THREE.MathUtils.lerp(jointNodes[2].rotation.z, rads[2] || 0, speed);
-                        if (jointNodes[3]) jointNodes[3].rotation.y = THREE.MathUtils.lerp(jointNodes[3].rotation.y, rads[3] || 0, speed);
-                        if (jointNodes[4]) jointNodes[4].rotation.z = THREE.MathUtils.lerp(jointNodes[4].rotation.z, rads[4] || 0, speed);
-                        if (jointNodes[5]) jointNodes[5].rotation.y = THREE.MathUtils.lerp(jointNodes[5].rotation.y, rads[5] || 0, speed);
-                    } else if (deviceType === 'luxshare_amr') {
-                        if (jointNodes[0]) jointNodes[0].rotation.z = THREE.MathUtils.lerp(jointNodes[0].rotation.z, rads[0] || 0, speed);
-                        if (jointNodes[1]) jointNodes[1].rotation.y = THREE.MathUtils.lerp(jointNodes[1].rotation.y, rads[1] || 0, speed);
-                        if (jointNodes[2]) jointNodes[2].rotation.y = THREE.MathUtils.lerp(jointNodes[2].rotation.y, -(rads[2] || 0), speed);
-                        if (jointNodes[3]) jointNodes[3].rotation.z = THREE.MathUtils.lerp(jointNodes[3].rotation.z, rads[3] || 0, speed);
-                        if (jointNodes[4]) jointNodes[4].rotation.y = THREE.MathUtils.lerp(jointNodes[4].rotation.y, -(rads[4] || 0), speed);
-                        if (jointNodes[5]) jointNodes[5].rotation.z = THREE.MathUtils.lerp(jointNodes[5].rotation.z, rads[5] || 0, speed);
-                    } else if (deviceType === 'robot_dog' && jointNodes.length >= 4) {
-                        // Pure kinematics mapping from telemetry joint_angles: [FL, FR, RL, RR]
-                        if (jointNodes[0]) jointNodes[0].rotation.x = THREE.MathUtils.lerp(jointNodes[0].rotation.x, rads[0] || 0, speed);
-                        if (jointNodes[1]) jointNodes[1].rotation.x = THREE.MathUtils.lerp(jointNodes[1].rotation.x, rads[2] || 0, speed);
-                        if (jointNodes[2]) jointNodes[2].rotation.x = THREE.MathUtils.lerp(jointNodes[2].rotation.x, rads[4] || 0, speed);
-                        if (jointNodes[3]) jointNodes[3].rotation.x = THREE.MathUtils.lerp(jointNodes[3].rotation.x, rads[5] || 0, speed);
-                    } else if (deviceType === 'uav_rescue') {
-                        // Propellers spin only when telemetry altitude > 0 or motor speed > 0
-                        const isFlying = (payload.altitude !== undefined && payload.altitude > 0) || (payload.motor_rpm !== undefined && payload.motor_rpm > 0);
-                        if (isFlying && dev.status === 'online') {
-                            const spinRate = (payload.motor_rpm ? payload.motor_rpm * 0.0005 : 0.45);
-                            jointNodes.forEach(p => p.rotation.y += spinRate);
-                        }
-                    }
-                }
-
-                renderer.render(scene, camera);
-            }
-            animate();
-
-            card3dInstances[deviceId] = { scene, camera, renderer, controls, animId, jointNodes };
+            const item = { scene, rootGroup, jointNodes, deviceType };
+            fleetScenes[deviceId] = item;
+            return item;
         }
 
-        // =============================================================
-        // BUILD MODAL 3D DIGITAL TWIN MODEL
-        // =============================================================
+        function initCard3DViewer(deviceId, deviceType) {
+            initFleetMasterRenderer();
+            createDeviceFleetScene(deviceId, deviceType);
+        }
+
+        function animateFleetMaster() {
+            requestAnimationFrame(animateFleetMaster);
+            if (!fleetMasterRenderer) return;
+
+            const pixelRatio = fleetMasterRenderer.getPixelRatio();
+            const canvas = fleetMasterRenderer.domElement;
+            if (canvas.width !== window.innerWidth * pixelRatio || canvas.height !== window.innerHeight * pixelRatio) {
+                fleetMasterRenderer.setSize(window.innerWidth, window.innerHeight);
+            }
+
+            fleetMasterRenderer.setScissor(0, 0, window.innerWidth, window.innerHeight);
+            fleetMasterRenderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
+            fleetMasterRenderer.clear();
+
+            const placeholders = document.querySelectorAll('.card3d-viewport');
+            const speed = 0.08;
+
+            placeholders.forEach(el => {
+                const rect = el.getBoundingClientRect();
+                // If completely off-screen, skip (0% GPU cost)
+                if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) {
+                    return;
+                }
+
+                const width = rect.right - rect.left;
+                const height = rect.bottom - rect.top;
+                const left = rect.left;
+                const bottom = window.innerHeight - rect.bottom;
+
+                fleetMasterRenderer.setViewport(left, bottom, width, height);
+                fleetMasterRenderer.setScissor(left, bottom, width, height);
+
+                const deviceId = el.dataset.deviceId;
+                const deviceType = el.dataset.deviceType;
+                let item = fleetScenes[deviceId];
+                if (!item) {
+                    item = createDeviceFleetScene(deviceId, deviceType);
+                }
+
+                if (item) {
+                    const dev = typeof currentDevices !== 'undefined' ? currentDevices.find(d => d.device_id === deviceId) : null;
+                    if (dev && dev.latest_state && dev.latest_state.parsed_payload) {
+                        const payload = dev.latest_state.parsed_payload;
+                        const joints = payload.joint_angles || payload.arm_sr3_pose || [0,0,0,0,0,0];
+                        const rads = joints.map(deg => THREE.MathUtils.degToRad(typeof deg === 'number' ? deg : parseFloat(deg) || 0));
+                        const jn = item.jointNodes;
+
+                        if (deviceType === 'huashu_arm') {
+                            if (jn[0]) jn[0].rotation.y = THREE.MathUtils.lerp(jn[0].rotation.y, rads[0] || 0, speed);
+                            if (jn[1]) jn[1].rotation.z = THREE.MathUtils.lerp(jn[1].rotation.z, rads[1] || 0, speed);
+                            if (jn[2]) jn[2].rotation.z = THREE.MathUtils.lerp(jn[2].rotation.z, rads[2] || 0, speed);
+                            if (jn[3]) jn[3].rotation.y = THREE.MathUtils.lerp(jn[3].rotation.y, rads[3] || 0, speed);
+                            if (jn[4]) jn[4].rotation.z = THREE.MathUtils.lerp(jn[4].rotation.z, rads[4] || 0, speed);
+                            if (jn[5]) jn[5].rotation.y = THREE.MathUtils.lerp(jn[5].rotation.y, rads[5] || 0, speed);
+                        } else if (deviceType === 'luxshare_amr') {
+                            if (jn[0]) jn[0].rotation.z = THREE.MathUtils.lerp(jn[0].rotation.z, rads[0] || 0, speed);
+                            if (jn[1]) jn[1].rotation.y = THREE.MathUtils.lerp(jn[1].rotation.y, rads[1] || 0, speed);
+                            if (jn[2]) jn[2].rotation.y = THREE.MathUtils.lerp(jn[2].rotation.y, -(rads[2] || 0), speed);
+                            if (jn[3]) jn[3].rotation.z = THREE.MathUtils.lerp(jn[3].rotation.z, rads[3] || 0, speed);
+                            if (jn[4]) jn[4].rotation.y = THREE.MathUtils.lerp(jn[4].rotation.y, -(rads[4] || 0), speed);
+                            if (jn[5]) jn[5].rotation.z = THREE.MathUtils.lerp(jn[5].rotation.z, rads[5] || 0, speed);
+                        } else if (deviceType === 'robot_dog' && jn.length >= 4) {
+                            if (jn[0]) jn[0].rotation.x = THREE.MathUtils.lerp(jn[0].rotation.x, rads[0] || 0, speed);
+                            if (jn[1]) jn[1].rotation.x = THREE.MathUtils.lerp(jn[1].rotation.x, rads[2] || 0, speed);
+                            if (jn[2]) jn[2].rotation.x = THREE.MathUtils.lerp(jn[2].rotation.x, rads[4] || 0, speed);
+                            if (jn[3]) jn[3].rotation.x = THREE.MathUtils.lerp(jn[3].rotation.x, rads[5] || 0, speed);
+                        } else if (deviceType === 'uav_rescue') {
+                            const isFlying = (payload.altitude !== undefined && payload.altitude > 0) || (payload.motor_rpm !== undefined && payload.motor_rpm > 0);
+                            if (isFlying && dev.status === 'online') {
+                                const spinRate = (payload.motor_rpm ? payload.motor_rpm * 0.0005 : 0.45);
+                                jn.forEach(p => p.rotation.y += spinRate);
+                            }
+                        }
+                    }
+
+                    fleetMasterCamera.aspect = width / height;
+                    fleetMasterCamera.updateProjectionMatrix();
+                    fleetMasterRenderer.render(item.scene, fleetMasterCamera);
+                }
+            });
+        }
+
         function buildRobot3DModel(deviceType) {
             if (!robot3dScene) return;
 
