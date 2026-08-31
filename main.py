@@ -1,13 +1,5 @@
 import math
-"""
-main.py - 机器人物联网管理系统主服务
-- 集成 FastAPI RESTful API 与 MQTT (paho-mqtt) 监听
-- 订阅 robot/# 通配符，自动解析多品类设备数据入库
-- 定时扫描设备在线/离线状态
-- 提供统一结构化的 REST API 与全局异常捕获
-- 挂载静态文件目录 static/index.html
-"""
-
+import socket
 import os
 import json
 import time
@@ -2180,8 +2172,13 @@ async def get_device_active_alarms_api(device_type: str, device_id: str):
     cleanup_old_alarms(7)
     
     # 查询当前遥测状态
-    latest = get_latest_data(device_type, device_id, "state")
-    latest_payload = latest.get("raw_payload", {}) if latest else {}
+    latest = get_latest_data(device_type, device_id)
+    latest_payload = latest.get("parsed_payload", {}) if latest else {}
+    if not isinstance(latest_payload, dict):
+        try:
+            latest_payload = json.loads(latest.get("raw_payload", "{}"))
+        except Exception:
+            latest_payload = {}
     error_code = latest_payload.get("error_code", 0)
     has_error = bool(error_code or latest_payload.get("status") in ["error", "alarm", "fault", "estop"])
     
