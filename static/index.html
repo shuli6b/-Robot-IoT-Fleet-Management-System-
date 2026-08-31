@@ -3444,7 +3444,7 @@
             if (fleetScenes[deviceId]) return fleetScenes[deviceId];
 
             const scene = new THREE.Scene();
-            scene.background = null; // transparent to show card backdrop
+            scene.background = null;
 
             const ambient = new THREE.AmbientLight(0xffffff, 0.85);
             scene.add(ambient);
@@ -3462,7 +3462,6 @@
             const rootGroup = new THREE.Group();
             scene.add(rootGroup);
 
-            const matOrange = new THREE.MeshStandardMaterial({ color: 0xf97316, metalness: 0.4, roughness: 0.35 });
             const matDarkGrey = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.7, roughness: 0.3 });
             const matLightGrey = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.8, roughness: 0.25 });
             const matCyan = new THREE.MeshStandardMaterial({ color: 0x06b6d4, metalness: 0.5, roughness: 0.3 });
@@ -3470,10 +3469,203 @@
             const jointNodes = [];
 
             if (deviceType === 'huashu_arm' || deviceType === 'arm') {
+                const huashuArm = createHuashuStlArm(1.2);
+                rootGroup.add(huashuArm.container);
+                jointNodes.push(...huashuArm.joints);
+            } else if (deviceType === 'luxshare_amr') {
+                const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.32, 2.0), matDarkGrey);
+                chassis.position.y = 0.16;
+                rootGroup.add(chassis);
+
+                const lidar = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.14, 24), matCyan);
+                lidar.position.set(0, 0.39, 0.85);
+                rootGroup.add(lidar);
+
+                const stlArm = createRokaeStlArm(1.8, 0xf1f5f9);
+                stlArm.container.position.set(0, 0.32, -0.2);
+                rootGroup.add(stlArm.container);
+                jointNodes.push(...stlArm.joints);
+            } else if (deviceType === 'robot_dog') {
+                const body = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.35, 1.2), matDarkGrey);
+                body.position.y = 0.75;
+                rootGroup.add(body);
+
+                const head = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.28, 0.4), matCyan);
+                head.position.set(0, 0.88, 0.65);
+                rootGroup.add(head);
+
+                const legPositions = [
+                    { name: 'FL', x: -0.38, z: 0.45 },
+                    { name: 'FR', x: 0.38, z: 0.45 },
+                    { name: 'RL', x: -0.38, z: -0.45 },
+                    { name: 'RR', x: 0.38, z: -0.45 }
+                ];
+
+                legPositions.forEach(pos => {
+                    const hipGroup = new THREE.Group();
+                    hipGroup.position.set(pos.x, 0.75, pos.z);
+                    rootGroup.add(hipGroup);
+
+                    const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.07, 0.42, 16), matDarkGrey);
+                    thigh.position.y = -0.21;
+                    hipGroup.add(thigh);
+
+                    const kneeGroup = new THREE.Group();
+                    kneeGroup.position.set(0, -0.42, 0);
+                    hipGroup.add(kneeGroup);
+
+                    const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.05, 0.45, 16), matLightGrey);
+                    shin.position.y = -0.225;
+                    kneeGroup.add(shin);
+
+                    jointNodes.push(hipGroup, kneeGroup);
+                });
+            } else {
+                const droneCenter = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.35, 0.15, 24), matDarkGrey);
+                droneCenter.position.y = 0.9;
+                rootGroup.add(droneCenter);
+
+                const armAngles = [0, Math.PI / 2, Math.PI, Math.PI * 1.5];
+                armAngles.forEach(ang => {
+                    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.9, 12), matDarkGrey);
+                    arm.rotation.z = Math.PI / 2;
+                    arm.rotation.y = ang;
+                    arm.position.y = 0.9;
+                    rootGroup.add(arm);
+
+                    const propGroup = new THREE.Group();
+                    propGroup.position.set(Math.cos(ang) * 0.75, 0.98, Math.sin(ang) * 0.75);
+                    rootGroup.add(propGroup);
+
+                    const prop = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.02, 0.06), matLightGrey);
+                    propGroup.add(prop);
+                    jointNodes.push(propGroup);
+                });
+            }
+
+            const item = { scene, rootGroup, jointNodes, deviceType };
+            fleetScenes[deviceId] = item;
+            return item;
+        }
+
+        function initCard3DViewer(deviceId, deviceType) {
+            initFleetMasterRenderer();
+            createDeviceFleetScene(deviceId, deviceType);
+        }
+
+        function animateFleetMaster() {
+            requestAnimationFrame(animateFleetMaster);
+            if (!fleetMasterRenderer) return;
+
+            const masterCanvas = document.getElementById('fleetMasterCanvas');
+            if (!masterCanvas) return;
+
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            const pixelRatio = fleetMasterRenderer.getPixelRatio();
+            if (masterCanvas.width !== Math.floor(w * pixelRatio) || masterCanvas.height !== Math.floor(h * pixelRatio)) {
+                fleetMasterRenderer.setSize(w, h, false);
+            }
+
+            fleetMasterRenderer.setScissorTest(false);
+            fleetMasterRenderer.clear();
+            fleetMasterRenderer.setScissorTest(true);
+
+            const placeholders = document.querySelectorAll('.card3d-viewport');
+            const speed = 0.08;
+
+            placeholders.forEach(el => {
+                const rect = el.getBoundingClientRect();
+                if (rect.bottom <= 0 || rect.top >= h || rect.right <= 0 || rect.left >= w || rect.width === 0 || rect.height === 0) {
+                    return;
+                }
+
+                const width = Math.round(rect.width);
+                const height = Math.round(rect.height);
+                const left = Math.round(rect.left);
+                const bottom = Math.round(h - rect.bottom);
+
+                fleetMasterRenderer.setViewport(left, bottom, width, height);
+                fleetMasterRenderer.setScissor(left, bottom, width, height);
+
+                const deviceId = el.dataset.deviceId;
+                const deviceType = el.dataset.deviceType;
+                let item = fleetScenes[deviceId];
+                if (!item) {
+                    item = createDeviceFleetScene(deviceId, deviceType);
+                }
+
+                if (item) {
+                    const dev = typeof currentDevices !== 'undefined' ? currentDevices.find(d => d.device_id === deviceId) : null;
+                    if (dev && dev.latest_state && dev.latest_state.parsed_payload) {
+                        const payload = dev.latest_state.parsed_payload;
+                        const joints = payload.joint_angles || payload.arm_sr3_pose || [0,0,0,0,0,0];
+                        const rads = joints.map(deg => THREE.MathUtils.degToRad(typeof deg === 'number' ? deg : parseFloat(deg) || 0));
+                        const jn = item.jointNodes;
+
+                        if (deviceType === 'huashu_arm' || deviceType === 'arm') {
+                            if (jn[0]) jn[0].rotation.z = THREE.MathUtils.lerp(jn[0].rotation.z, rads[0] || 0, speed);
+                            if (jn[1]) jn[1].rotation.z = THREE.MathUtils.lerp(jn[1].rotation.z, rads[1] || 0, speed);
+                            if (jn[2]) jn[2].rotation.z = THREE.MathUtils.lerp(jn[2].rotation.z, rads[2] || 0, speed);
+                            if (jn[3]) jn[3].rotation.z = THREE.MathUtils.lerp(jn[3].rotation.z, rads[3] || 0, speed);
+                            if (jn[4]) jn[4].rotation.z = THREE.MathUtils.lerp(jn[4].rotation.z, rads[4] || 0, speed);
+                            if (jn[5]) jn[5].rotation.z = THREE.MathUtils.lerp(jn[5].rotation.z, rads[5] || 0, speed);
+                        } else if (deviceType === 'luxshare_amr') {
+                            if (jn[0]) jn[0].rotation.z = THREE.MathUtils.lerp(jn[0].rotation.z, rads[0] || 0, speed);
+                            if (jn[1]) jn[1].rotation.y = THREE.MathUtils.lerp(jn[1].rotation.y, rads[1] || 0, speed);
+                            if (jn[2]) jn[2].rotation.y = THREE.MathUtils.lerp(jn[2].rotation.y, -(rads[2] || 0), speed);
+                            if (jn[3]) jn[3].rotation.z = THREE.MathUtils.lerp(jn[3].rotation.z, rads[3] || 0, speed);
+                            if (jn[4]) jn[4].rotation.y = THREE.MathUtils.lerp(jn[4].rotation.y, -(rads[4] || 0), speed);
+                            if (jn[5]) jn[5].rotation.z = THREE.MathUtils.lerp(jn[5].rotation.z, rads[5] || 0, speed);
+                        } else if (deviceType === 'robot_dog') {
+                            if (jn[0]) jn[0].rotation.x = THREE.MathUtils.lerp(jn[0].rotation.x, rads[0] || 0, speed);
+                            if (jn[1]) jn[1].rotation.x = THREE.MathUtils.lerp(jn[1].rotation.x, rads[1] || 0, speed);
+                            if (jn[2]) jn[2].rotation.x = THREE.MathUtils.lerp(jn[2].rotation.x, rads[2] || 0, speed);
+                            if (jn[3]) jn[3].rotation.x = THREE.MathUtils.lerp(jn[3].rotation.x, rads[3] || 0, speed);
+                            if (jn[4]) jn[4].rotation.x = THREE.MathUtils.lerp(jn[4].rotation.x, rads[4] || 0, speed);
+                            if (jn[5]) jn[5].rotation.x = THREE.MathUtils.lerp(jn[5].rotation.x, rads[5] || 0, speed);
+                            if (jn[6]) jn[6].rotation.x = THREE.MathUtils.lerp(jn[6].rotation.x, rads[2] || 0, speed);
+                            if (jn[7]) jn[7].rotation.x = THREE.MathUtils.lerp(jn[7].rotation.x, rads[3] || 0, speed);
+                        } else if (deviceType === 'uav_rescue') {
+                            const isFlying = (payload.altitude !== undefined && payload.altitude > 0) || (payload.motor_rpm !== undefined && payload.motor_rpm > 0);
+                            if (isFlying && dev.status === 'online') {
+                                const spinRate = (payload.motor_rpm ? payload.motor_rpm * 0.0005 : 0.45);
+                                jn.forEach(p => p.rotation.y += spinRate);
+                            }
+                        }
+                    }
+
+                    fleetMasterCamera.aspect = width / height;
+                    fleetMasterCamera.updateProjectionMatrix();
+                    fleetMasterRenderer.render(item.scene, fleetMasterCamera);
+                }
+            });
+        }
+
+        // =============================================================
+        // MODAL 3D DIGITAL TWIN BUILDER & KINEMATICS
+        // =============================================================
+        function buildRobot3DModel(deviceType) {
+            if (!robot3dScene) return;
+
+            if (robot3dModel) {
+                robot3dScene.remove(robot3dModel);
+                robot3dModel = null;
+            }
+            robot3dJointNodes = [];
+
+            const rootGroup = new THREE.Group();
+            robot3dModel = rootGroup;
+
+            const matDarkGrey = createIndustrialMaterial(0x1e293b, 0.7, 0.3);
+            const matLightGrey = createIndustrialMaterial(0x94a3b8, 0.8, 0.25);
+            const matCyan = createIndustrialMaterial(0x06b6d4, 0.5, 0.3);
+            const matGlow = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+
+            if (deviceType === 'huashu_arm' || deviceType === 'arm') {
                 const huashuArm = createHuashuStlArm(1.4);
                 rootGroup.add(huashuArm.container);
                 robot3dJointNodes = huashuArm.joints;
-
             } else if (deviceType === 'luxshare_amr') {
                 const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.32, 2.0), matDarkGrey);
                 chassis.position.y = 0.16;
@@ -3497,12 +3689,10 @@
                     });
                 });
 
-                // Mount Real STL XMS3 Arm from URDF
                 const stlArm = createRokaeStlArm(2.0, 0xf1f5f9);
                 stlArm.container.position.set(0, 0.32, -0.2);
                 rootGroup.add(stlArm.container);
                 robot3dJointNodes = stlArm.joints;
-
             } else if (deviceType === 'robot_dog') {
                 const body = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.35, 1.2), matDarkGrey);
                 body.position.y = 0.75;
@@ -3520,7 +3710,6 @@
                     { name: 'RR', x: 0.38, z: -0.45 }
                 ];
 
-                robot3dJointNodes = [];
                 legPositions.forEach(pos => {
                     const hipGroup = new THREE.Group();
                     hipGroup.position.set(pos.x, 0.75, pos.z);
@@ -3544,7 +3733,6 @@
 
                     robot3dJointNodes.push(hipGroup, kneeGroup);
                 });
-
             } else {
                 const droneCenter = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.35, 0.15, 24), matDarkGrey);
                 droneCenter.position.y = 1.6;
@@ -3555,7 +3743,6 @@
                 rootGroup.add(gimbal);
 
                 const armAngles = [0, Math.PI / 2, Math.PI, Math.PI * 1.5];
-                robot3dJointNodes = [];
                 armAngles.forEach(ang => {
                     const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.9, 12), matDarkGrey);
                     arm.rotation.z = Math.PI / 2;
@@ -3597,13 +3784,14 @@
                 if (robot3dJointNodes[4]) robot3dJointNodes[4].userData.target = { axis: 'z', val: rads[4] || 0 };
                 if (robot3dJointNodes[5]) robot3dJointNodes[5].userData.target = { axis: 'z', val: rads[5] || 0 };
             } else if (deviceType === 'robot_dog') {
-                // Pure kinematics mapping from telemetry joint_angles: [FL_hip, FL_knee, FR_hip, FR_knee, RL_hip, RL_knee]
                 if (robot3dJointNodes[0]) robot3dJointNodes[0].userData.target = { axis: 'x', val: rads[0] || 0 };
                 if (robot3dJointNodes[1]) robot3dJointNodes[1].userData.target = { axis: 'x', val: rads[1] || 0 };
                 if (robot3dJointNodes[2]) robot3dJointNodes[2].userData.target = { axis: 'x', val: rads[2] || 0 };
                 if (robot3dJointNodes[3]) robot3dJointNodes[3].userData.target = { axis: 'x', val: rads[3] || 0 };
                 if (robot3dJointNodes[4]) robot3dJointNodes[4].userData.target = { axis: 'x', val: rads[4] || 0 };
                 if (robot3dJointNodes[5]) robot3dJointNodes[5].userData.target = { axis: 'x', val: rads[5] || 0 };
+                if (robot3dJointNodes[6]) robot3dJointNodes[6].userData.target = { axis: 'x', val: rads[2] || 0 };
+                if (robot3dJointNodes[7]) robot3dJointNodes[7].userData.target = { axis: 'x', val: rads[3] || 0 };
             } else if (deviceType === 'uav_rescue') {
                 window.modalDroneFlying = (parsedPayload.altitude !== undefined && parsedPayload.altitude > 0) || (parsedPayload.motor_rpm !== undefined && parsedPayload.motor_rpm > 0);
                 window.modalDroneSpinRate = parsedPayload.motor_rpm ? parsedPayload.motor_rpm * 0.0005 : 0.45;
@@ -3635,8 +3823,7 @@
                 robot3dRenderer.render(robot3dScene, robot3dCamera);
             }
         }
-
-
+        
         function switchRobotModalTab(tabKey) {
             currentActiveModalTab = tabKey;
             

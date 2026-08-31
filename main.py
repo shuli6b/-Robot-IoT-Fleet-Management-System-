@@ -315,11 +315,11 @@ async def check_device_offline_task():
 # ---------------------------------------------------------------------------
 async def local_simulation_generator_task():
     """
-    本地仿真数据发生器：
-    当在本地电脑运行或 MQTT 处于断开状态时，持续产生真实平滑的六轴机器人运动学、笛卡尔空间坐标与 IO 遥测数据，
-    确保本地预览时，所有 3D 机器人数字孪生、列表缩略图与大屏完全处于实时运动状态。
+    全设备实时遥测姿态仿真发生器：
+    遍历系统中所有注册设备，持续生成真实平滑的六轴机械臂/复合AMR/四足狗/无人机运动学、
+    笛卡尔空间坐标与 IO 遥测数据，确保全场所有 3D 机器人数字孪生、列表缩略图与大屏完全处于实时运动状态。
     """
-    logger.info(">>> 启动本地数字孪生实时姿态动态仿真发生器 <<<")
+    logger.info(">>> 启动全局数字孪生实时姿态动态仿真发生器 <<<")
     t = 0.0
     while True:
         try:
@@ -327,135 +327,119 @@ async def local_simulation_generator_task():
             t += 0.2
             now_iso = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
 
-            # 1. 华数 BR610 六轴工业机器人 (arm_001)
-            j_huashu = [
-                round(math.sin(t * 0.4) * 45.0, 2),
-                round(math.sin(t * 0.5) * 30.0 - 10.0, 2),
-                round(math.sin(t * 0.3) * 35.0 + 15.0, 2),
-                round(math.cos(t * 0.6) * 40.0, 2),
-                round(math.sin(t * 0.7) * 45.0, 2),
-                round(math.cos(t * 0.9) * 60.0, 2)
-            ]
-            tcp_huashu = {
-                "x": round(450.2 + math.sin(t * 0.5) * 60.0, 1),
-                "y": round(200.1 + math.cos(t * 0.5) * 40.0, 1),
-                "z": round(350.0 + math.sin(t * 0.3) * 30.0, 1),
-                "a": 180.0, "b": 0.0, "c": j_huashu[5]
-            }
-            payload_huashu = {
-                "device_id": "arm_001",
-                "device_type": "huashu_arm",
-                "status": "online",
-                "timestamp": now_iso,
-                "joint_angles": j_huashu,
-                "cartesian_pos": tcp_huashu,
-                "battery": 98.0,
-                "enabled": True,
-                "emergency_stop": False,
-                "error_code": 0,
-                "error_msg": "正常运行",
-                "cycle_count": int(12480 + t * 2),
-                "running_hours": round(452.8 + t / 3600.0, 2)
-            }
-            insert_device_data(
-                device_id="arm_001",
-                device_type="huashu_arm",
-                data_type="state",
-                raw_payload=json.dumps(payload_huashu, ensure_ascii=False),
-                topic="robot/huashu_arm/arm_001/state"
-            )
+            # 动态获取系统中所有设备
+            all_devices = get_all_devices()
+            for idx, dev in enumerate(all_devices):
+                dev_id = dev.get("device_id")
+                dev_type = dev.get("device_type")
+                phase = idx * 0.8  # 每个设备错开相位，更显自然
 
-            # 2. 珞石复合移动机器人 AMR (luxshare_amr_01)
-            j_lux = [
-                round(math.sin(t * 0.35) * 35.0, 2),
-                round(math.sin(t * 0.45) * 25.0 - 5.0, 2),
-                round(math.sin(t * 0.3) * 30.0 + 10.0, 2),
-                round(math.cos(t * 0.5) * 30.0, 2),
-                round(math.sin(t * 0.6) * 35.0, 2),
-                round(math.cos(t * 0.8) * 50.0, 2)
-            ]
-            tcp_lux = {
-                "x": round(1200.5 + math.sin(t * 0.2) * 150.0, 1),
-                "y": round(850.0 + math.cos(t * 0.2) * 150.0, 1),
-                "z": 420.0,
-                "a": 180.0, "b": 0.0, "c": j_lux[5]
-            }
-            payload_lux = {
-                "device_id": "luxshare_amr_01",
-                "device_type": "luxshare_amr",
-                "status": "online",
-                "timestamp": now_iso,
-                "joint_angles": j_lux,
-                "cartesian_pos": tcp_lux,
-                "battery": round(88.0 + math.sin(t * 0.02) * 5.0, 1),
-                "enabled": True,
-                "emergency_stop": False,
-                "error_code": 0,
-                "error_msg": "正常运行",
-                "cycle_count": int(8340 + t),
-                "running_hours": round(312.4 + t / 3600.0, 2)
-            }
-            insert_device_data(
-                device_id="luxshare_amr_01",
-                device_type="luxshare_amr",
-                data_type="state",
-                raw_payload=json.dumps(payload_lux, ensure_ascii=False),
-                topic="robot/luxshare_amr/luxshare_amr_01/state"
-            )
+                if dev_type in ("huashu_arm", "arm"):
+                    j_huashu = [
+                        round(math.sin((t + phase) * 0.4) * 45.0, 2),
+                        round(math.sin((t + phase) * 0.5) * 30.0 - 10.0, 2),
+                        round(math.sin((t + phase) * 0.3) * 35.0 + 15.0, 2),
+                        round(math.cos((t + phase) * 0.6) * 40.0, 2),
+                        round(math.sin((t + phase) * 0.7) * 45.0, 2),
+                        round(math.cos((t + phase) * 0.9) * 60.0, 2)
+                    ]
+                    tcp_huashu = {
+                        "x": round(450.2 + math.sin((t + phase) * 0.5) * 60.0, 1),
+                        "y": round(200.1 + math.cos((t + phase) * 0.5) * 40.0, 1),
+                        "z": round(350.0 + math.sin((t + phase) * 0.3) * 30.0, 1),
+                        "a": 180.0, "b": 0.0, "c": j_huashu[5]
+                    }
+                    payload = {
+                        "device_id": dev_id,
+                        "device_type": dev_type,
+                        "status": "online",
+                        "timestamp": now_iso,
+                        "joint_angles": j_huashu,
+                        "cartesian_pos": tcp_huashu,
+                        "battery": 98.0,
+                        "enabled": True,
+                        "emergency_stop": False,
+                        "error_code": 0,
+                        "error_msg": "正常运行",
+                        "cycle_count": int(12480 + t * 2 + idx * 100),
+                        "running_hours": round(452.8 + t / 3600.0, 2)
+                    }
+                elif dev_type == "luxshare_amr":
+                    j_lux = [
+                        round(math.sin((t + phase) * 0.35) * 35.0, 2),
+                        round(math.sin((t + phase) * 0.45) * 25.0 - 5.0, 2),
+                        round(math.sin((t + phase) * 0.3) * 30.0 + 10.0, 2),
+                        round(math.cos((t + phase) * 0.5) * 30.0, 2),
+                        round(math.sin((t + phase) * 0.6) * 35.0, 2),
+                        round(math.cos((t + phase) * 0.8) * 50.0, 2)
+                    ]
+                    tcp_lux = {
+                        "x": round(1200.5 + math.sin((t + phase) * 0.2) * 150.0, 1),
+                        "y": round(850.0 + math.cos((t + phase) * 0.2) * 150.0, 1),
+                        "z": 420.0,
+                        "a": 180.0, "b": 0.0, "c": j_lux[5]
+                    }
+                    payload = {
+                        "device_id": dev_id,
+                        "device_type": dev_type,
+                        "status": "online",
+                        "timestamp": now_iso,
+                        "joint_angles": j_lux,
+                        "cartesian_pos": tcp_lux,
+                        "battery": round(88.0 + math.sin((t + phase) * 0.02) * 5.0, 1),
+                        "enabled": True,
+                        "emergency_stop": False,
+                        "error_code": 0,
+                        "error_msg": "正常运行",
+                        "cycle_count": int(8340 + t + idx * 50),
+                        "running_hours": round(312.4 + t / 3600.0, 2)
+                    }
+                elif dev_type == "robot_dog":
+                    leg_swing = round(math.sin((t + phase) * 0.8) * 25.0, 1)
+                    knee_swing = round(-math.sin((t + phase) * 0.8) * 35.0 - 15.0, 1)
+                    j_dog = [leg_swing, knee_swing, -leg_swing, -knee_swing, -leg_swing, knee_swing]
+                    payload = {
+                        "device_id": dev_id,
+                        "device_type": dev_type,
+                        "status": "online",
+                        "timestamp": now_iso,
+                        "joint_angles": j_dog,
+                        "speed": 1.2,
+                        "battery": round(76.0 + math.cos((t + phase) * 0.02) * 4.0, 1),
+                        "enabled": True,
+                        "emergency_stop": False,
+                        "error_code": 0,
+                        "error_msg": "正常巡检中",
+                        "cycle_count": int(4520 + t + idx * 20),
+                        "running_hours": round(128.5 + t / 3600.0, 2),
+                        "cartesian_pos": {"x": round(320.0 + math.sin((t + phase) * 0.1) * 80.0, 1), "y": round(-150.2 + math.cos((t + phase) * 0.1) * 80.0, 1), "z": 180.5, "a": 0.0, "b": round(math.sin(t*0.5)*3.0, 1), "c": round(math.cos(t*0.5)*3.0, 1)}
+                    }
+                else:  # uav_rescue
+                    payload = {
+                        "device_id": dev_id,
+                        "device_type": dev_type,
+                        "status": "online",
+                        "timestamp": now_iso,
+                        "joint_angles": [3600.0, 3600.0, 3600.0, 3600.0, round(math.sin((t + phase)*0.3)*15.0, 1), round(math.cos((t + phase)*0.2)*30.0, 1)],
+                        "motor_rpm": 3600,
+                        "altitude": round(15.0 + math.sin((t + phase) * 0.3) * 2.0, 1),
+                        "battery": round(92.0 - ((t + phase * 10) % 100) * 0.1, 1),
+                        "enabled": True,
+                        "emergency_stop": False,
+                        "error_code": 0,
+                        "error_msg": "空中巡查中",
+                        "cycle_count": int(910 + t),
+                        "running_hours": round(45.2 + t / 3600.0, 2),
+                        "cartesian_pos": {"x": round(500.0 + math.sin((t + phase) * 0.1) * 120.0, 1), "y": round(300.0 + math.cos((t + phase) * 0.1) * 120.0, 1), "z": 150.0, "a": round(math.sin(t*0.4)*5.0, 1), "b": round(math.cos(t*0.4)*5.0, 1), "c": 0.0}
+                    }
 
-            # 3. 智能四足巡检机器狗 (robot_dog_01) - 真实 6 轴腿部关节角度遥测
-            leg_swing = round(math.sin(t * 0.8) * 25.0, 1)
-            knee_swing = round(-math.sin(t * 0.8) * 35.0 - 15.0, 1)
-            j_dog = [leg_swing, knee_swing, -leg_swing, -knee_swing, -leg_swing, knee_swing]
-            payload_dog = {
-                "device_id": "robot_dog_01",
-                "device_type": "robot_dog",
-                "status": "online",
-                "timestamp": now_iso,
-                "joint_angles": j_dog,
-                "speed": 1.2,
-                "battery": round(76.0 + math.cos(t * 0.02) * 4.0, 1),
-                "enabled": True,
-                "emergency_stop": False,
-                "error_code": 0,
-                "error_msg": "正常巡检中",
-                "cycle_count": int(4520 + t),
-                "running_hours": round(128.5 + t / 3600.0, 2),
-                "cartesian_pos": {"x": round(320.0 + math.sin(t * 0.1) * 80.0, 1), "y": round(-150.2 + math.cos(t * 0.1) * 80.0, 1), "z": 180.5, "a": 0.0, "b": round(math.sin(t*0.5)*3.0, 1), "c": round(math.cos(t*0.5)*3.0, 1)}
-            }
-            insert_device_data(
-                device_id="robot_dog_01",
-                device_type="robot_dog",
-                data_type="state",
-                raw_payload=json.dumps(payload_dog, ensure_ascii=False),
-                topic="robot/robot_dog/robot_dog_01/state"
-            )
-
-            # 4. 空地协同搜救无人机 (uav_rescue_01) - 旋翼转速与云台角度遥测
-            payload_uav = {
-                "device_id": "uav_rescue_01",
-                "device_type": "uav_rescue",
-                "status": "online",
-                "timestamp": now_iso,
-                "joint_angles": [3600.0, 3600.0, 3600.0, 3600.0, round(math.sin(t*0.3)*15.0, 1), round(math.cos(t*0.2)*30.0, 1)],
-                "motor_rpm": 3600,
-                "altitude": round(15.0 + math.sin(t * 0.3) * 2.0, 1),
-                "battery": round(92.0 - (t % 100) * 0.1, 1),
-                "enabled": True,
-                "emergency_stop": False,
-                "error_code": 0,
-                "error_msg": "空中巡查中",
-                "cycle_count": int(910 + t),
-                "running_hours": round(45.2 + t / 3600.0, 2),
-                "cartesian_pos": {"x": round(500.0 + math.sin(t * 0.1) * 120.0, 1), "y": round(300.0 + math.cos(t * 0.1) * 120.0, 1), "z": 150.0, "a": round(math.sin(t*0.4)*5.0, 1), "b": round(math.cos(t*0.4)*5.0, 1), "c": 0.0}
-            }
-            insert_device_data(
-                device_id="uav_rescue_01",
-                device_type="uav_rescue",
-                data_type="state",
-                raw_payload=json.dumps(payload_uav, ensure_ascii=False),
-                topic="robot/uav_rescue/uav_rescue_01/state"
-            )
+                insert_device_data(
+                    device_id=dev_id,
+                    device_type=dev_type,
+                    data_type="state",
+                    raw_payload=json.dumps(payload, ensure_ascii=False),
+                    topic=f"robot/{dev_type}/{dev_id}/state"
+                )
 
         except asyncio.CancelledError:
             break
