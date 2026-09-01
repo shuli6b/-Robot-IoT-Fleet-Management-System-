@@ -3006,11 +3006,17 @@
                     initRobot3DScene();
                     buildRobot3DModel(type);
                     onRobot3DResize();
+
+                    // 立即将外层设备列表中已有的最新物理状态注入新构建的模态框 3D 模型中，杜绝归零跳变与内外不同步
+                    const currentDev = currentDevices.find(d => d.device_id === id);
+                    if (currentDev && currentDev.latest_state && currentDev.latest_state.parsed_payload) {
+                        updateRobot3DKinematics(currentDev.latest_state.parsed_payload, type);
+                    }
+                    refreshModalLiveTelemetry();
                 }, 80);
 
-                refreshModalLiveTelemetry();
                 if (window.modalLiveTimer) clearInterval(window.modalLiveTimer);
-                window.modalLiveTimer = setInterval(refreshModalLiveTelemetry, 1500);
+                window.modalLiveTimer = setInterval(refreshModalLiveTelemetry, 800);
             } catch (err) {
                 console.error("openRobot3DModal critical error:", err);
                 const modal = document.getElementById('robot3DModal');
@@ -3030,11 +3036,16 @@
                 if (body.code === 200 && body.data && body.data.latest_data) {
                     const parsed = body.data.latest_data.parsed_payload || {};
                     
+                    // 1. 关节角度 (J1 ~ J6)
+                    const fallbackDev = currentDevices.find(d => d.device_id === id);
+                    const fallbackJoints = fallbackDev && fallbackDev.latest_state && fallbackDev.latest_state.parsed_payload ? (fallbackDev.latest_state.parsed_payload.joint_angles || fallbackDev.latest_state.parsed_payload.arm_sr3_pose) : null;
+                    const joints = parsed.joint_angles || parsed.arm_sr3_pose || fallbackJoints || [0, 0, 0, 0, 0, 0];
+                    if (!parsed.joint_angles && fallbackJoints) {
+                        parsed.joint_angles = fallbackJoints;
+                    }
+
                     // Update 3D Digital Twin Model Kinematics in Real-time!
                     updateRobot3DKinematics(parsed, type);
-
-                    // 1. 关节角度 (J1 ~ J6)
-                    const joints = parsed.joint_angles || parsed.arm_sr3_pose || [0, 0, 0, 0, 0, 0];
                     const jointLabels = type === 'huashu_arm' ? ['J1 基座', 'J2 大臂', 'J3 小臂', 'J4 手腕', 'J5 俯仰', 'J6 旋转'] :
                                        type === 'luxshare_amr' ? ['J1 回转', 'J2 肩部', 'J3 肘部', 'J4 腕1', 'J5 腕2', 'J6 腕3'] :
                                        type === 'robot_dog' ? ['前左髋', '前左膝', '前右髋', '前右膝', '后左腿', '后右腿'] :
@@ -5224,6 +5235,15 @@
 
                     if (currentDevices.length > 0 && !selectedDevice) {
                         selectDevice(currentDevices[0].device_type, currentDevices[0].device_id);
+                    }
+
+                    // 若模态框当前处于打开状态，同步更新模态框 3D 数字孪生姿态
+                    const modalEl = document.getElementById('robot3DModal');
+                    if (modalEl && !modalEl.classList.contains('hidden') && selectedDevice) {
+                        const cur = currentDevices.find(d => d.device_id === selectedDevice.id);
+                        if (cur && cur.latest_state && cur.latest_state.parsed_payload) {
+                            updateRobot3DKinematics(cur.latest_state.parsed_payload, selectedDevice.type);
+                        }
                     }
                 }
             } catch (e) {

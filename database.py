@@ -778,12 +778,12 @@ def get_latest_data(
 ) -> Optional[Dict[str, Any]]:
     """
     获取指定设备最新一条上报数据。
-    自动解析 raw_payload 为 JSON 对象。
-    若最新数据为 sensor 或 state，会自动合并另一类型的最近上报字段至 parsed_payload，
-    保证前端同时呈现完整的电量工况与最新遥测。
+    自动合并 state (关节角/空间坐标/状态), sensor (温湿度/振动/电流/电压), io (数字量输入输出) 数据，
+    确保前端无论是实时 3D 数字孪生、工况监控还是 IO 页面都能获得完整且不丢失的真机遥测。
     """
     conn = get_connection(db_path)
     try:
+        # 1. 查询最新一条任何类型的数据作为基础元信息
         cursor = conn.execute(
             """
             SELECT * FROM device_data 
@@ -794,46 +794,88 @@ def get_latest_data(
             (device_type, device_id),
         )
         row = cursor.fetchone()
-
         if not row:
             return None
 
         data = dict(row)
-        raw = data.get("raw_payload", "")
-        parsed = {}
+        
+        # 2. 查询最新的 state (包含关节角与坐标核心物理状态)
+        state_parsed = {}
+        cur_state = conn.execute(
+            """
+            SELECT raw_payload FROM device_data
+            WHERE device_type = ? AND device_id = ? AND data_type = 'state'
+            ORDER BY received_at DESC, id DESC LIMIT 1
+            """,
+            (device_type, device_id),
+        )
+        row_state = cur_state.fetchone()
+        if row_state:
+            try:
+                p = json.loads(row_state[0])
+                if isinstance(p, dict):
+                    state_parsed = p
+            except Exception:
+                pass
+
+        # 3. 查询最新的 sensor 数据
+        sensor_parsed = {}
+        cur_sensor = conn.execute(
+            """
+            SELECT raw_payload FROM device_data
+            WHERE device_type = ? AND device_id = ? AND data_type = 'sensor'
+            ORDER BY received_at DESC, id DESC LIMIT 1
+            """,
+            (device_type, device_id),
+        )
+        row_sensor = cur_sensor.fetchone()
+        if row_sensor:
+            try:
+                p = json.loads(row_sensor[0])
+                if isinstance(p, dict):
+                    sensor_parsed = p
+            except Exception:
+                pass
+
+        # 4. 查询最新的 io 数据
+        io_parsed = {}
+        cur_io = conn.execute(
+            """
+            SELECT raw_payload FROM device_data
+            WHERE device_type = ? AND device_id = ? AND data_type = 'io'
+            ORDER BY received_at DESC, id DESC LIMIT 1
+            """,
+            (device_type, device_id),
+        )
+        row_io = cur_io.fetchone()
+        if row_io:
+            try:
+                p = json.loads(row_io[0])
+                if isinstance(p, dict):
+                    io_parsed = p
+            except Exception:
+                pass
+
+        # 5. 解析主记录 payload
         try:
-            parsed = json.loads(raw)
-            if not isinstance(parsed, dict):
-                parsed = {"raw": parsed}
+            main_parsed = json.loads(data.get("raw_payload", "{}"))
+            if not isinstance(main_parsed, dict):
+                main_parsed = {"raw": main_parsed}
         except Exception:
-            parsed = {}
+            main_parsed = {}
 
-        # 尝试查找互补数据（如当前为 sensor 则查最近的 state，当前为 state 则查最近的 sensor）
-        curr_type = data.get("data_type")
-        comp_type = "state" if curr_type == "sensor" else ("sensor" if curr_type == "state" else None)
-        if comp_type:
-            cursor2 = conn.execute(
-                """
-                SELECT raw_payload FROM device_data
-                WHERE device_type = ? AND device_id = ? AND data_type = ?
-                ORDER BY received_at DESC, id DESC
-                LIMIT 1
-                """,
-                (device_type, device_id, comp_type),
-            )
-            comp_row = cursor2.fetchone()
-            if comp_row:
-                try:
-                    comp_parsed = json.loads(comp_row[0])
-                    if isinstance(comp_parsed, dict):
-                        # 合并互补字段，主记录字段优先级更高
-                        merged = dict(comp_parsed)
-                        merged.update(parsed)
-                        parsed = merged
-                except Exception:
-                    pass
+        # 6. 深度合并：以 state_parsed 为骨干，补充 sensor 与 io 字段，确保 joint_angles 永不丢失
+        final_parsed = {}
+        final_parsed.update(sensor_parsed)
+        final_parsed.update(io_parsed)
+        final_parsed.update(state_parsed)  # state 拥有最高的关节角与坐标权威
+        final_parsed.update(main_parsed)   # 覆盖最新时间戳等公共字段
+        if "joint_angles" not in final_parsed and "joint_angles" in state_parsed:
+            final_parsed["joint_angles"] = state_parsed["joint_angles"]
+        if "cartesian_pos" not in final_parsed and "cartesian_pos" in state_parsed:
+            final_parsed["cartesian_pos"] = state_parsed["cartesian_pos"]
 
-        data["parsed_payload"] = parsed
+        data["parsed_payload"] = final_parsed
         return data
     except Exception as e:
         logger.error(f"get_latest_data 查询异常 [{device_type}/{device_id}]: {e}")
