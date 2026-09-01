@@ -3326,10 +3326,10 @@
                 j5.add(m);
             });
 
-            // J6 Joint (origin -0.00027 -0.11 -0.0295, rpy 1.5708 0 1.5708, axis Z) - Black End Tool Flange
+            // J6 Joint (origin -0.00027 -0.11 -0.0295, axis X) - Black End Tool Flange (Flat Coaxial Cap on J5)
             const j6Pre = new THREE.Group();
             j6Pre.position.set(-0.00027126 * scale, -0.11 * scale, -0.029501 * scale);
-            j6Pre.rotation.set(Math.PI / 2, 0, Math.PI / 2);
+            j6Pre.rotation.set(0, 0, Math.PI / 2);
             j5.add(j6Pre);
 
             const j6 = new THREE.Group();
@@ -3631,8 +3631,8 @@
                         if (deviceType === 'huashu_arm' || deviceType === 'arm') {
                             const a1 = rads[0] || 0;
                             const a2 = (rads[1] || 0) + Math.PI / 2;
-                            const a3 = -(rads[2] || 0);
-                            const a4 = rads[3] || 0;
+                            const a3 = rads[2] || 0;
+                            const a4 = (rads[3] || 0) + Math.PI;
                             const a5 = rads[4] || 0;
                             const a6 = rads[5] || 0;
                             if (jn[0]) jn[0].rotation.z = THREE.MathUtils.lerp(jn[0].rotation.z, a1, speed);
@@ -3810,8 +3810,8 @@
             } else if (deviceType === 'huashu_arm' || deviceType === 'arm') {
                 const a1 = rads[0] || 0;
                 const a2 = (rads[1] || 0) + Math.PI / 2;
-                const a3 = -(rads[2] || 0);
-                const a4 = rads[3] || 0;
+                const a3 = rads[2] || 0;
+                const a4 = (rads[3] || 0) + Math.PI;
                 const a5 = rads[4] || 0;
                 const a6 = rads[5] || 0;
                 if (robot3dJointNodes[0]) robot3dJointNodes[0].userData.target = { axis: 'z', val: a1 };
@@ -3819,7 +3819,7 @@
                 if (robot3dJointNodes[2]) robot3dJointNodes[2].userData.target = { axis: 'z', val: a3 };
                 if (robot3dJointNodes[3]) robot3dJointNodes[3].userData.target = { axis: 'z', val: a4 };
                 if (robot3dJointNodes[4]) robot3dJointNodes[4].userData.target = { axis: 'z', val: a5 };
-                if (robot3dJointNodes[5]) robot3dJointNodes[5].userData.target = { axis: 'z', val: a6 };
+                if (robot3dJointNodes[5]) robot3dJointNodes[5].userData.target = { axis: 'x', val: a6 };
             } else if (deviceType === 'robot_dog') {
                 if (robot3dJointNodes[0]) robot3dJointNodes[0].userData.target = { axis: 'x', val: rads[0] || 0 };
                 if (robot3dJointNodes[1]) robot3dJointNodes[1].userData.target = { axis: 'x', val: rads[1] || 0 };

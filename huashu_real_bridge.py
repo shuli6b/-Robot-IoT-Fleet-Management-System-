@@ -69,23 +69,30 @@ class HuashuRobotCollector(threading.Thread):
         self.name = r_info["name"]
         self.mqtt = mqtt_client
         self.seq = 1
+        self.buffer = b""
 
     def send_cmd(self, sock, cmd):
         self.seq += 1
-        req = f"i:{self.seq},c:{cmd}@hs@".encode('utf-8')
+        curr_seq = self.seq
+        req = f"i:{curr_seq},c:{cmd}@hs@".encode('utf-8')
         sock.sendall(req)
-        resp = b""
-        while b"@hs@" not in resp:
+        
+        while True:
+            if b"@hs@" in self.buffer:
+                packet, self.buffer = self.buffer.split(b"@hs@", 1)
+                raw_str = packet.decode('utf-8', errors='ignore')
+                if f"i:{curr_seq}," in raw_str or f"i:{curr_seq}:" in raw_str or raw_str.startswith(f"i:{curr_seq}"):
+                    idx = raw_str.find("d:")
+                    if idx != -1:
+                        return raw_str[idx+2:]
+                    return ""
+                # Stale response, discard and continue
+                continue
+
             chunk = sock.recv(1024)
             if not chunk:
                 raise ConnectionResetError("连接断开")
-            resp += chunk
-        
-        raw_str = resp.decode('utf-8', errors='ignore').split('@hs@')[0]
-        idx = raw_str.find("d:")
-        if idx != -1:
-            return raw_str[idx+2:]
-        return ""
+            self.buffer += chunk
 
     def run(self):
         logger.info(f"启动机械臂采集线程 [{self.device_id}] IP: {self.ip}:23333 ...")
