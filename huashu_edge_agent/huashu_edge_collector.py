@@ -498,18 +498,13 @@ class HuashuEdgeDeviceRunner:
                         "di_status": telemetry.get("di_status", [0, 0, 0, 0])
                     }
 
-                    # 传感器遥测报文
+                    # 传感器遥测报文（仅含官方协议真实可采集项：关节反馈电流）
                     motor_currs = telemetry.get("motor_currents", [0.0] * 6)
-                    avg_curr = round(sum(motor_currs) / len(motor_currs), 2) if motor_currs else 2.5
+                    avg_curr = round(sum(motor_currs) / len(motor_currs), 2) if motor_currs else 0.0
                     sensor_payload = {
                         "timestamp": now_str,
-                        "temperature_celsius": round(38.5 + random.uniform(0.1, 1.2), 1),
-                        "humidity_pct": round(48.0 + random.uniform(-1.0, 1.0), 1),
-                        "vibration_mm_s": round(random.uniform(0.01, 0.04), 3),
-                        "voltage_v": 24.0,
-                        "current_a": max(1.0, avg_curr),
+                        "current_a": avg_curr,
                         "motor_currents": motor_currs,
-                        "motor_temperatures": [round(40.0 + random.uniform(0, 3), 1) for _ in range(6)]
                     }
 
                     if self.mqtt_client:

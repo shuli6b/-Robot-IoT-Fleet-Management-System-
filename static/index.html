@@ -501,16 +501,7 @@
                         </div>
                         <div id="overviewEventList" class="space-y-2 text-xs font-mono max-h-48 overflow-y-auto pr-1">
                             <div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200/60 flex items-center justify-between">
-                                <span class="text-slate-700">arm_001 [华数机械臂] 周期上报正常</span>
-                                <span class="text-[10px] text-slate-400">刚刚</span>
-                            </div>
-                            <div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200/60 flex items-center justify-between">
-                                <span class="text-slate-700">amr_001 [珞石AMR] 激光SLAM定位良好</span>
-                                <span class="text-[10px] text-slate-400">1秒前</span>
-                            </div>
-                            <div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200/60 flex items-center justify-between">
-                                <span class="text-slate-700">dog_001 [四足机器狗] 巡检数据上报正常</span>
-                                <span class="text-[10px] text-slate-400">2秒前</span>
+                                <span class="text-slate-400">加载真实设备事件...</span>
                             </div>
                         </div>
                     </div>
@@ -827,11 +818,7 @@
                                 <span>实时 I/O 关键信号:</span>
                             </span>
                             <div id="modalQuickIoList" class="flex items-center gap-1.5 flex-wrap font-mono text-[11px]">
-                                <span class="px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">DI1 气压就绪 ✔</span>
-                                <span class="px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">DI3 安全光幕 ✔</span>
-                                <span class="px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">DI6 急停回路 ✔</span>
-                                <span class="px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border border-blue-300 dark:border-blue-800">DO1 伺服使能 ON</span>
-                                <span class="px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border border-blue-300 dark:border-blue-800">DO2 运行指示 ON</span>
+                                <span class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">等待实时 IO 数据...</span>
                             </div>
                         </div>
                         <button type="button" onclick="switchRobotModalTab('io')" class="px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-medium shrink-0 transition text-xs border border-slate-200 dark:border-slate-700 flex items-center gap-1 self-start sm:self-auto">
@@ -865,16 +852,19 @@
                         <div class="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
                             <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                                 <span class="font-bold text-slate-900 dark:text-slate-100">伺服电流与工况</span>
-                                <span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold font-mono">98 分</span>
+                                <span class="text-[10px] text-slate-400 dark:text-slate-500 font-bold font-mono">实时</span>
                             </div>
                             <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700 space-y-1.5">
                                 <span class="text-[10px] text-slate-500 dark:text-slate-400">伺服电机电流 (A)</span>
                                 <div class="grid grid-cols-3 gap-1.5 font-mono text-[11px]" id="modalMotorCurrentsGrid"></div>
                             </div>
                             <div class="space-y-1.5 text-[11px] text-slate-600 dark:text-slate-400">
-                                <div class="flex justify-between"><span>循环工步计数:</span><span class="font-mono text-slate-900 dark:text-slate-100 font-medium" id="modalCycleCount">1,420 次</span></div>
-                                <div class="flex justify-between"><span>累计运行工时:</span><span class="font-mono text-slate-900 dark:text-slate-100 font-medium" id="modalRunHours">152.4 小时</span></div>
-                                <div class="flex justify-between"><span>下次保养周期:</span><span class="font-mono text-slate-700 dark:text-slate-300" id="modalMaintRemain">剩余 347.6 小时</span></div>
+                                <div class="flex justify-between"><span>累计上报次数:</span><span class="font-mono text-slate-900 dark:text-slate-100 font-medium" id="modalCycleCount">—</span></div>
+                                <div class="flex justify-between"><span>累计运行工时:</span><span class="font-mono text-slate-900 dark:text-slate-100 font-medium" id="modalRunHours">—</span></div>
+                                <div class="flex justify-between"><span>下次保养周期:</span><span class="font-mono text-slate-700 dark:text-slate-300" id="modalMaintRemain">—</span></div>
+                                <div class="flex justify-between"><span>控制器机型:</span><span class="font-mono text-slate-900 dark:text-slate-100 font-medium" id="modalRobotModel">—</span></div>
+                                <div class="flex justify-between"><span>操作模式:</span><span class="font-mono text-slate-900 dark:text-slate-100 font-medium" id="modalOpMode">—</span></div>
+                                <div class="flex justify-between"><span>报警数量:</span><span class="font-mono text-slate-900 dark:text-slate-100 font-medium" id="modalErrorCount">—</span></div>
                             </div>
                         </div>
                     </div>
@@ -1186,6 +1176,14 @@
                                     <span>MQTT 与 5G 基础设施</span>
                                 </span>
                                 <span class="text-slate-400">→</span>
+                            </button>
+
+                            <button id="setNavBtnSim" onclick="switchSettingsTab('sim')" class="w-full px-3.5 py-2.5 rounded-xl text-left transition flex items-center justify-between text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-slate-100">
+                                <span class="flex items-center gap-2.5">
+                                    <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                                    <span>仿真设备与备份管理</span>
+                                </span>
+                                <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">内部</span>
                             </button>
                         </div>
                     </div>
@@ -1649,6 +1647,62 @@
                                     <li class="flex items-center justify-between"><span>下行控制主题:</span><span class="font-mono text-slate-900 dark:text-slate-200">cmd/{type}/{id}</span></li>
                                 </ul>
                             </div>
+                        </div>
+                    </div>
+                    <div id="setPaneSim" class="hidden space-y-4">
+                        <div>
+                            <h4 class="font-bold text-sm text-slate-900 dark:text-slate-100">仿真设备与备份管理</h4>
+                            <p class="text-slate-500 dark:text-slate-400 text-[11px] mt-0.5">内部管理入口：仿真设备仅在此处增删，前端大屏不显示任何差异；备份凭据仅用于连接华数控制器 FTP</p>
+                        </div>
+
+                        <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-3">
+                            <div class="font-bold text-slate-900 dark:text-slate-100 flex items-center justify-between">
+                                <span>仿真设备清单</span>
+                                <span class="px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 text-[10px] font-mono" id="simCountBadge">0 台</span>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-[11px]">
+                                    <thead>
+                                        <tr class="text-left text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
+                                            <th class="py-1.5 pr-2 font-medium">设备 ID</th>
+                                            <th class="py-1.5 pr-2 font-medium">类型</th>
+                                            <th class="py-1.5 pr-2 font-medium">名称</th>
+                                            <th class="py-1.5 pr-2 font-medium">工位</th>
+                                            <th class="py-1.5 font-medium">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="simDeviceTableBody">
+                                        <tr><td colspan="5" class="py-3 text-slate-400">加载中...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                                <input id="simNewId" placeholder="device_id" class="px-2.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"/>
+                                <select id="simNewType" class="px-2.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs">
+                                    <option value="huashu_arm">华数机械臂</option>
+                                    <option value="luxshare_amr">复合AMR</option>
+                                    <option value="robot_dog">机器狗</option>
+                                    <option value="uav_rescue">无人机协同</option>
+                                </select>
+                                <input id="simNewName" placeholder="设备名称" class="px-2.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"/>
+                                <input id="simNewLoc" placeholder="工位" class="px-2.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"/>
+                                <button onclick="addSimulatedDevice()" class="px-2.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900 text-white font-medium text-xs transition">+ 新增仿真设备</button>
+                            </div>
+                            <p class="text-[10px] text-slate-400">新增后约 30 秒内由仿真推流服务自动拉取生效；删除或取消标记同理。</p>
+                        </div>
+
+                        <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-3">
+                            <div class="font-bold text-slate-900 dark:text-slate-100">设备 FTP 备份凭据</div>
+                            <p class="text-slate-500 dark:text-slate-400 text-[11px]">华数控制器备份仅支持 FTP（21 端口）。填写正确的控制器账号密码后，设备备份功能才可用。</p>
+                            <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                                <input id="ftpDevId" placeholder="设备ID（如 arm_001）" class="px-2.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"/>
+                                <input id="ftpHost" placeholder="FTP 地址" value="192.168.1.169" class="px-2.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"/>
+                                <input id="ftpPort" placeholder="21" value="21" class="px-2.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"/>
+                                <input id="ftpUser" placeholder="用户名" class="px-2.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"/>
+                                <input id="ftpPass" type="password" placeholder="密码" class="px-2.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"/>
+                            </div>
+                            <div id="ftpConfigList" class="text-[11px] text-slate-500 dark:text-slate-400 space-y-1"></div>
+                            <button onclick="saveFtpConfig()" class="w-full py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs transition">保存 FTP 凭据</button>
                         </div>
                     </div>
                 </div>
@@ -2219,18 +2273,14 @@
             trafficDataState = [];
             trafficDataSensor = [];
 
-            const onlineCountInit = currentDevices.filter(d => d.status === 'online').length;
             for (let i = 12; i >= 0; i--) {
                 const t = new Date(now.getTime() - i * 3000);
                 trafficTimeLabels.push(t.toLocaleTimeString('zh-CN', { hour12: false }));
-                if (onlineCountInit === 0) {
-                    trafficDataState.push(0);
-                    trafficDataSensor.push(0);
-                } else {
-                    trafficDataState.push(Math.max(1, Math.floor(onlineCountInit * 2 + (Math.random() * 4 - 2))));
-                    trafficDataSensor.push(Math.max(2, Math.floor(onlineCountInit * 4 + (Math.random() * 6 - 3))));
-                }
+                trafficDataState.push(0);
+                trafficDataSensor.push(0);
             }
+
+            loadRealTrafficData();
 
             const isDark = document.documentElement.classList.contains('dark');
             const line1Color = isDark ? '#60A5FA' : '#2563EB';
@@ -2316,42 +2366,37 @@
             });
         }
 
+        async function loadRealTrafficData() {
+            if (!trafficChartInstance) return;
+            try {
+                const resp = await fetch('/api/system/traffic?buckets=13');
+                const j = await resp.json();
+                const state = (j.data && j.data.state) || [];
+                const sensor = (j.data && j.data.sensor) || [];
+                if (state.length && sensor.length) {
+                    // 时间标签与数据一一对应（最近 13 个 3 秒窗口，右端与当前对齐）
+                    const now = new Date();
+                    trafficTimeLabels = [];
+                    for (let i = 12; i >= 0; i--) {
+                        const t = new Date(now.getTime() - i * 3000);
+                        trafficTimeLabels.push(t.toLocaleTimeString('zh-CN', { hour12: false }));
+                    }
+                    trafficDataState = state.slice(-13);
+                    trafficDataSensor = sensor.slice(-13);
+                    if (trafficChartInstance) {
+                        trafficChartInstance.setOption({
+                            xAxis: { data: trafficTimeLabels },
+                            series: [{ data: trafficDataState }, { data: trafficDataSensor }]
+                        });
+                    }
+                }
+            } catch (e) { }
+        }
+
         function streamTrafficDataTick() {
             if (!trafficChartInstance || activeNavTab !== 'overview') return;
-
-            const nowStr = new Date().toLocaleTimeString('zh-CN', { hour12: false });
-            const onlineCount = currentDevices.filter(d => d.status === 'online').length;
-
-            let nextState = 0;
-            let nextSensor = 0;
-
-            if (onlineCount > 0) {
-                const baseState = onlineCount * 2;
-                const baseSensor = onlineCount * 3.5;
-                nextState = Math.max(1, Math.floor(baseState + (Math.random() * 4 - 2)));
-                nextSensor = Math.max(2, Math.floor(baseSensor + (Math.random() * 8 - 4)));
-            } else {
-                nextState = 0;
-                nextSensor = 0;
-            }
-
-            trafficTimeLabels.push(nowStr);
-            trafficDataState.push(nextState);
-            trafficDataSensor.push(nextSensor);
-
-            if (trafficTimeLabels.length > 15) {
-                trafficTimeLabels.shift();
-                trafficDataState.shift();
-                trafficDataSensor.shift();
-            }
-
-            trafficChartInstance.setOption({
-                xAxis: { data: trafficTimeLabels },
-                series: [
-                    { data: trafficDataState },
-                    { data: trafficDataSensor }
-                ]
-            });
+            // 数据与时间标签完全由后端真实统计驱动，保持左右对齐
+            loadRealTrafficData();
         }
 
         // -------------------------------------------------------------
@@ -2478,19 +2523,26 @@
                 
                 if (elName) elName.innerText = dev.device_name ? `${dev.device_name} (${dev.device_id})` : dev.device_id;
                 
-                const tcpX = dev.cartesian_x || (dev.device_type === 'huashu_arm' ? 450.2 : dev.device_type === 'luxshare_amr' ? 1200.5 : 320.0);
-                const tcpY = dev.cartesian_y || (dev.device_type === 'huashu_arm' ? 200.1 : dev.device_type === 'luxshare_amr' ? 850.0 : -150.2);
-                const tcpZ = dev.cartesian_z || (dev.device_type === 'huashu_arm' ? 350.0 : dev.device_type === 'luxshare_amr' ? 420.0 : 180.5);
+                // TCP 坐标：仅显示真实上报值，无数据不兜底假坐标
+                const tcpX = dev.cartesian_x;
+                const tcpY = dev.cartesian_y;
+                const tcpZ = dev.cartesian_z;
+                const fmtAxis = (v, label) => (v !== undefined && v !== null && v !== '') ? `${label}: ${Math.round(v)}` : `${label}: —`;
+                if (elTcpX) elTcpX.innerText = fmtAxis(tcpX, 'X');
+                if (elTcpY) elTcpY.innerText = fmtAxis(tcpY, 'Y');
+                if (elTcpZ) elTcpZ.innerText = fmtAxis(tcpZ, 'Z');
                 
-                if (elTcpX) elTcpX.innerText = `X: ${Math.round(tcpX)}`;
-                if (elTcpY) elTcpY.innerText = `Y: ${Math.round(tcpY)}`;
-                if (elTcpZ) elTcpZ.innerText = `Z: ${Math.round(tcpZ)}`;
-                
+                // 电池：仅仿真设备显示（华数真机无电池）
                 const bat = dev.battery !== undefined ? Math.round(dev.battery) : 98;
-                if (elBat) elBat.innerText = `${bat}% (正常)`;
-                if (elBatB) {
-                    elBatB.style.width = `${Math.min(100, Math.max(0, bat))}%`;
-                    elBatB.className = (bat < 30 ? 'bg-amber-500' : 'bg-slate-900 dark:bg-blue-500') + ' h-full rounded-full transition-all duration-300';
+                if (elBat && elBatB) {
+                    if (dev.is_simulated) {
+                        elBat.innerText = `${bat}%`;
+                        elBatB.style.width = `${Math.min(100, Math.max(0, bat))}%`;
+                        elBatB.className = (bat < 30 ? 'bg-amber-500' : 'bg-slate-900 dark:bg-blue-500') + ' h-full rounded-full transition-all duration-300';
+                    } else {
+                        elBat.innerText = '—';
+                        elBatB.style.width = '0%';
+                    }
                 }
                 if (elStat) {
                     elStat.innerHTML = isOnline 
@@ -2570,16 +2622,18 @@
                                 </span>
                             </div>
 
-                            <!-- Battery & Backup Policy -->
+                            <!-- Battery (仅仿真设备显示；华数真机无电池，不显示) -->
+                            ${dev.is_simulated ? `
                             <div class="space-y-1">
                                 <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 text-[11px]">
-                                    <span>母线动力/电池</span>
-                                    <span id="card_bat_${dev.device_id}" class="font-mono text-slate-900 dark:text-slate-100 font-semibold">${dev.battery !== undefined ? Math.round(dev.battery) : 98}% (正常)</span>
+                                    <span>电池电量</span>
+                                    <span id="card_bat_${dev.device_id}" class="font-mono text-slate-900 dark:text-slate-100 font-semibold">${dev.battery !== undefined ? Math.round(dev.battery) : 98}%</span>
                                 </div>
                                 <div class="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
                                     <div id="card_bat_bar_${dev.device_id}" class="${(dev.battery || 98) < 30 ? 'bg-amber-500' : 'bg-slate-900 dark:bg-blue-500'} h-full rounded-full transition-all duration-300" style="width: ${dev.battery !== undefined ? Math.min(100, Math.max(0, Math.round(dev.battery))) : 98}%"></div>
                                 </div>
                             </div>
+                            ` : ''}
 
                             <div class="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px]">
                                 <span class="text-slate-400">自动周备份: <span class="text-emerald-600 dark:text-emerald-400 font-mono font-medium">已激活</span></span>
@@ -2657,10 +2711,8 @@
                 { label: '伺服电机下使能 (disable)', cmd: 'disable', params: { axis_mask: 63 } },
                 { label: '机械臂安全回原点 (home)', cmd: 'home', params: { speed: 20 } },
                 { label: '关节单轴微调点动 (jog_joint)', cmd: 'jog_joint', params: { axis: 1, direction: 1, speed: 10, step_deg: 5.0 } },
-                { label: '笛卡尔空间点动 (jog_cartesian)', cmd: 'jog_cartesian', params: { coord: "base", direction: "+Z", step_mm: 10.0, speed: 30 } },
                 { label: '调节全局运行速率 (set_override)', cmd: 'set_override', params: { override: 80 } },
                 { label: '设置数字量输出 DO 信号 (set_do)', cmd: 'set_do', params: { port: 1, value: 1 } },
-                { label: '末端夹爪开合动作 (set_gripper)', cmd: 'set_gripper', params: { action: "grip", force: 50, speed: 80 } },
                 { label: '载入指定加工程序 (select_prog)', cmd: 'select_prog', params: { prog_name: "BR610_AUTO_POLISH.PRG" } },
                 { label: '紧急制动快速停机 (stop)', cmd: 'stop', params: { reason: "manual_estop" } }
             ],
@@ -3034,7 +3086,7 @@
                     }
 
                     // 3. 伺服电机电流 (M1 ~ M6)
-                    const currents = parsed.motor_currents || [parsed.current || 2.5, 2.1, 1.8, 1.2, 0.9, 0.6];
+                    const currents = parsed.motor_currents || parsed.currents || [];
                     const currGrid = document.getElementById('modalMotorCurrentsGrid');
                     if (currGrid) {
                         currGrid.innerHTML = currents.slice(0, 6).map((c, i) => {
@@ -3048,15 +3100,31 @@
                         }).join('');
                     }
 
-                    // 4. 工单节拍与工时
+                    // 4. 累计上报次数（数据库真实计数）/ 工时（无真实来源，显示—）
                     const cycleEl = document.getElementById('modalCycleCount');
                     const runEl = document.getElementById('modalRunHours');
-                    if (cycleEl && parsed.cycle_count !== undefined) {
-                        cycleEl.innerText = `${parsed.cycle_count.toLocaleString()} 次`;
+                    const maintEl = document.getElementById('modalMaintRemain');
+                    const modalDev = selectedDevice;
+                    const reportCount = (modalDev && modalDev.real_report_count !== undefined)
+                        ? modalDev.real_report_count
+                        : (parsed.report_count !== undefined ? parsed.report_count : null);
+                    if (cycleEl) {
+                        cycleEl.innerText = reportCount !== null ? `${Number(reportCount).toLocaleString()} 次` : '—';
                     }
-                    if (runEl && parsed.running_hours !== undefined) {
-                        runEl.innerText = `${parsed.running_hours.toFixed(1)} 小时`;
+                    if (runEl) runEl.innerText = '—';
+                    if (maintEl) maintEl.innerText = '—';
+
+                    // 控制器真实工况（机型/操作模式/报警数，来自华数 SocketCmd 真实返回）
+                    const modelEl = document.getElementById('modalRobotModel');
+                    const opEl = document.getElementById('modalOpMode');
+                    const errEl = document.getElementById('modalErrorCount');
+                    if (modelEl) modelEl.innerText = parsed.robot_model || '—';
+                    if (opEl) {
+                        const om = parsed.op_mode;
+                        const omMap = { 1: '手动T1', 2: '手动T2', 3: '自动运行', 4: '外部运行' };
+                        opEl.innerText = (om !== undefined && om !== null) ? (omMap[om] || `模式${om}`) : '—';
                     }
+                    if (errEl) errEl.innerText = parsed.error_code !== undefined ? String(parsed.error_code) : '—';
                 }
             } catch (e) {
                 console.error('refreshModalLiveTelemetry error:', e);
@@ -3339,6 +3407,24 @@
                 const m = new THREE.Mesh(geo, matFlangeBlack);
                 m.castShadow = true;
                 j6.add(m);
+            });
+
+            // Real Factory End-Effector / Tool Mounted on Flange J6 (Flipped 180° to Forefront)
+            loader.load(basePath + 'br610_tool.stl', geo => {
+                geo.scale(0.001 * scale, 0.001 * scale, 0.001 * scale);
+                geo.translate(-0.045 * scale, -0.112 * scale, -0.050 * scale);
+                geo.rotateY(Math.PI);
+                geo.rotateZ(-Math.PI / 2);
+                geo.translate(-0.012 * scale, 0, 0);
+                const matTool = new THREE.MeshStandardMaterial({ 
+                    color: 0xf8fafc, 
+                    metalness: 0.45, 
+                    roughness: 0.25, 
+                    wireframe: robot3dWireframeMode 
+                });
+                const toolMesh = new THREE.Mesh(geo, matTool);
+                toolMesh.castShadow = true;
+                j6.add(toolMesh);
             });
 
             return { container: armContainer, joints: [j1, j2, j3, j4, j5, j6] };
@@ -3914,6 +4000,19 @@
                 const body = await res.json();
                 if (body.code === 200 && body.data) {
                     const data = body.data;
+                    if (data.source === 'no_data') {
+                        const diGrid = document.getElementById('modalDiGrid');
+                        const doGrid = document.getElementById('modalDoGrid');
+                        if (diGrid) diGrid.innerHTML = '<div class="col-span-4 py-6 text-center text-slate-400 text-xs">无实时 IO 上报数据<br><span class="text-[10px]">设备尚未上报 IO 状态（真实设备需桥接采集 io.getDinGrp/getDoutGrp）</span></div>';
+                        if (doGrid) doGrid.innerHTML = '';
+                        const quickIo = document.getElementById('modalQuickIoList');
+                        if (quickIo) quickIo.innerHTML = '<span class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 text-[10px]">无实时 IO</span>';
+                        const diMaskEl = document.getElementById('modalDiMaskHex');
+                        const doMaskEl = document.getElementById('modalDoMaskHex');
+                        if (diMaskEl) diMaskEl.innerText = 'MASK: 0x----';
+                        if (doMaskEl) doMaskEl.innerText = 'MASK: 0x----';
+                        return;
+                    }
                     const diMaskEl = document.getElementById('modalDiMaskHex');
                     const doMaskEl = document.getElementById('modalDoMaskHex');
                     if (diMaskEl) diMaskEl.innerText = `MASK: 0x${data.di_mask.toString(16).toUpperCase().padStart(4, '0')}`;
@@ -3979,11 +4078,24 @@
                     currentModalPrograms = body.data;
                     const container = document.getElementById('modalProgListContainer');
                     if (container) {
+                        if (!currentModalPrograms.length) {
+                            container.innerHTML = `<div class="py-8 text-center text-slate-400 text-xs">
+                                <div class="text-lg mb-1.5">📄</div>
+                                ${selectedDevice && selectedDevice.is_simulated
+                                    ? '该仿真设备暂未配置演示程序'
+                                    : '该设备当前无程序<br><span class="text-[10px] text-slate-400">真机控制器主程序区为空（vm.mainProgNames 为空），可在上方编辑上传</span>'}
+                            </div>`;
+                            const viewer = document.getElementById('modalProgramCodeViewer');
+                            if (viewer) viewer.value = '; 该设备当前无程序';
+                            return;
+                        }
+                        const isSim = !!(selectedDevice && selectedDevice.is_simulated);
                         container.innerHTML = currentModalPrograms.map((p, idx) => `
                             <div onclick="viewProgramCode('${p.prog_name}')" class="p-2.5 rounded-lg border ${p.is_active ? 'bg-blue-50/80 dark:bg-blue-950/40 border-blue-300 dark:border-blue-800' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700'} hover:border-blue-500 cursor-pointer transition flex items-center justify-between">
                                 <div>
                                     <div class="font-mono font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
                                         <span>📄 ${p.prog_name}</span>
+                                        ${isSim ? '<span class="text-[9px] px-1 py-0.2 rounded bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800">仿真</span>' : ''}
                                         ${p.is_active ? '<span class="text-[9px] px-1 py-0.2 rounded bg-emerald-500 text-white">运行中</span>' : ''}
                                     </div>
                                     <div class="text-[10px] text-slate-400 mt-0.5">${(p.file_size / 1024).toFixed(1)} KB | ${p.updated_at.split(' ')[0]}</div>
@@ -4078,12 +4190,21 @@
         // -------------------------------------------------------------
         async function searchAlarmKnowledgeBase() {
             const kw = document.getElementById('modalAlarmKbSearchInput')?.value || '';
+            const devType = selectedDevice ? selectedDevice.type : '';
             try {
-                const res = await fetch(`/api/alarms/knowledge_base?keyword=${encodeURIComponent(kw)}`);
+                const res = await fetch(`/api/alarms/knowledge_base?device_type=${encodeURIComponent(devType || '')}&keyword=${encodeURIComponent(kw)}`);
                 const body = await res.json();
                 if (body.code === 200 && Array.isArray(body.data)) {
                     const grid = document.getElementById('modalAlarmKbResultsGrid');
                     if (grid) {
+                        if (!body.data.length) {
+                            grid.innerHTML = `<div class="py-6 text-center text-slate-400 text-xs">
+                                ${devType && devType !== 'huashu_arm' && devType !== 'arm'
+                                    ? '该设备类型（' + (DEVICE_TYPE_NAMES[devType] || devType) + '）暂无故障知识库<br><span class="text-[10px]">当前知识库为华数控制器官方故障码，仅适用于华数机械臂</span>'
+                                    : '未找到匹配的故障知识条目'}
+                            </div>`;
+                            return;
+                        }
                         grid.innerHTML = body.data.map(item => `
                             <div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-1.5 shadow-sm">
                                 <div class="flex items-center justify-between">
@@ -4735,7 +4856,7 @@
         }
 
         function switchSettingsTab(tab) {
-            const tabs = ['profile', 'users', 'ai', 'cms', 'mqtt'];
+            const tabs = ['profile', 'users', 'ai', 'cms', 'mqtt', 'sim'];
             tabs.forEach(t => {
                 const pane = document.getElementById(`setPane${t.charAt(0).toUpperCase() + t.slice(1)}`);
                 const btn = document.getElementById(`setNavBtn${t.charAt(0).toUpperCase() + t.slice(1)}`);
@@ -4756,7 +4877,109 @@
                 loadAdminUsersList();
             } else if (tab === 'cms') {
                 populateCmsForm();
+            } else if (tab === 'sim') {
+                loadSimulatedDevices();
+                loadFtpConfig();
             }
+        }
+
+        async function loadSimulatedDevices() {
+            const tbody = document.getElementById('simDeviceTableBody');
+            const badge = document.getElementById('simCountBadge');
+            try {
+                const res = await fetch('/api/admin/simulated_devices');
+                const j = await res.json();
+                const devs = (j.data && j.data.devices) || [];
+                if (badge) badge.textContent = devs.length + ' 台';
+                if (!devs.length) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="py-3 text-slate-400">暂无仿真设备</td></tr>';
+                    return;
+                }
+                const typeMap = {huashu_arm: '华数机械臂', luxshare_amr: '复合AMR', robot_dog: '机器狗', uav_rescue: '无人机协同'};
+                tbody.innerHTML = devs.map(d => `
+                    <tr class="border-b border-slate-100 dark:border-slate-800">
+                        <td class="py-1.5 pr-2 font-mono">${d.device_id || ''}</td>
+                        <td class="py-1.5 pr-2">${typeMap[d.device_type] || d.device_type}</td>
+                        <td class="py-1.5 pr-2">${d.device_name || ''}</td>
+                        <td class="py-1.5 pr-2">${d.location || ''}</td>
+                        <td class="py-1.5"><button onclick="removeSimulatedDevice('${d.device_id}')" class="px-2 py-0.5 rounded bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 text-[10px] border border-rose-200 dark:border-rose-800">取消仿真</button></td>
+                    </tr>`).join('');
+            } catch (e) {
+                tbody.innerHTML = '<tr><td colspan="5" class="py-3 text-rose-500">加载失败</td></tr>';
+            }
+        }
+
+        async function addSimulatedDevice() {
+            const device_id = document.getElementById('simNewId').value.trim();
+            if (!device_id) { showToast('请填写设备 ID', '⚠️'); return; }
+            const payload = {
+                device_id,
+                device_type: document.getElementById('simNewType').value,
+                device_name: document.getElementById('simNewName').value.trim(),
+                location: document.getElementById('simNewLoc').value.trim()
+            };
+            try {
+                const res = await fetch('/api/admin/simulated_devices', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const j = await res.json();
+                if (res.ok && j.code === 200) {
+                    showToast('仿真设备已添加，约 30 秒内生效', '✅');
+                    document.getElementById('simNewId').value = '';
+                    document.getElementById('simNewName').value = '';
+                    document.getElementById('simNewLoc').value = '';
+                    loadSimulatedDevices();
+                } else { showToast(j.message || '添加失败', '⚠️'); }
+            } catch (e) { showToast('网络错误', '⚠️'); }
+        }
+
+        async function removeSimulatedDevice(device_id) {
+            if (!confirm(`确认取消 ${device_id} 的仿真标记？`)) return;
+            try {
+                const res = await fetch(`/api/admin/simulated_devices/${encodeURIComponent(device_id)}`, { method: 'DELETE' });
+                const j = await res.json();
+                showToast(j.message || '操作完成', res.ok ? '✅' : '⚠️');
+                loadSimulatedDevices();
+            } catch (e) { showToast('网络错误', '⚠️'); }
+        }
+
+        async function loadFtpConfig() {
+            const box = document.getElementById('ftpConfigList');
+            try {
+                const res = await fetch('/api/admin/ftp_config');
+                const j = await res.json();
+                const cfg = (j.data && j.data.config) || {};
+                const keys = Object.keys(cfg);
+                if (!keys.length) { box.innerHTML = '<div class="text-slate-400">尚未配置任何设备的 FTP 凭据</div>'; return; }
+                box.innerHTML = keys.map(k => {
+                    const c = cfg[k];
+                    return `<div class="flex items-center justify-between py-0.5"><span class="font-mono">${k}</span><span>${c.host || '-'}:${c.port || 21} · ${c.user || '-'} ${c.has_password ? '· 密码已设置' : '· 未设置密码'}</span></div>`;
+                }).join('');
+            } catch (e) { box.innerHTML = '<div class="text-rose-500">读取失败</div>'; }
+        }
+
+        async function saveFtpConfig() {
+            const device_id = document.getElementById('ftpDevId').value.trim();
+            if (!device_id) { showToast('请填写设备 ID', '⚠️'); return; }
+            const payload = {
+                device_id,
+                host: document.getElementById('ftpHost').value.trim(),
+                port: document.getElementById('ftpPort').value.trim() || 21,
+                user: document.getElementById('ftpUser').value.trim(),
+                password: document.getElementById('ftpPass').value
+            };
+            if (!payload.user || !payload.password) { showToast('请填写 FTP 用户名和密码', '⚠️'); return; }
+            try {
+                const res = await fetch('/api/admin/ftp_config', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const j = await res.json();
+                showToast(j.message || '保存完成', res.ok ? '✅' : '⚠️');
+                document.getElementById('ftpPass').value = '';
+                loadFtpConfig();
+            } catch (e) { showToast('网络错误', '⚠️'); }
         }
 
         async function handleUpdateProfile(e) {
@@ -4997,6 +5220,7 @@
                     renderActiveFleetView();
                     updateDynamicHealthIndices(currentDevices);
                     updateAuditDeviceDropdown(currentDevices);
+                    renderOverviewEvents(currentDevices);
 
                     if (currentDevices.length > 0 && !selectedDevice) {
                         selectDevice(currentDevices[0].device_type, currentDevices[0].device_id);
@@ -5005,6 +5229,27 @@
             } catch (e) {
                 console.error(e);
             }
+        }
+
+        function renderOverviewEvents(devices) {
+            const container = document.getElementById('overviewEventList');
+            if (!container) return;
+            const sorted = [...devices].sort((a, b) => (b.last_report_time || '').localeCompare(a.last_report_time || ''));
+            const recent = sorted.slice(0, 5);
+            if (!recent.length) {
+                container.innerHTML = '<div class="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-700 flex items-center justify-between"><span class="text-slate-400">暂无设备上报事件</span></div>';
+                return;
+            }
+            const stMap = { online: '在线', offline: '离线', standby: '待命', error: '告警', running: '运行', stopped: '停止' };
+            container.innerHTML = recent.map(d => {
+                const st = stMap[d.status] || d.status;
+                const stColor = d.status === 'error' ? 'text-rose-600 dark:text-rose-400' : (d.status === 'online' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400');
+                const t = d.last_report_time ? String(d.last_report_time).replace('T', ' ').slice(5, 19) : '—';
+                return `<div class="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-700 flex items-center justify-between">
+                            <span class="text-slate-700 dark:text-slate-300">${d.device_name || d.device_id} [${d.device_type_display || d.device_type}] <span class="${stColor} font-bold">${st}</span></span>
+                            <span class="text-[10px] text-slate-400">${t}</span>
+                        </div>`;
+            }).join('');
         }
 
         function updateDynamicHealthIndices(devices) {

@@ -56,3 +56,18 @@ huashu_edge_agent/启动机械臂推流.*
 *.swo
 .DS_Store
 Thumbs.db
+
+# 调试/检查残留（本地，禁止上传）
+codex_deep_check.txt
+server_investigation.txt
+network_scan_report.txt
+live_bridge_status.txt
+live_real_telemetry_clean.txt
+recent_db_dump.txt
+deploy_result.txt
+devices_after_clean.txt
+devices_final_check.json
+arm_001_169_latest.json
+arm_001_latest_api.json
+arm_001_real_telemetry.json
+_quarantine/

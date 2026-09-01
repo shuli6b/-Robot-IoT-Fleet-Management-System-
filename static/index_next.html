@@ -3034,7 +3034,7 @@
                     }
 
                     // 3. 伺服电机电流 (M1 ~ M6)
-                    const currents = parsed.motor_currents || [parsed.current || 2.5, 2.1, 1.8, 1.2, 0.9, 0.6];
+                    const currents = parsed.motor_currents || parsed.currents || [];
                     const currGrid = document.getElementById('modalMotorCurrentsGrid');
                     if (currGrid) {
                         currGrid.innerHTML = currents.slice(0, 6).map((c, i) => {
@@ -3339,6 +3339,24 @@
                 const m = new THREE.Mesh(geo, matFlangeBlack);
                 m.castShadow = true;
                 j6.add(m);
+            });
+
+            // Real Factory End-Effector / Tool Mounted on Flange J6 (Flipped 180° to Forefront)
+            loader.load(basePath + 'br610_tool.stl', geo => {
+                geo.scale(0.001 * scale, 0.001 * scale, 0.001 * scale);
+                geo.translate(-0.045 * scale, -0.112 * scale, -0.050 * scale);
+                geo.rotateY(Math.PI);
+                geo.rotateZ(-Math.PI / 2);
+                geo.translate(-0.012 * scale, 0, 0);
+                const matTool = new THREE.MeshStandardMaterial({ 
+                    color: 0xf8fafc, 
+                    metalness: 0.45, 
+                    roughness: 0.25, 
+                    wireframe: robot3dWireframeMode 
+                });
+                const toolMesh = new THREE.Mesh(geo, matTool);
+                toolMesh.castShadow = true;
+                j6.add(toolMesh);
             });
 
             return { container: armContainer, joints: [j1, j2, j3, j4, j5, j6] };

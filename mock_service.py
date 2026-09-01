@@ -27,6 +27,8 @@ logger = logging.getLogger("robot_mock_service")
 MQTT_HOST = os.getenv("MQTT_HOST", "127.0.0.1")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
 INTERVAL = float(os.getenv("MOCK_INTERVAL", "2.0"))
+# 管控平台后台地址（用于拉取「仿真设备清单」，设置页增删实时生效）
+API_BASE = os.getenv("PLATFORM_API", "http://127.0.0.1:8000")
 
 running = True
 
@@ -480,6 +482,35 @@ class VirtualRobot:
 
         return state_msg, sensor_msg
 
+def fetch_fleet():
+    """
+    从管控平台后台拉取「仿真设备清单」（后台设置页可增删，实时生效）。
+    平台 API 不可用时返回 None，调用方回退到内置兜底清单。
+    """
+    import urllib.request
+    try:
+        req = urllib.request.Request(f"{API_BASE}/api/admin/simulated_devices")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        devs = (data.get("data") or {}).get("devices") or []
+        robots = []
+        for d in devs:
+            dt = d.get("device_type") or "huashu_arm"
+            robots.append(VirtualRobot(
+                dt,
+                d.get("device_id") or "",
+                d.get("device_name") or f"仿真-{dt}",
+                d.get("location") or "仿真演示工位",
+                d.get("vendor") or "仿真演示",
+            ))
+        if robots:
+            logger.info(f"[FLEET] 从平台后台加载 {len(robots)} 台仿真设备")
+        return robots
+    except Exception as e:
+        logger.warning(f"[FLEET] 拉取仿真设备清单失败: {e}")
+        return None
+
+
 def build_robot_fleet():
     return [
         # 1~4: 华数工业机械臂
@@ -505,8 +536,9 @@ def main():
     logger.info(f"  - 模拟推流频率: {INTERVAL} 秒/轮")
     logger.info("==========================================================")
 
-    robots = build_robot_fleet()
+    robots = fetch_fleet() or build_robot_fleet()
     robot_map = {r.device_id: r for r in robots}
+    last_fleet_refresh = time.time()
     
     logger.info(f"已就绪 {len(robots)} 台虚拟工业设备：")
     for r in robots:
@@ -554,6 +586,24 @@ def main():
     round_cnt = 0
     try:
         while running:
+            # 每 30 秒从后台设置页同步一次仿真设备清单（新增/删除实时生效）
+            if time.time() - last_fleet_refresh >= 30:
+                new_robots = fetch_fleet()
+                if new_robots is not None:
+                    keep = {}
+                    for nr in new_robots:
+                        keep[nr.device_id] = robot_map.get(nr.device_id, nr)
+                    removed = [rid for rid in robot_map if rid not in keep]
+                    added = [rid for rid in keep if rid not in robot_map]
+                    for rid in removed:
+                        logger.info(f"[FLEET] 移除仿真设备: {rid}")
+                    for rid in added:
+                        logger.info(f"[FLEET] 新增仿真设备: {rid}")
+                    if removed or added:
+                        robots = list(keep.values())
+                        robot_map = keep
+                last_fleet_refresh = time.time()
+
             round_cnt += 1
             for r in robots:
                 if not running:

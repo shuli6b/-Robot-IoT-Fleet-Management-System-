@@ -67,6 +67,8 @@ from database import (
     update_user_role,
     get_robot_programs,
     get_robot_program_by_name,
+    set_device_simulated,
+    get_simulated_devices,
     save_robot_program,
     get_alarm_knowledge_base,
     get_alarm_resolutions,
@@ -75,6 +77,10 @@ from database import (
     get_device_io,
     update_device_io,
     get_weekly_backups_list,
+    get_system_config,
+    set_system_config,
+    get_command_ack,
+    get_traffic_stats,
 )
 
 # ---------------------------------------------------------------------------
@@ -305,114 +311,6 @@ async def check_device_offline_task():
 # ---------------------------------------------------------------------------
 # 5. FastAPI 应用初始化与生命周期
 # ---------------------------------------------------------------------------
-async def local_simulation_generator_task():
-    """
-    全设备实时遥测姿态仿真发生器：
-    遍历系统中所有注册设备，持续生成真实平滑的六轴机械臂/复合AMR/四足狗/无人机运动学、
-    笛卡尔空间坐标与 IO 遥测数据，确保全场所有 3D 机器人数字孪生、列表缩略图与大屏完全处于实时运动状态。
-    """
-    logger.info(">>> 启动全局数字孪生实时姿态动态仿真发生器 <<<")
-    t = 0.0
-    while True:
-        try:
-            await asyncio.sleep(0.2)
-            t += 0.2
-            now_iso = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-
-            # 动态获取系统中所有设备
-            all_devices = get_all_devices()
-            for idx, dev in enumerate(all_devices):
-                dev_id = dev.get("device_id")
-                dev_type = dev.get("device_type")
-                phase = idx * 0.8  # 每个设备错开相位，更显自然
-
-                if dev_type in ("huashu_arm", "arm"):
-                    # 华数机械臂已直连现场真实物理控制器 (192.168.1.168~170:23333)，由 huashu-bridge 真实采集，此处跳过仿真覆盖
-                    continue
-                elif dev_type == "luxshare_amr":
-                    j_lux = [
-                        round(math.sin((t + phase) * 0.35) * 35.0, 2),
-                        round(math.sin((t + phase) * 0.45) * 25.0 - 5.0, 2),
-                        round(math.sin((t + phase) * 0.3) * 30.0 + 10.0, 2),
-                        round(math.cos((t + phase) * 0.5) * 30.0, 2),
-                        round(math.sin((t + phase) * 0.6) * 35.0, 2),
-                        round(math.cos((t + phase) * 0.8) * 50.0, 2)
-                    ]
-                    tcp_lux = {
-                        "x": round(1200.5 + math.sin((t + phase) * 0.2) * 150.0, 1),
-                        "y": round(850.0 + math.cos((t + phase) * 0.2) * 150.0, 1),
-                        "z": 420.0,
-                        "a": 180.0, "b": 0.0, "c": j_lux[5]
-                    }
-                    payload = {
-                        "device_id": dev_id,
-                        "device_type": dev_type,
-                        "status": "online",
-                        "timestamp": now_iso,
-                        "joint_angles": j_lux,
-                        "cartesian_pos": tcp_lux,
-                        "battery": round(88.0 + math.sin((t + phase) * 0.02) * 5.0, 1),
-                        "enabled": True,
-                        "emergency_stop": False,
-                        "error_code": 0,
-                        "error_msg": "正常运行",
-                        "cycle_count": int(8340 + t + idx * 50),
-                        "running_hours": round(312.4 + t / 3600.0, 2)
-                    }
-                elif dev_type == "robot_dog":
-                    leg_swing = round(math.sin((t + phase) * 0.8) * 25.0, 1)
-                    knee_swing = round(-math.sin((t + phase) * 0.8) * 35.0 - 15.0, 1)
-                    j_dog = [leg_swing, knee_swing, -leg_swing, -knee_swing, -leg_swing, knee_swing]
-                    payload = {
-                        "device_id": dev_id,
-                        "device_type": dev_type,
-                        "status": "online",
-                        "timestamp": now_iso,
-                        "joint_angles": j_dog,
-                        "speed": 1.2,
-                        "battery": round(76.0 + math.cos((t + phase) * 0.02) * 4.0, 1),
-                        "enabled": True,
-                        "emergency_stop": False,
-                        "error_code": 0,
-                        "error_msg": "正常巡检中",
-                        "cycle_count": int(4520 + t + idx * 20),
-                        "running_hours": round(128.5 + t / 3600.0, 2),
-                        "cartesian_pos": {"x": round(320.0 + math.sin((t + phase) * 0.1) * 80.0, 1), "y": round(-150.2 + math.cos((t + phase) * 0.1) * 80.0, 1), "z": 180.5, "a": 0.0, "b": round(math.sin(t*0.5)*3.0, 1), "c": round(math.cos(t*0.5)*3.0, 1)}
-                    }
-                else:  # uav_rescue
-                    payload = {
-                        "device_id": dev_id,
-                        "device_type": dev_type,
-                        "status": "online",
-                        "timestamp": now_iso,
-                        "joint_angles": [3600.0, 3600.0, 3600.0, 3600.0, round(math.sin((t + phase)*0.3)*15.0, 1), round(math.cos((t + phase)*0.2)*30.0, 1)],
-                        "motor_rpm": 3600,
-                        "altitude": round(15.0 + math.sin((t + phase) * 0.3) * 2.0, 1),
-                        "battery": round(92.0 - ((t + phase * 10) % 100) * 0.1, 1),
-                        "enabled": True,
-                        "emergency_stop": False,
-                        "error_code": 0,
-                        "error_msg": "空中巡查中",
-                        "cycle_count": int(910 + t),
-                        "running_hours": round(45.2 + t / 3600.0, 2),
-                        "cartesian_pos": {"x": round(500.0 + math.sin((t + phase) * 0.1) * 120.0, 1), "y": round(300.0 + math.cos((t + phase) * 0.1) * 120.0, 1), "z": 150.0, "a": round(math.sin(t*0.4)*5.0, 1), "b": round(math.cos(t*0.4)*5.0, 1), "c": 0.0}
-                    }
-
-                insert_device_data(
-                    device_id=dev_id,
-                    device_type=dev_type,
-                    data_type="state",
-                    raw_payload=json.dumps(payload, ensure_ascii=False),
-                    topic=f"robot/{dev_type}/{dev_id}/state"
-                )
-
-        except asyncio.CancelledError:
-            break
-        except Exception as e:
-            logger.warning(f"local_simulation_generator_task 异常: {e}")
-            await asyncio.sleep(1.0)
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 1. 服务启动阶段
@@ -421,17 +319,14 @@ async def lifespan(app: FastAPI):
     check_db_integrity()
     init_mqtt_client()
     offline_task = asyncio.create_task(check_device_offline_task())
-    sim_task = asyncio.create_task(local_simulation_generator_task())
 
     yield
 
     # 2. 服务关闭阶段
     logger.info("=== 机器人物联网管理系统服务正在关闭 ===")
     offline_task.cancel()
-    sim_task.cancel()
     try:
         await offline_task
-        await sim_task
     except asyncio.CancelledError:
         pass
 
@@ -727,6 +622,19 @@ async def health_check():
     )
 
 
+@app.get("/api/system/traffic")
+async def get_traffic_api(buckets: int = Query(13, ge=5, le=60)):
+    """返回最近 N 个时间窗的设备数据真实写入条数（按 state/sensor 分类，无随机造假）。"""
+    try:
+        state = get_traffic_stats(buckets=buckets, window_sec=3, data_type="state")
+        sensor = get_traffic_stats(buckets=buckets, window_sec=3, data_type="sensor")
+        return api_response(code=200, message="success",
+                            data={"buckets": buckets, "state": state, "sensor": sensor})
+    except Exception as e:
+        logger.error(f"get_traffic_api 异常: {e}")
+        return api_response(code=500, message=f"查询失败: {e}", data=None)
+
+
 @app.get("/api/system/overview")
 async def system_overview():
     """
@@ -933,10 +841,16 @@ def publish_command_downlink(
     command: str,
     params: Optional[Dict[str, Any]] = None,
     task_id: Optional[str] = None,
-) -> Tuple[bool, str, Dict[str, Any]]:
+) -> Tuple[str, str, Dict[str, Any]]:
     """
     通过 MQTT 向端侧设备下发任务控制指令 (Topic: cmd/{device_type}/{device_id})。
-    即使 MQTT 未连接，也会自动存入数据库并给出明确状态说明。
+
+    返回三态状态机：
+      - "simulated":    目标设备为仿真设备，指令仅进入模拟链路
+      - "queued":       MQTT 未连接，指令仅入库未发送
+      - "delivered":    已发布至 Broker，等待设备 cmd_ack 确认
+      - "acknowledged": 收到设备 cmd_ack 且执行成功
+      - "failed":       收到设备 cmd_ack 但执行失败 / MQTT 发送失败
     """
     if not task_id:
         task_id = f"T{datetime.now().strftime('%Y%m%d%H%M%S')}-{device_id}"
@@ -949,6 +863,18 @@ def publish_command_downlink(
     }
     payload_json = json.dumps(payload_dict, ensure_ascii=False)
     topic = f"cmd/{device_type}/{device_id}"
+
+    # 仿真设备识别：指令仅进入模拟链路，明确告知
+    try:
+        dev_info = get_device_by_id(device_id)
+        if dev_info and dev_info.get("is_simulated"):
+            insert_device_data(
+                device_id=device_id, device_type=device_type, data_type="cmd",
+                raw_payload=payload_json, topic=topic,
+            )
+            return "simulated", "该设备为仿真设备，指令仅模拟执行（未作用于物理设备）", payload_dict
+    except Exception as e:
+        logger.error(f"仿真设备判定异常: {e}")
 
     # 记录到历史数据表
     try:
@@ -968,14 +894,14 @@ def publish_command_downlink(
         try:
             info = mqtt_client_instance.publish(topic, payload_json, qos=1)
             info.wait_for_publish(timeout=2.0)
-            logger.info(f"成功向设备下发指令 -> Topic: {topic} | Payload: {payload_json}")
-            return True, "指令已成功通过 MQTT 发送至端侧设备", payload_dict
+            logger.info(f"已向设备下发指令 -> Topic: {topic} | Payload: {payload_json}")
+            return "delivered", "指令已送达消息总线，等待设备执行确认", payload_dict
         except Exception as e:
             logger.error(f"MQTT 指令发送失败: {e}")
-            return False, f"MQTT 发送失败: {e}", payload_dict
+            return "failed", f"MQTT 发送失败: {e}", payload_dict
     else:
         logger.warning(f"MQTT 未连接，指令已记录入库但未通过网络发送 -> Topic: {topic}")
-        return True, "指令已记录并分发（当前为本地数据库直通模式）", payload_dict
+        return "queued", "MQTT 未连接，指令仅入库未发送", payload_dict
 
 
 @app.post("/api/device/{dev_id}/cmd")
@@ -1015,7 +941,7 @@ async def dispatch_device_command(
         else:
             target_type = "unknown"
 
-    success, msg, payload = publish_command_downlink(
+    state, msg, payload = publish_command_downlink(
         device_type=target_type,
         device_id=target_id,
         command=body.command,
@@ -1024,15 +950,131 @@ async def dispatch_device_command(
     )
 
     return api_response(
-        code=200 if success else 500,
+        code=200,
         message=msg,
         data={
             "device_id": target_id,
             "device_type": target_type,
             "topic": f"cmd/{target_type}/{target_id}",
+            "deliver_state": state,
             "task": payload,
         },
     )
+
+
+@app.get("/api/device/{dev_id}/cmd/{task_id}")
+async def query_command_result(dev_id: str, task_id: str):
+    """查询单条下行指令的执行结果（基于 cmd_ack 回执）。"""
+    rows = get_command_ack(dev_id, task_id)
+    return api_response(code=200, message="success", data={"device_id": dev_id,
+                                                           "task_id": task_id,
+                                                           "ack": rows[0] if rows else None})
+
+
+@app.get("/api/device/{dev_id}/cmd_history")
+async def query_command_history(dev_id: str, limit: int = Query(20, ge=1, le=200)):
+    """查询设备最近的下行指令与回执记录。"""
+    from database import get_cmd_history
+    rows = get_cmd_history(dev_id, limit=limit)
+    return api_response(code=200, message="success", data={"device_id": dev_id, "records": rows})
+
+
+# ---------------------------------------------------------------------------
+# 仿真设备管理（后台设置页专用，前端大屏不展示该标记）
+# ---------------------------------------------------------------------------
+@app.get("/api/admin/simulated_devices")
+async def list_simulated_devices():
+    """列出所有标记为仿真的设备。"""
+    try:
+        devs = get_simulated_devices()
+        return api_response(code=200, message="success", data={"devices": devs})
+    except Exception as e:
+        logger.error(f"list_simulated_devices 异常: {e}")
+        return api_response(code=500, message=f"查询失败: {e}", data=None)
+
+
+@app.post("/api/admin/simulated_devices")
+async def add_simulated_device(body: dict = Body(...)):
+    """
+    将设备标记为仿真（不存在则自动建档）。
+    body: {device_id, device_type, device_name?, location?, vendor?}
+    """
+    device_id = (body.get("device_id") or "").strip()
+    device_type = (body.get("device_type") or "huashu_arm").strip()
+    if not device_id:
+        return api_response(code=400, message="device_id 不能为空", data=None)
+
+    dev = get_device_by_id(device_id)
+    if not dev:
+        upsert_device(device_id=device_id, device_type=device_type,
+                      status="online", last_report_time=None)
+    if body.get("device_name") or body.get("location") or body.get("vendor"):
+        update_device_info(
+            device_id=device_id,
+            device_name=body.get("device_name"),
+            location=body.get("location"),
+            vendor=body.get("vendor"),
+        )
+    ok = set_device_simulated(device_id, True)
+    return api_response(code=200 if ok else 500,
+                        message="已标记为仿真设备" if ok else "标记失败",
+                        data={"device_id": device_id, "is_simulated": 1})
+
+
+@app.delete("/api/admin/simulated_devices/{device_id}")
+async def remove_simulated_device(device_id: str):
+    """取消设备的仿真标记（恢复为真实设备属性）。"""
+    ok = set_device_simulated(device_id, False)
+    return api_response(code=200 if ok else 500,
+                        message="已取消仿真标记" if ok else "取消失败",
+                        data={"device_id": device_id, "is_simulated": 0})
+
+
+# ---------------------------------------------------------------------------
+# 设备 FTP 备份凭据管理（后台设置页专用）
+# ---------------------------------------------------------------------------
+@app.get("/api/admin/ftp_config")
+async def get_device_ftp_config():
+    """读取各设备 FTP 备份凭据（密码字段脱敏）。"""
+    try:
+        raw = get_system_config("device_ftp_config", "{}")
+        cfg = json.loads(raw) if raw else {}
+        safe = {}
+        for dev_id, c in cfg.items():
+            masked = "***" if c.get("password") else ""
+            safe[dev_id] = {"host": c.get("host", ""), "port": c.get("port", 21),
+                            "user": c.get("user", ""), "password_masked": masked,
+                            "has_password": bool(c.get("password"))}
+        return api_response(code=200, message="success", data={"config": safe})
+    except Exception as e:
+        logger.error(f"get_device_ftp_config 异常: {e}")
+        return api_response(code=500, message=f"读取失败: {e}", data=None)
+
+
+@app.post("/api/admin/ftp_config")
+async def save_device_ftp_config(body: dict = Body(...)):
+    """保存设备 FTP 备份凭据。body: {device_id, host, port, user, password}"""
+    try:
+        device_id = (body.get("device_id") or "").strip()
+        if not device_id:
+            return api_response(code=400, message="device_id 不能为空", data=None)
+        raw = get_system_config("device_ftp_config", "{}")
+        cfg = json.loads(raw) if raw else {}
+        entry = cfg.get(device_id, {})
+        if body.get("host"):
+            entry["host"] = body["host"].strip()
+        if body.get("port"):
+            entry["port"] = int(body["port"])
+        if body.get("user"):
+            entry["user"] = body["user"].strip()
+        if body.get("password"):
+            entry["password"] = body["password"]
+        cfg[device_id] = entry
+        set_system_config("device_ftp_config", json.dumps(cfg, ensure_ascii=False))
+        return api_response(code=200, message="FTP 凭据已保存", data={"device_id": device_id})
+    except Exception as e:
+        logger.error(f"save_device_ftp_config 异常: {e}")
+        return api_response(code=500, message=f"保存失败: {e}", data=None)
 
 
 @app.get("/api/device/{dev_id}/history")
@@ -2043,45 +2085,68 @@ async def download_program_file_api(device_type: str, device_id: str, prog_name:
 
 @app.get("/api/devices/{device_type}/{device_id}/backup")
 async def backup_device_system_api(device_type: str, device_id: str):
-    """远程一键打包备份机器人程序与系统配置 (ZIP 导出)"""
+    """
+    通过华数控制器 FTP 服务下载真实系统备份包（zip）。
+    FTP 凭据须先在后台设置页配置（system_config: device_ftp_config），
+    未配置时返回明确提示，绝不使用硬编码凭据。
+    """
     import io
     import zipfile
+    import ftplib
     from fastapi.responses import Response
-    
+
     dev = get_device_by_id(device_id)
-    programs = get_robot_programs(device_id)
-    io_status = get_device_io(device_id)
-    site_cfg = get_site_config()
-    
+    if not dev:
+        return {"error": "Device not found"}
+
+    # 读取设备 FTP 凭据配置（后台设置页可修改）
+    try:
+        raw_cfg = get_system_config("device_ftp_config", "{}")
+        ftp_cfg_all = json.loads(raw_cfg) if raw_cfg else {}
+    except Exception:
+        ftp_cfg_all = {}
+    ftp_cfg = ftp_cfg_all.get(device_id, {})
+
+    ip = ftp_cfg.get("host") or dev.get("ip_address") or "192.168.1.169"
+    user = ftp_cfg.get("user", "")
+    password = ftp_cfg.get("password", "")
+
+    if not user:
+        return api_response(
+            code=400,
+            message="该设备未配置 FTP 备份凭据，请先在后台「设置 - 设备备份」中填写华数控制器的 FTP 账号密码",
+            data={"device_id": device_id, "ftp_host": ip},
+        )
+
     zip_buffer = io.BytesIO()
+    try:
+        ftp = ftplib.FTP()
+        ftp.connect(ip, int(ftp_cfg.get("port", 21)), timeout=8)
+        ftp.login(user, password)
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+            items = []
+            ftp.retrlines('NLST', items.append)
+            for item in items:
+                if item in (".", ".."):
+                    continue
+                file_buf = io.BytesIO()
+                try:
+                    ftp.retrbinary(f"RETR {item}", file_buf.write)
+                    zf.writestr(item, file_buf.getvalue())
+                except Exception:
+                    pass
+        ftp.quit()
+    except ftplib.error_perm as e:
+        return api_response(code=502, message=f"FTP 认证失败（请核对后台配置的账号密码）: {e}", data=None)
+    except Exception as e:
+        return api_response(code=502, message=f"连接华数控制器 FTP 失败: {e}", data=None)
+
     timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-    
-    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        # 1. 写入所有加工程序文件
-        for p in programs:
-            p_name = p["prog_name"]
-            p_code = get_robot_program_by_name(device_id, p_name)
-            content = p_code.get("prog_content", "") if p_code else ""
-            zf.writestr(f"programs/{p_name}", content)
-        
-        # 2. 写入设备元数据与配置
-        metadata = {
-            "backup_version": "2.0",
-            "backup_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "device": dev or {"device_id": device_id, "device_type": device_type},
-            "io_status": io_status,
-            "system_config": site_cfg
-        }
-        zf.writestr("system_settings.json", json.dumps(metadata, ensure_ascii=False, indent=2))
-        zf.writestr("README_BACKUP.txt", f"工业机器人物联网管控平台 - 远程全量备份归档\n设备ID: {device_id}\n设备品类: {device_type}\n备份时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n包含程序数: {len(programs)}\n")
-    
-    zip_buffer.seek(0)
-    zip_filename = f"backup_{device_type}_{device_id}_{timestamp_str}.zip"
     headers = {
-        "Content-Disposition": f"attachment; filename=\"{zip_filename}\"",
-        "Content-Type": "application/zip"
+        "Content-Disposition": f"attachment; filename=robot_real_backup_{device_id}_{timestamp_str}.zip"
     }
     return Response(content=zip_buffer.getvalue(), media_type="application/zip", headers=headers)
+
 
 
 @app.get("/api/devices/{device_type}/{device_id}/backups/weekly")
@@ -2093,8 +2158,17 @@ async def get_weekly_backups_api(device_type: str, device_id: str):
 
 
 @app.get("/api/alarms/knowledge_base")
-async def get_alarm_knowledge_base_api(keyword: Optional[str] = Query(None, description="搜索关键字")):
-    """查询机器人说明书官方故障代码知识库"""
+async def get_alarm_knowledge_base_api(
+    device_type: Optional[str] = Query(None, description="设备类型"),
+    keyword: Optional[str] = Query(None, description="搜索关键字"),
+):
+    """
+    查询故障代码知识库。
+    该知识库为华数控制器官方故障码（伺服/运动学/IO 类），
+    仅对 huashu_arm 类型设备返回；其他类型设备无对应故障码体系，返回空。
+    """
+    if device_type and device_type not in ("huashu_arm", "arm"):
+        return api_response(code=200, message="该设备类型无华数故障码知识库", data=[])
     data = get_alarm_knowledge_base(keyword)
     return api_response(code=200, message="success", data=data)
 

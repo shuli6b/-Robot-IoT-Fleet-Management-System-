@@ -102,6 +102,7 @@ def init_db(db_path: str = DB_PATH) -> bool:
                 ("vendor", "TEXT DEFAULT ''"),
                 ("specs", "TEXT DEFAULT '{}'"),
                 ("notes", "TEXT DEFAULT ''"),
+                ("is_simulated", "INTEGER DEFAULT 0"),
             ]:
                 try:
                     conn.execute(f"ALTER TABLE devices ADD COLUMN {col_name} {col_def}")
@@ -502,6 +503,7 @@ def get_all_devices(
             d["device_type_display"] = get_device_display_name(d["device_type"], db_path=db_path)
             d["device_name"] = d.get("device_name") or d.get("device_id")
             d["vendor"] = d.get("vendor") or ""
+            d["is_simulated"] = 1 if d.get("is_simulated") else 0
             d["location"] = d.get("location") or ("广州番禺智造中心" if d.get("device_type") in ["huashu_arm", "arm"] else "广州南沙创新港")
             
             raw_specs = d.get("specs")
@@ -578,6 +580,16 @@ def get_all_devices(
                 d["joint_angles"] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
                 d["latest_state"] = {"parsed_payload": {"joint_angles": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}
 
+            # 累计真实上报次数（替代原硬编码 cycle_count，供前端展示真实运行统计）
+            try:
+                cnt = conn.execute(
+                    "SELECT COUNT(*) FROM device_data WHERE device_id = ?",
+                    (d["device_id"],),
+                ).fetchone()[0]
+                d["real_report_count"] = int(cnt or 0)
+            except Exception:
+                d["real_report_count"] = 0
+
             if status and d["status"] != status:
                 continue
 
@@ -648,6 +660,7 @@ def get_device_by_id(
             d["device_type_display"] = get_device_display_name(d["device_type"], db_path=db_path)
             d["device_name"] = d.get("device_name") or d.get("device_id")
             d["vendor"] = d.get("vendor") or ""
+            d["is_simulated"] = 1 if d.get("is_simulated") else 0
             d["location"] = d.get("location") or ("广州番禺智造中心" if d.get("device_type") in ["huashu_arm", "arm"] else "广州南沙创新港")
             raw_specs = d.get("specs")
             if raw_specs:
@@ -657,6 +670,14 @@ def get_device_by_id(
                     d["specs"] = {}
             else:
                 d["specs"] = {}
+            try:
+                cnt = conn.execute(
+                    "SELECT COUNT(*) FROM device_data WHERE device_id = ?",
+                    (d["device_id"],),
+                ).fetchone()[0]
+                d["real_report_count"] = int(cnt or 0)
+            except Exception:
+                d["real_report_count"] = 0
             return d
         return None
     except Exception as e:
@@ -1984,49 +2005,61 @@ def cleanup_old_alarms(days: int = 7, db_path: str = DB_PATH) -> int:
 # =============================================================================
 
 def get_device_io(device_id: str, db_path: str = DB_PATH) -> Dict[str, Any]:
-    """获取指定设备的 16 路输入 DI 与 16 路输出 DO 实时状态"""
+    """获取指定设备的 16 路输入 DI 与 16 路输出 DO 实时状态。
+
+    数据来源：真机/仿真设备上报的 `robot/.../io` 实时报文（device_data 表 data_type='io'）。
+    无实时数据时返回 source='no_data'，绝不编造默认点位状态。
+    注：华数 SocketCmd 协议不提供 IO 点位名称，名称列统一为 DI/DO 编号，
+        用户可在 device_io_status 中自定义点位名称（仅作备注，非实时数据）。
+    """
     conn = get_connection(db_path)
     try:
-        cursor = conn.cursor()
-        cursor.execute("SELECT di_mask, do_mask, di_details, do_details, updated_at FROM device_io_status WHERE device_id = ?", (device_id,))
-        row = cursor.fetchone()
+        # 1. 读取最新真实 IO 上报（真机由 huashu_real_bridge 采集 io.getDinGrp/getDoutGrp）
+        real_di: Optional[int] = None
+        real_do: Optional[int] = None
+        real_ts = ""
+        cur = conn.execute(
+            "SELECT raw_payload, received_at FROM device_data "
+            "WHERE device_id = ? AND data_type = 'io' "
+            "ORDER BY received_at DESC, id DESC LIMIT 1",
+            (device_id,),
+        )
+        row = cur.fetchone()
         if row:
-            di_mask = row["di_mask"]
-            do_mask = row["do_mask"]
-            di_details = json.loads(row["di_details"] or "{}")
-            do_details = json.loads(row["do_details"] or "{}")
-            updated_at = row["updated_at"]
-        else:
-            di_mask = 0b0000000000000101 # 默认 DI1(气压正常), DI3(安全门关闭)
-            do_mask = 0b0000000000000011 # 默认 DO1(主使能), DO2(运行指示灯)
-            di_details = {}
-            do_details = {}
-            updated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            try:
+                p = json.loads(row[0])
+                if isinstance(p.get("di"), int):
+                    real_di = p["di"]
+                if isinstance(p.get("do"), int):
+                    real_do = p["do"]
+                real_ts = str(row[1] or "")
+            except Exception:
+                pass
 
-        # 默认 16 路标准工业定义
-        default_di_names = [
-            "气压就绪检测", "真空吸附到位", "安全防护光幕", "工件夹紧就绪",
-            "伺服就绪 Ready", "急停未触发 E-STOP", "原点检测传感器", "自动模式选择",
-            "外部启动信号", "外部暂停信号", "料仓有料检测", "翻转机构到位",
-            "冷却水流正常", "主轴转速达标", "安全门锁闭合", "备用输入信号"
-        ]
-        default_do_names = [
-            "伺服主使能输出", "运行绿色指示灯", "故障黄色报警灯", "气动主切断阀",
-            "末端真空发生器", "气动夹爪夹紧", "气动除尘电磁阀", "主轴电机启动",
-            "工单节拍完工握手", "报警蜂鸣器", "自动回充引导", "工装夹具松开",
-            "气缸伸出到位", "气缸缩回到位", "安全互锁信号", "备用输出信号"
-        ]
+        # 2. 用户自定义点位名称（仅备注用途，非实时状态数据）
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT di_details, do_details FROM device_io_status WHERE device_id = ?",
+            (device_id,),
+        )
+        srow = cursor.fetchone()
+        di_details = json.loads(srow["di_details"] or "{}") if srow else {}
+        do_details = json.loads(srow["do_details"] or "{}") if srow else {}
+
+        has_real = real_di is not None or real_do is not None
+        di_mask = real_di if real_di is not None else 0
+        do_mask = real_do if real_do is not None else 0
 
         di_list = []
         for i in range(16):
-            state = bool((di_mask >> i) & 1)
-            name = di_details.get(f"di_{i+1}") or default_di_names[i]
+            state = bool((di_mask >> i) & 1) if real_di is not None else None
+            name = di_details.get(f"di_{i+1}") or f"DI-{i+1:02d}"
             di_list.append({"index": i + 1, "name": name, "state": state})
 
         do_list = []
         for i in range(16):
-            state = bool((do_mask >> i) & 1)
-            name = do_details.get(f"do_{i+1}") or default_do_names[i]
+            state = bool((do_mask >> i) & 1) if real_do is not None else None
+            name = do_details.get(f"do_{i+1}") or f"DO-{i+1:02d}"
             do_list.append({"index": i + 1, "name": name, "state": state})
 
         return {
@@ -2035,11 +2068,13 @@ def get_device_io(device_id: str, db_path: str = DB_PATH) -> Dict[str, Any]:
             "do_mask": do_mask,
             "di": di_list,
             "do": do_list,
-            "updated_at": updated_at
+            "source": "real" if has_real else "no_data",
+            "updated_at": real_ts,
         }
     except Exception as e:
         logger.error(f"get_device_io 异常: {e}")
-        return {"device_id": device_id, "di_mask": 0, "do_mask": 0, "di": [], "do": [], "updated_at": ""}
+        return {"device_id": device_id, "di_mask": 0, "do_mask": 0,
+                "di": [], "do": [], "source": "error", "updated_at": ""}
     finally:
         conn.close()
 
@@ -2109,27 +2144,138 @@ def get_weekly_backups_list(device_id: str, backups_dir: str = "backups") -> Lis
             "created_at": mtime,
             "type": "weekly_auto"
         })
-    
-    # 如果暂无历史文件，生成默认周度备份元数据以供展示与下载
-    if not result:
-        now = datetime.now()
-        cur_week = now.strftime("%Y_W%W")
-        prev_week = (now - timedelta(days=7)).strftime("%Y_W%W")
-        result = [
-            {
-                "filename": f"weekly_backup_{device_id}_{cur_week}.zip",
-                "filepath": "",
-                "filesize": 45280,
-                "created_at": now.strftime("%Y-%m-%d 00:00:00"),
-                "type": "weekly_auto"
-            },
-            {
-                "filename": f"weekly_backup_{device_id}_{prev_week}.zip",
-                "filepath": "",
-                "filesize": 44190,
-                "created_at": (now - timedelta(days=7)).strftime("%Y-%m-%d 00:00:00"),
-                "type": "weekly_auto"
-            }
-        ]
     return result
+
+
+def set_device_simulated(
+    device_id: str,
+    flag: bool,
+    db_path: str = DB_PATH,
+) -> bool:
+    """将设备标记为仿真设备 (flag=True) 或真实设备 (flag=False)。"""
+    conn = get_connection(db_path)
+    try:
+        with conn:
+            cur = conn.execute(
+                "UPDATE devices SET is_simulated = ?, updated_at = datetime('now','localtime') WHERE device_id = ?",
+                (1 if flag else 0, device_id),
+            )
+            return cur.rowcount > 0
+    except Exception as e:
+        logger.error(f"set_device_simulated 异常 [{device_id}]: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def get_simulated_devices(
+    db_path: str = DB_PATH,
+) -> List[Dict[str, Any]]:
+    """查询所有标记为仿真的设备（供后台设置页管理与仿真服务拉取清单）。"""
+    conn = get_connection(db_path)
+    try:
+        cur = conn.execute(
+            "SELECT * FROM devices WHERE is_simulated = 1 ORDER BY id ASC"
+        )
+        rows = cur.fetchall()
+        return [dict(r) for r in rows]
+    except Exception as e:
+        logger.error(f"get_simulated_devices 查询异常: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def get_command_ack(
+    device_id: str,
+    task_id: str,
+    db_path: str = DB_PATH,
+) -> List[Dict[str, Any]]:
+    """查询设备某条下行指令的执行回执（data_type='cmd_ack' 且 payload 含对应 task_id）。"""
+    conn = get_connection(db_path)
+    try:
+        cur = conn.execute(
+            "SELECT raw_payload, received_at FROM device_data "
+            "WHERE device_id = ? AND data_type = 'cmd_ack' "
+            "ORDER BY received_at DESC, id DESC LIMIT 20",
+            (device_id,),
+        )
+        result = []
+        for raw, ts in cur.fetchall():
+            try:
+                p = json.loads(raw)
+            except Exception:
+                continue
+            if p.get("task_id") == task_id:
+                p["received_at"] = ts
+                result.append(p)
+        return result
+    except Exception as e:
+        logger.error(f"get_command_ack 查询异常 [{device_id}/{task_id}]: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def get_cmd_history(
+    device_id: str,
+    limit: int = 20,
+    db_path: str = DB_PATH,
+) -> List[Dict[str, Any]]:
+    """查询设备最近的下行指令与回执记录（cmd 下发 + cmd_ack 回执，按时间倒序）。"""
+    conn = get_connection(db_path)
+    try:
+        cur = conn.execute(
+            "SELECT data_type, raw_payload, received_at FROM device_data "
+            "WHERE device_id = ? AND data_type IN ('cmd', 'cmd_ack') "
+            "ORDER BY received_at DESC, id DESC LIMIT ?",
+            (device_id, max(1, min(limit, 200))),
+        )
+        result = []
+        for data_type, raw, ts in cur.fetchall():
+            try:
+                p = json.loads(raw)
+            except Exception:
+                p = {"raw": raw}
+            p["data_type"] = data_type
+            p["received_at"] = ts
+            result.append(p)
+        return result
+    except Exception as e:
+        logger.error(f"get_cmd_history 查询异常 [{device_id}]: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def get_traffic_stats(
+    buckets: int = 13,
+    window_sec: int = 3,
+    data_type: Optional[str] = None,
+    db_path: str = DB_PATH,
+) -> List[int]:
+    """统计最近 buckets 个时间窗内 device_data 的真实写入条数（前端吞吐曲线数据源）。"""
+    conn = get_connection(db_path)
+    try:
+        now = datetime.now()
+        result = []
+        for i in range(buckets - 1, -1, -1):
+            start = now - timedelta(seconds=(i + 1) * window_sec)
+            end = now - timedelta(seconds=i * window_sec)
+            sql = "SELECT COUNT(*) FROM device_data WHERE received_at >= ? AND received_at < ?"
+            params: List[Any] = [
+                start.strftime("%Y-%m-%dT%H:%M:%S"),
+                end.strftime("%Y-%m-%dT%H:%M:%S"),
+            ]
+            if data_type:
+                sql += " AND data_type = ?"
+                params.append(data_type)
+            cur = conn.execute(sql, params)
+            result.append(int(cur.fetchone()[0]))
+        return result
+    except Exception as e:
+        logger.error(f"get_traffic_stats 查询异常: {e}")
+        return [0] * buckets
+    finally:
+        conn.close()
 
