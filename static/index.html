@@ -557,7 +557,7 @@
 
             <!-- 1. Grid Mode Container -->
             <canvas id="fleetMasterCanvas" class="fixed inset-0 pointer-events-none z-10" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 10;"></canvas>
-            <div id="fleetGridContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 relative z-0"></div>
+            <div id="fleetGridContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"></div>
 
             <!-- 2. List Mode Container (Hidden by default) -->
             <div id="fleetListContainer" class="hidden clean-card rounded-xl p-4 sm:p-5">
@@ -2573,30 +2573,31 @@
 
                 return `
                     <div onclick="selectDevice('${dev.device_type}', '${dev.device_id}'); openRobot3DModal();" 
-                        class="clean-card rounded-xl overflow-hidden cursor-pointer group hover:border-slate-400 dark:hover:border-slate-600 transition flex flex-col justify-between shadow-sm">
+                        class="clean-card rounded-xl overflow-hidden cursor-pointer group hover:border-slate-400 dark:hover:border-slate-600 transition flex flex-col justify-between shadow-sm relative">
                         
                         <!-- 3D Interactive WebGL Robot Model Viewport (Single-Canvas Multi-Viewport Scissor Placeholder) -->
                         <div id="card3d_viewport_${dev.device_id}" class="card3d-viewport relative h-48 w-full overflow-hidden bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 border-b border-slate-800" data-device-id="${dev.device_id}" data-device-type="${dev.device_type}">
                             
                             <!-- Status Badges -->
-                            <div class="absolute top-2.5 left-2.5 flex items-center gap-1.5 z-30">
-                                <span id="card_stat_${dev.device_id}" class="px-2 py-0.5 rounded bg-slate-900/80 backdrop-blur-md text-[10px] font-mono ${isOnline ? 'text-emerald-400 border border-emerald-800' : 'text-slate-400 border border-slate-700'} flex items-center gap-1 shadow-sm">
+                            <div class="absolute top-2.5 left-2.5 flex items-center gap-1.5 z-30" style="z-index: 30;">
+                                <span id="card_stat_${dev.device_id}" class="px-2 py-0.5 rounded bg-slate-900/90 backdrop-blur-md text-[10px] font-mono ${isOnline ? 'text-emerald-400 border border-emerald-800' : 'text-slate-400 border border-slate-700'} flex items-center gap-1 shadow-md">
                                     <span class="w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'}"></span>
                                     <span>${isOnline ? '实时在线' : '已离线'}</span>
                                 </span>
-                                <span class="px-2 py-0.5 rounded bg-slate-900/80 backdrop-blur-md text-[10px] font-mono text-cyan-300 border border-cyan-800/80 flex items-center gap-1 shadow-sm">
+                                <span class="px-2 py-0.5 rounded bg-slate-900/90 backdrop-blur-md text-[10px] font-mono text-cyan-300 border border-cyan-800/80 flex items-center gap-1 shadow-md">
                                     <span>3D 实时数字孪生</span>
                                 </span>
                             </div>
 
-                            <div class="absolute bottom-2 left-2.5 right-2.5 flex items-center justify-between z-30">
-                                <div id="card_name_${dev.device_id}" class="font-mono font-bold text-slate-100 text-xs bg-slate-950/80 px-2 py-0.5 rounded backdrop-blur-md border border-slate-700 shadow-sm">${dev.device_name ? `${dev.device_name} (${dev.device_id})` : dev.device_id}</div>
-                                <div class="text-[10px] text-cyan-300 font-medium bg-slate-950/80 px-2 py-0.5 rounded backdrop-blur-md border border-cyan-800/60 shadow-sm">${typeName}</div>
+                            <!-- Robot Name & Type Badges (Strictly on Top of 3D Canvas) -->
+                            <div class="absolute bottom-2 left-2.5 right-2.5 flex items-center justify-between z-30" style="z-index: 30;">
+                                <div id="card_name_${dev.device_id}" class="font-mono font-bold text-slate-100 text-xs bg-slate-950/90 px-2 py-0.5 rounded-lg backdrop-blur-md border border-slate-700 shadow-md">${dev.device_name ? `${dev.device_name} (${dev.device_id})` : dev.device_id}</div>
+                                <div class="text-[10px] text-cyan-300 font-medium bg-slate-950/90 px-2 py-0.5 rounded-lg backdrop-blur-md border border-cyan-800/80 shadow-md">${typeName}</div>
                             </div>
                         </div>
 
                         <!-- Card Body: Real Cartesian Position, IO Status & Specs -->
-                        <div class="p-4 space-y-2.5 text-xs">
+                        <div class="p-4 space-y-2.5 text-xs relative z-20" style="z-index: 20;">
                             <!-- Real Kinematic Position Badge -->
                             <div class="px-2.5 py-1.5 bg-slate-950/80 dark:bg-slate-950/90 rounded-lg border border-cyan-500/30 text-cyan-400 font-mono text-[11px] space-y-1">
                                 <div class="flex items-center justify-between text-slate-300 font-sans font-semibold text-[10px]">
@@ -3426,13 +3427,13 @@
                 j6.add(m);
             });
 
-            // Real Factory End-Effector / Tool Mounted on Flange J6 (Coaxial with Flange Face, Rotated 45° in Flange Plane)
+            // Real Factory End-Effector / Tool Mounted on Flange J6 (Coaxial with Flange Face, Rotated -135° in Flange Plane)
             loader.load(basePath + 'br610_tool.stl', geo => {
                 geo.scale(0.001 * scale, 0.001 * scale, 0.001 * scale);
                 geo.translate(-0.045 * scale, -0.112 * scale, -0.050 * scale);
                 geo.rotateY(Math.PI);
                 geo.rotateZ(-Math.PI / 2);
-                geo.rotateX(-Math.PI / 4); // 在法兰平面内顺时针旋转 45 度
+                geo.rotateX(-3 * Math.PI / 4); // 朝反方向旋转 90 度到达 -135 度现场真机姿态
                 geo.translate(-0.012 * scale, 0, 0);
                 const matTool = new THREE.MeshStandardMaterial({ 
                     color: 0xf8fafc, 
