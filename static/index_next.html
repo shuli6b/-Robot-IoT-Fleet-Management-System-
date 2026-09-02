@@ -3347,13 +3347,11 @@
                 j6.add(m);
             });
 
-            // Real Factory End-Effector / Tool Mounted on Flange J6 (Flipped 180° to Forefront, Clockwise Aligned Parallel to Forearm)
+            // Real Factory End-Effector / Tool Mounted on Flange J6 (White Tool Cylinder Strictly Parallel to Forearm White Tube)
             loader.load(basePath + 'br610_tool.stl', geo => {
                 geo.scale(0.001 * scale, 0.001 * scale, 0.001 * scale);
                 geo.translate(-0.045 * scale, -0.112 * scale, -0.050 * scale);
-                geo.rotateY(Math.PI);
-                geo.rotateZ(-Math.PI / 2);
-                geo.rotateX(-Math.PI / 2);
+                geo.rotateY(Math.PI / 2);
                 geo.translate(-0.012 * scale, 0, 0);
                 const matTool = new THREE.MeshStandardMaterial({ 
                     color: 0xf8fafc, 
