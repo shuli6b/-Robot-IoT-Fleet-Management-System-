@@ -166,9 +166,10 @@ class HuashuRobotCollector(threading.Thread):
             # 6. 数字量 I/O 输出控制
             elif cmd_clean in ["set_do", "set_dout"]:
                 port = int(params.get("port", params.get("pin", 1))) - 1
-                val = 1 if int(params.get("value", params.get("val", 1))) > 0 else 0
-                resp = self.send_cmd(sock, f"io.setDout(0,{port},{val})")
-                logger.info(f"[{self.device_id}] 设置 DO_{port+1}={val} -> {resp}")
+                val_bool = (int(params.get("value", params.get("val", 1))) > 0)
+                val_str = "true" if val_bool else "false"
+                resp = self.send_cmd(sock, f"io.setDout({port},{val_str})")
+                logger.info(f"[{self.device_id}] 设置 DO_{port+1}={val_str} -> {resp}")
 
             else:
                 logger.warning(f"[{self.device_id}] 暂不支持的业务指令: {cmd_name}")
