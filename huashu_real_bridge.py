@@ -163,13 +163,13 @@ class HuashuRobotCollector(threading.Thread):
                 resp = self.send_cmd(sock, f'prog.select("{prog_name}")')
                 logger.info(f"[{self.device_id}] 载入加工程序 {prog_name} -> {resp}")
 
-            # 6. 数字量 I/O 输出控制
+            # 6. 数字量 I/O 输出控制 (直接采用现场 0~33 绝对端口索引)
             elif cmd_clean in ["set_do", "set_dout"]:
-                port = int(params.get("port", params.get("pin", 1))) - 1
+                port = int(params.get("port", params.get("pin", 0)))
                 val_bool = (int(params.get("value", params.get("val", 1))) > 0)
                 val_str = "true" if val_bool else "false"
                 resp = self.send_cmd(sock, f"io.setDout({port},{val_str})")
-                logger.info(f"[{self.device_id}] 设置 DO_{port+1}={val_str} -> {resp}")
+                logger.info(f"[{self.device_id}] 设置 DO_{port}={val_str} -> {resp}")
 
             else:
                 logger.warning(f"[{self.device_id}] 暂不支持的业务指令: {cmd_name}")
@@ -225,11 +225,19 @@ class HuashuRobotCollector(threading.Thread):
                         estop_str = self.send_cmd(sock, "mot.getEstop()")
                         estop = (estop_str.strip().lower() == "true")
 
-                        # 4. 获取真实 I/O
-                        di_str = self.send_cmd(sock, "io.getDinGrp(0)")
-                        do_str = self.send_cmd(sock, "io.getDoutGrp(0)")
-                        di_val = int(di_str) if di_str.isdigit() else 0
-                        do_val = int(do_str) if do_str.isdigit() else 0
+                        # 4. 获取真实 I/O (采集 0..33 全通道：第0组 0..31 + 第1组 32..63)
+                        di_str0 = self.send_cmd(sock, "io.getDinGrp(0)")
+                        di_str1 = self.send_cmd(sock, "io.getDinGrp(1)")
+                        do_str0 = self.send_cmd(sock, "io.getDoutGrp(0)")
+                        do_str1 = self.send_cmd(sock, "io.getDoutGrp(1)")
+                        
+                        di_0 = int(di_str0) if di_str0.isdigit() else 0
+                        di_1 = int(di_str1) if di_str1.isdigit() else 0
+                        do_0 = int(do_str0) if do_str0.isdigit() else 0
+                        do_1 = int(do_str1) if do_str1.isdigit() else 0
+
+                        di_val = (di_0 & 0xFFFFFFFF) | ((di_1 & 0xFFFFFFFF) << 32)
+                        do_val = (do_0 & 0xFFFFFFFF) | ((do_1 & 0xFFFFFFFF) << 32)
 
                         status = "error" if estop else ("online" if enabled else "standby")
 

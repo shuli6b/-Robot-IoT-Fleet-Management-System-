@@ -947,10 +947,10 @@
                         <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
                             <div>
                                 <h4 class="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                                    <span>数字量输入信号 (Digital Inputs DI 1~32 全通道矩阵)</span>
-                                    <span class="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-[10px] text-emerald-700 dark:text-emerald-400 font-mono">32 CH</span>
+                                    <span>数字量输入信号 (Digital Inputs DI 0~33 全通道矩阵)</span>
+                                    <span class="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-[10px] text-emerald-700 dark:text-emerald-400 font-mono">34 CH (0-33)</span>
                                 </h4>
-                                <p class="text-xs text-slate-500 dark:text-slate-400">实时气压就绪、安全光幕、真空吸附、夹爪原点及外部传感器信号</p>
+                                <p class="text-xs text-slate-500 dark:text-slate-400">含 DI_0 复位、DI_1 停止、DI_2 启动、DI_3 暂停及外部限位传感器</p>
                             </div>
                             <span id="modalDiMaskHex" class="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 font-mono text-xs text-emerald-600 dark:text-emerald-400 font-bold">MASK: 0x00000000</span>
                         </div>
@@ -961,10 +961,10 @@
                         <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
                             <div>
                                 <h4 class="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                                    <span>数字量输出控制 (Digital Outputs DO 1~32 全通道矩阵)</span>
-                                    <span class="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/80 text-[10px] text-blue-700 dark:text-blue-400 font-mono">32 CH</span>
+                                    <span>数字量输出控制 (Digital Outputs DO 0~33 全通道矩阵)</span>
+                                    <span class="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/80 text-[10px] text-blue-700 dark:text-blue-400 font-mono">34 CH (0-33)</span>
                                 </h4>
-                                <p class="text-xs text-slate-500 dark:text-slate-400">含 DO_29 充气气阀、DO_31 主轴电机、伺服使能、电磁阀及报警指示灯</p>
+                                <p class="text-xs text-slate-500 dark:text-slate-400">含 DO_30 充气气阀、DO_31 主轴电机、DO_0 系统复位、DO_1 停止、DO_2 启动</p>
                             </div>
                             <span id="modalDoMaskHex" class="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 font-mono text-xs text-blue-600 dark:text-blue-400 font-bold">MASK: 0x00000000</span>
                         </div>
@@ -2662,14 +2662,14 @@
                 { label: '伺服驱动器与系统故障复位 (reset)', cmd: 'reset', params: {} },
                 { label: '伺服电机上使能 (enable)', cmd: 'enable', params: { axis_mask: 63 } },
                 { label: '伺服电机下使能 (disable)', cmd: 'disable', params: { axis_mask: 63 } },
-                { label: '开启末端充气气阀 (DO 29)', cmd: 'set_do', params: { port: 29, value: 1 } },
-                { label: '关闭末端充气气阀 (DO 29)', cmd: 'set_do', params: { port: 29, value: 0 } },
+                { label: '开启末端充气气阀 (DO 30)', cmd: 'set_do', params: { port: 30, value: 1 } },
+                { label: '关闭末端充气气阀 (DO 30)', cmd: 'set_do', params: { port: 30, value: 0 } },
                 { label: '启动末端加工主轴 (DO 31)', cmd: 'set_do', params: { port: 31, value: 1 } },
                 { label: '关闭末端加工主轴 (DO 31)', cmd: 'set_do', params: { port: 31, value: 0 } },
                 { label: '机械臂安全回原点 (home)', cmd: 'home', params: { speed: 20 } },
                 { label: '关节单轴微调点动 (jog_joint)', cmd: 'jog_joint', params: { axis: 1, direction: 1, speed: 10, step_deg: 5.0 } },
                 { label: '调节全局运行速率 (set_override)', cmd: 'set_override', params: { override: 80 } },
-                { label: '设置通用 DO 信号 (set_do)', cmd: 'set_do', params: { port: 1, value: 1 } },
+                { label: '设置通用 DO 信号 (set_do)', cmd: 'set_do', params: { port: 0, value: 1 } },
                 { label: '载入指定加工程序 (select_prog)', cmd: 'select_prog', params: { prog_name: "BR610_AUTO_POLISH.PRG" } },
                 { label: '紧急制动快速停机 (stop)', cmd: 'stop', params: { reason: "manual_estop" } }
             ],
@@ -3987,9 +3987,9 @@
                     // Also update Quick I/O status pills in Tab 1
                     const quickIo = document.getElementById('modalQuickIoList');
                     if (quickIo) {
-                        // Highlight named / active signals
-                        const keyDis = data.di.filter(x => x.state || x.index <= 2 || x.index === 29 || x.index === 31).slice(0, 3);
-                        const keyDos = data.do.filter(x => x.state || x.index === 29 || x.index === 31 || x.index === 1).slice(0, 3);
+                        // Highlight named / active signals (DO 30 充气, DO 31 主轴)
+                        const keyDis = data.di.filter(x => x.state || x.index <= 2 || x.index === 30 || x.index === 31).slice(0, 3);
+                        const keyDos = data.do.filter(x => x.state || x.index === 30 || x.index === 31 || x.index <= 2).slice(0, 3);
                         const diPills = keyDis.map(item => `
                             <span class="px-2 py-0.5 rounded text-[11px] ${item.state ? 'bg-emerald-950 text-emerald-300 border border-emerald-700' : 'bg-slate-800 text-slate-400 border border-slate-700'}">
                                 DI${item.index} ${item.name.slice(0, 4)} ${item.state ? '✔' : 'OFF'}
