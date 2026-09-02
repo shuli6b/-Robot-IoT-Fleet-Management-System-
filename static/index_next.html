@@ -950,7 +950,7 @@
                                     <span>数字量输入信号 (Digital Inputs DI 0~33 全通道矩阵)</span>
                                     <span class="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-[10px] text-emerald-700 dark:text-emerald-400 font-mono">34 CH (0-33)</span>
                                 </h4>
-                                <p class="text-xs text-slate-500 dark:text-slate-400">含 DI_0 复位、DI_1 停止、DI_2 启动、DI_3 暂停及外部限位传感器</p>
+                                <p class="text-xs text-slate-500 dark:text-slate-400">华数 HSC3 控制器输入端口 (0: 复位, 1: 停止, 2: 启动, 3: 暂停, 30: 充气, 31: 主轴)</p>
                             </div>
                             <span id="modalDiMaskHex" class="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 font-mono text-xs text-emerald-600 dark:text-emerald-400 font-bold">MASK: 0x00000000</span>
                         </div>
@@ -964,7 +964,7 @@
                                     <span>数字量输出控制 (Digital Outputs DO 0~33 全通道矩阵)</span>
                                     <span class="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/80 text-[10px] text-blue-700 dark:text-blue-400 font-mono">34 CH (0-33)</span>
                                 </h4>
-                                <p class="text-xs text-slate-500 dark:text-slate-400">含 DO_30 充气气阀、DO_31 主轴电机、DO_0 系统复位、DO_1 停止、DO_2 启动</p>
+                                <p class="text-xs text-slate-500 dark:text-slate-400">华数 HSC3 控制器输出端口 (0: 复位, 1: 停止, 2: 启动, 3: 暂停, 30: 充气, 31: 主轴)</p>
                             </div>
                             <span id="modalDoMaskHex" class="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 font-mono text-xs text-blue-600 dark:text-blue-400 font-bold">MASK: 0x00000000</span>
                         </div>
@@ -2027,7 +2027,7 @@
             'uav_rescue': '昕邦智能联合研制'
         };
         let DEVICE_DEFAULT_SPECS = {
-            'huashu_arm': { '结构形式': '六轴垂直多关节', '额定负载': '6.0 ~ 10.0 kg', '最大半径': '1440 mm', '重复定位': '±0.05 mm', '防护等级': 'IP65 / IP67' },
+            'huashu_arm': { '控制器': '华数 HSC3 Ⅲ型控制器', '本体型号': 'HSR-BR610-1300-PS', '结构形式': '六轴垂直多关节工业机器人', '额定负载': '10.0 kg', '工作半径': '1310 mm', '重复定位精度': '±0.05 mm', '防护等级': 'IP65' },
             'luxshare_amr': { '导航方式': '激光 SLAM 导航', '机械臂': '6 轴柔性协作臂', '平台载重': '200 kg (底盘)', '最高航速': '1.5 m/s' },
             'robot_dog': { '关节自由度': '12 自由度高扭矩', '越障能力': '跨越 25cm / 35°', '感知吊舱': '双光谱热成像', '防护等级': 'IP67 全天候' },
             'uav_rescue': { '协同链路': '5G 工业自组网', '空巡续航': '45 min / 5km', '狗机联动': '地面基站自动起降/充电', '遥感精度': '厘米级 RTK 测绘' }

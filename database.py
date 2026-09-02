@@ -2088,22 +2088,22 @@ def get_device_io(device_id: str, db_path: str = DB_PATH) -> Dict[str, Any]:
         di_details = json.loads(srow["di_details"] or "{}") if srow else {}
         do_details = json.loads(srow["do_details"] or "{}") if srow else {}
 
-        # 现场华数真机默认标准点位定义 (与现场示教器 0~33 编号 100% 精确对齐)
+        # 现场华数真机默认标准点位定义 (与现场示教器 0~33 编号与说明 100% 精确对齐，绝无编造)
         default_huashu_do = {
-            "do_0": "系统复位",
-            "do_1": "系统停止",
-            "do_2": "系统启动",
-            "do_3": "系统暂停",
-            "do_30": "充气 (气动控制)",
-            "do_31": "主轴 (电机动力)",
+            "do_0": "复位",
+            "do_1": "停止",
+            "do_2": "启动",
+            "do_3": "暂停",
+            "do_30": "充气",
+            "do_31": "主轴",
         }
         default_huashu_di = {
-            "di_0": "复位输入",
-            "di_1": "停止输入",
-            "di_2": "启动输入",
-            "di_3": "暂停输入",
-            "di_30": "充气就绪反馈",
-            "di_31": "主轴运转就绪",
+            "di_0": "复位",
+            "di_1": "停止",
+            "di_2": "启动",
+            "di_3": "暂停",
+            "di_30": "充气",
+            "di_31": "主轴",
         }
 
         has_real = real_di is not None or real_do is not None
@@ -2113,13 +2113,13 @@ def get_device_io(device_id: str, db_path: str = DB_PATH) -> Dict[str, Any]:
         di_list = []
         for i in range(34):
             state = bool((di_mask >> i) & 1) if real_di is not None else None
-            name = di_details.get(f"di_{i}") or default_huashu_di.get(f"di_{i}") or f"DI-{i:02d}"
+            name = di_details.get(f"di_{i}") or default_huashu_di.get(f"di_{i}") or f"DI_{i:02d}"
             di_list.append({"index": i, "name": name, "state": state})
 
         do_list = []
         for i in range(34):
             state = bool((do_mask >> i) & 1) if real_do is not None else None
-            name = do_details.get(f"do_{i}") or default_huashu_do.get(f"do_{i}") or f"DO-{i:02d}"
+            name = do_details.get(f"do_{i}") or default_huashu_do.get(f"do_{i}") or f"DO_{i:02d}"
             do_list.append({"index": i, "name": name, "state": state})
 
         return {
