@@ -2088,20 +2088,36 @@ def get_device_io(device_id: str, db_path: str = DB_PATH) -> Dict[str, Any]:
         di_details = json.loads(srow["di_details"] or "{}") if srow else {}
         do_details = json.loads(srow["do_details"] or "{}") if srow else {}
 
+        # 现场华数真机默认标准点位定义 (与现场示教器配置 1:1 对齐)
+        default_huashu_do = {
+            "do_29": "充气 (气动控制)",
+            "do_31": "主轴 (电机动力)",
+            "do_1": "伺服使能",
+            "do_2": "系统就绪",
+            "do_3": "三色报警灯",
+            "do_4": "电磁控制阀",
+        }
+        default_huashu_di = {
+            "di_1": "主气压就绪",
+            "di_2": "安全门/光幕",
+            "di_3": "外部急停联锁",
+            "di_4": "夹爪原点信号",
+        }
+
         has_real = real_di is not None or real_do is not None
         di_mask = real_di if real_di is not None else 0
         do_mask = real_do if real_do is not None else 0
 
         di_list = []
-        for i in range(16):
+        for i in range(32):
             state = bool((di_mask >> i) & 1) if real_di is not None else None
-            name = di_details.get(f"di_{i+1}") or f"DI-{i+1:02d}"
+            name = di_details.get(f"di_{i+1}") or default_huashu_di.get(f"di_{i+1}") or f"DI-{i+1:02d}"
             di_list.append({"index": i + 1, "name": name, "state": state})
 
         do_list = []
-        for i in range(16):
+        for i in range(32):
             state = bool((do_mask >> i) & 1) if real_do is not None else None
-            name = do_details.get(f"do_{i+1}") or f"DO-{i+1:02d}"
+            name = do_details.get(f"do_{i+1}") or default_huashu_do.get(f"do_{i+1}") or f"DO-{i+1:02d}"
             do_list.append({"index": i + 1, "name": name, "state": state})
 
         return {
