@@ -363,7 +363,7 @@
                 </div>
                 <div class="mt-1 text-[11px] text-slate-500 flex items-center justify-between">
                     <span>任务达成率:</span>
-                    <span class="text-slate-800 font-mono font-medium">98.8%</span>
+                    <span id="statTaskCompletionRate" class="text-slate-800 font-mono font-medium">98.8%</span>
                 </div>
             </div>
 
@@ -5032,9 +5032,20 @@
 
                     if (d.device_type_stats && d.device_type_stats.length > 0) {
                         document.getElementById('statTypeChips').innerHTML = d.device_type_stats.map(s => 
-                            `<span class="px-1.5 py-0.5 rounded bg-slate-100 text-[10px] text-slate-700 font-mono">${s.display}: ${s.online}/${s.count}</span>`
+                            `<span class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-700 dark:text-slate-300 font-mono">${s.display}: ${s.online}/${s.count}</span>`
                         ).join(' ');
                     }
+                }
+
+                // 动态获取综合稼动率 (OEE) 与任务达成率
+                const resOp = await fetch('/api/analytics/operational');
+                const bodyOp = await resOp.json();
+                if (bodyOp.code === 200 && bodyOp.data) {
+                    const op = bodyOp.data;
+                    const oeeEl = document.getElementById('statUtilizationRate');
+                    const taskEl = document.getElementById('statTaskCompletionRate');
+                    if (oeeEl && op.utilization_rate_pct !== undefined) oeeEl.innerText = `${op.utilization_rate_pct.toFixed(1)}%`;
+                    if (taskEl && op.task_completion_rate_pct !== undefined) taskEl.innerText = `${op.task_completion_rate_pct.toFixed(1)}%`;
                 }
             } catch (e) {
                 console.error(e);
