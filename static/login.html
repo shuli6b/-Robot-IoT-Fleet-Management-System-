@@ -3,7 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>登录 - 昕邦智能装备机器人物联网管控平台</title>
+    <title>登录 - 昕邦智能 · 多品类异构机器人智能管控平台</title>
+    
+    <script>
+        // 优先读取本地持久化或服务端注入配置，首屏即为自定义品牌
+        if (!window.SITE_CONFIG) {
+            try {
+                const _cached = localStorage.getItem('SITE_CONFIG_CACHE');
+                if (_cached) window.SITE_CONFIG = JSON.parse(_cached);
+            } catch(e) {}
+        }
+    </script>
     
     <!-- Google Fonts: Inter & JetBrains Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -336,22 +346,23 @@
         }
         initTheme();
 
+        const _initCfg = window.SITE_CONFIG || {};
         const BASE_DATA = {
             'panyu': {
-                title: '广州番禺运营中心',
-                sub: '具身智能机器人应用展示',
-                img: '/static/assets/custom_1787207360_5b2b10.png',
-                attr1: '云 - 边 - 端协同的具身智能训练与作业平台',
-                attr3: '20+台工业机器人、协作机器人、AMR移动机器人、工业轮式人形机器人规划',
-                desc: '广州番禺运营中心专注于具身智能训练平台推广，平台覆盖从数据采集、仿真训练、实机迁移到多机协同作业的完整流程。核心团队拥有近20年的智能机器人行业经验，在推广具身智能训练平台的同时，致力于推动AI+机器人在工业、商业项目落地。'
+                title: _initCfg.panyu_title || '广州番禺运营中心',
+                sub: _initCfg.panyu_sub || '具身智能机器人应用展示',
+                img: _initCfg.panyu_img || '/static/assets/custom_1788160060_dd68dd.png',
+                attr1: _initCfg.panyu_line1_val || '云 - 边 - 端协同的具身智能训练与作业平台',
+                attr3: _initCfg.panyu_line2_val || '20+台工业机器人、协作机器人、AMR移动机器人、工业轮式人形机器人规划',
+                desc: _initCfg.panyu_desc || '广州番禺运营中心专注于具身智能训练平台推广，平台覆盖从数据采集、仿真训练、实机迁移到多机协同作业的完整流程。核心团队拥有近20年的智能机器人行业经验，在推广具身智能训练平台的同时，致力于推动AI+机器人在工业、商业项目落地。'
             },
             'nansha': {
-                title: '广州南沙机器人研发中心',
-                sub: '空地作业机器人编队',
-                img: '/static/assets/base_nansha.jpg',
-                attr1: '空地作业系统平台',
-                attr3: '20+ “机器狗+无人机”复合机器人、“机器狗+机械臂”复合机器人',
-                desc: '广州南沙研发中心专注于空地作业平台开发，包括机器人软硬件及控制算法，底层运动控制小脑开发、上层VLA大模型。致力于推广空地平台复合机器人在电力、矿山、森林等场景的危险作业、高空作业。'
+                title: _initCfg.nansha_title || '广州南沙研发中心',
+                sub: _initCfg.nansha_sub || '空地作业机器人编队',
+                img: _initCfg.nansha_img || '/static/assets/base_nansha.jpg',
+                attr1: _initCfg.nansha_line1_val || '空地作业系统平台',
+                attr3: _initCfg.nansha_line2_val || '20+ “机器狗+无人机”复合机器人、“机器狗+机械臂”复合机器人',
+                desc: _initCfg.nansha_desc || '广州南沙研发中心专注于空地作业平台开发，包括机器人软硬件及控制算法，底层运动控制小脑开发、上层VLA大模型。致力于推广空地平台复合机器人在电力、矿山、森林等场景的危险作业、高空作业。'
             }
         };
 
@@ -601,41 +612,50 @@
             }
         }
 
+        function applyLoginSiteConfig(cfg) {
+            if (!cfg) return;
+            if (cfg.system_title) {
+                document.title = `${cfg.system_title} - 登录`;
+                const hTitle = document.getElementById('loginHeaderTitle');
+                if (hTitle) hTitle.innerText = cfg.system_title;
+            }
+            if (cfg.system_subtitle) {
+                const hSub = document.getElementById('loginHeaderSubtitle');
+                if (hSub) hSub.innerText = cfg.system_subtitle;
+            }
+            if (cfg.panyu_title && BASE_DATA && BASE_DATA.panyu) {
+                BASE_DATA.panyu.title = cfg.panyu_title;
+                if (cfg.panyu_sub) BASE_DATA.panyu.sub = cfg.panyu_sub;
+                if (cfg.panyu_img) BASE_DATA.panyu.img = cfg.panyu_img;
+                if (cfg.panyu_attr1) BASE_DATA.panyu.attr1 = cfg.panyu_attr1;
+                if (cfg.panyu_attr3) BASE_DATA.panyu.attr3 = cfg.panyu_attr3;
+                if (cfg.panyu_desc) BASE_DATA.panyu.desc = cfg.panyu_desc;
+                const pBadge = document.getElementById('loginPanyuBadge');
+                if (pBadge) pBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-slate-900 dark:bg-slate-100"></span>${cfg.panyu_title}`;
+            }
+            if (cfg.nansha_title && BASE_DATA && BASE_DATA.nansha) {
+                BASE_DATA.nansha.title = cfg.nansha_title;
+                if (cfg.nansha_sub) BASE_DATA.nansha.sub = cfg.nansha_sub;
+                if (cfg.nansha_img) BASE_DATA.nansha.img = cfg.nansha_img;
+                if (cfg.nansha_attr1) BASE_DATA.nansha.attr1 = cfg.nansha_attr1;
+                if (cfg.nansha_attr3) BASE_DATA.nansha.attr3 = cfg.nansha_attr3;
+                if (cfg.nansha_desc) BASE_DATA.nansha.desc = cfg.nansha_desc;
+                const nBadge = document.getElementById('loginNanshaBadge');
+                if (nBadge) nBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-600"></span>${cfg.nansha_title}`;
+            }
+        }
+
         async function initSiteBranding() {
             try {
+                if (window.SITE_CONFIG) {
+                    applyLoginSiteConfig(window.SITE_CONFIG);
+                }
                 const res = await fetch('/api/system/site_config');
                 const body = await res.json();
                 if (res.ok && body.code === 200 && body.data) {
-                    const cfg = body.data;
-                    if (cfg.system_title) {
-                        document.title = `${cfg.system_title} - 登录`;
-                        const hTitle = document.getElementById('loginHeaderTitle');
-                        if (hTitle) hTitle.innerText = cfg.system_title;
-                    }
-                    if (cfg.system_subtitle) {
-                        const hSub = document.getElementById('loginHeaderSubtitle');
-                        if (hSub) hSub.innerText = cfg.system_subtitle;
-                    }
-                    if (cfg.panyu_title && BASE_DATA && BASE_DATA.panyu) {
-                        BASE_DATA.panyu.title = cfg.panyu_title;
-                        if (cfg.panyu_sub) BASE_DATA.panyu.sub = cfg.panyu_sub;
-                        if (cfg.panyu_img) BASE_DATA.panyu.img = cfg.panyu_img;
-                        if (cfg.panyu_attr1) BASE_DATA.panyu.attr1 = cfg.panyu_attr1;
-                        if (cfg.panyu_attr3) BASE_DATA.panyu.attr3 = cfg.panyu_attr3;
-                        if (cfg.panyu_desc) BASE_DATA.panyu.desc = cfg.panyu_desc;
-                        const pBadge = document.getElementById('loginPanyuBadge');
-                        if (pBadge) pBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-slate-900 dark:bg-slate-100"></span>${cfg.panyu_title}`;
-                    }
-                    if (cfg.nansha_title && BASE_DATA && BASE_DATA.nansha) {
-                        BASE_DATA.nansha.title = cfg.nansha_title;
-                        if (cfg.nansha_sub) BASE_DATA.nansha.sub = cfg.nansha_sub;
-                        if (cfg.nansha_img) BASE_DATA.nansha.img = cfg.nansha_img;
-                        if (cfg.nansha_attr1) BASE_DATA.nansha.attr1 = cfg.nansha_attr1;
-                        if (cfg.nansha_attr3) BASE_DATA.nansha.attr3 = cfg.nansha_attr3;
-                        if (cfg.nansha_desc) BASE_DATA.nansha.desc = cfg.nansha_desc;
-                        const nBadge = document.getElementById('loginNanshaBadge');
-                        if (nBadge) nBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-600"></span>${cfg.nansha_title}`;
-                    }
+                    window.SITE_CONFIG = body.data;
+                    try { localStorage.setItem('SITE_CONFIG_CACHE', JSON.stringify(body.data)); } catch(e) {}
+                    applyLoginSiteConfig(body.data);
                     updateLoginMapTheme(document.documentElement.classList.contains('dark'));
                 }
             } catch (e) {

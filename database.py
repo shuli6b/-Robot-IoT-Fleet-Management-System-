@@ -1531,10 +1531,10 @@ def get_site_config(db_path: str = DB_PATH) -> Dict[str, Any]:
         "panyu_line2_val": "20+台工业机器人、协作机器人、AMR移动机器人、工业轮式人形机器人规划",
         "panyu_status": "正常运行",
         "panyu_desc": "广州番禺运营中心专注于具身智能训练平台推广，平台覆盖从数据采集、仿真训练、实机迁移到多机协同作业的完整流程。核心团队拥有近20年的智能机器人行业经验，在推广具身智能训练平台的同时，致力于推动AI+机器人在工业、商业项目落地。",
-        "panyu_img": "/static/assets/custom_1787207360_5b2b10.png",
+        "panyu_img": "/static/assets/custom_1788160060_dd68dd.png",
         
-        # 基地 2: 广州南沙机器人研发中心
-        "nansha_title": "广州南沙机器人研发中心",
+        # 基地 2: 广州南沙研发中心
+        "nansha_title": "广州南沙研发中心",
         "nansha_sub": "空地作业机器人编队",
         "nansha_line1_label": "核心装备",
         "nansha_line1_val": "空地作业系统平台",

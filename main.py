@@ -20,7 +20,7 @@ LOGIN_HTML = STATIC_DIR / "login.html"
 ASSETS_DIR = STATIC_DIR / "assets"
 
 from fastapi import FastAPI, Request, Query, HTTPException, status, Body, UploadFile, File
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -2245,16 +2245,40 @@ if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
+def render_page_with_site_config(template_path: Path) -> HTMLResponse:
+    """读取 HTML 模板并在 <head> 顶部同步注入最新的 site_config，确保页面第一帧渲染即为最新自定义图文与图片，杜绝任何异步替换闪烁"""
+    headers = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"}
+    if not template_path.exists():
+        return HTMLResponse(content="页面正在就绪中...", status_code=200, headers=headers)
+    
+    html_content = template_path.read_text(encoding="utf-8")
+    try:
+        cfg = get_site_config()
+        cfg_json = json.dumps(cfg, ensure_ascii=False)
+        # 同步注入服务端最新持久化配置，首屏即为用户自定义图文与图片，彻底消除异步替换闪烁
+        injection_script = f"""<script>
+window.SITE_CONFIG = {cfg_json};
+try {{ localStorage.setItem('SITE_CONFIG_CACHE', JSON.stringify({cfg_json})); }} catch(e) {{}}
+</script>"""
+        if "<head>" in html_content:
+            html_content = html_content.replace("<head>", f"<head>\n    {injection_script}", 1)
+        elif "<HEAD>" in html_content:
+            html_content = html_content.replace("<HEAD>", f"<HEAD>\n    {injection_script}", 1)
+    except Exception as e:
+        logger.error(f"render_page_with_site_config 注入异常: {e}")
+        
+    return HTMLResponse(content=html_content, headers=headers)
+
+
 @app.get("/login", include_in_schema=False)
 async def serve_login_page():
-    """纯净极简浅色登录页面"""
-    headers = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"}
+    """纯净极简浅色登录页面 (带服务端配置即时同步注入)"""
     if LOGIN_HTML.exists():
-        return FileResponse(str(LOGIN_HTML), headers=headers)
+        return render_page_with_site_config(LOGIN_HTML)
     if INDEX_NEXT_HTML.exists():
-        return FileResponse(str(INDEX_NEXT_HTML), headers=headers)
+        return render_page_with_site_config(INDEX_NEXT_HTML)
     if INDEX_HTML.exists():
-        return FileResponse(str(INDEX_HTML), headers=headers)
+        return render_page_with_site_config(INDEX_HTML)
     return api_response(code=200, message="登录页面正在就绪中...")
 
 
@@ -2263,24 +2287,22 @@ async def serve_login_page():
 @app.get("/next", include_in_schema=False)
 @app.get("/preview", include_in_schema=False)
 async def serve_index_next():
-    """全新极简浅白企业版 UI 大屏"""
-    headers = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"}
+    """全新极简浅白企业版 UI 大屏 (带服务端配置即时同步注入，杜绝替换闪烁)"""
     if INDEX_NEXT_HTML.exists():
-        return FileResponse(str(INDEX_NEXT_HTML), headers=headers)
+        return render_page_with_site_config(INDEX_NEXT_HTML)
     if INDEX_HTML.exists():
-        return FileResponse(str(INDEX_HTML), headers=headers)
+        return render_page_with_site_config(INDEX_HTML)
     return api_response(code=200, message="极简浅白版 UI 正在就绪中...")
 
 
 @app.get("/dark", include_in_schema=False)
 @app.get("/", include_in_schema=False)
 async def serve_index():
-    """企业级机器人孪生大屏 UI"""
-    headers = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"}
+    """企业级机器人孪生大屏 UI (带服务端配置即时同步注入，杜绝替换闪烁)"""
     if INDEX_HTML.exists():
-        return FileResponse(str(INDEX_HTML), headers=headers)
+        return render_page_with_site_config(INDEX_HTML)
     if INDEX_NEXT_HTML.exists():
-        return FileResponse(str(INDEX_NEXT_HTML), headers=headers)
+        return render_page_with_site_config(INDEX_NEXT_HTML)
     return api_response(code=200, message="机器人物联网管理系统 API 服务正常运行中")
 
 
