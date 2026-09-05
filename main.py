@@ -82,6 +82,9 @@ from database import (
     get_command_ack,
     get_traffic_stats,
     get_device_logs,
+    add_device_run_log,
+    confirm_all_alarms_log,
+    admin_approve_user,
     get_device_report_data,
     get_alarm_analytics_stats,
 )
@@ -424,10 +427,24 @@ class RegisterRequest(BaseModel):
 @app.post("/api/auth/login")
 async def api_user_login(body: LoginRequest = Body(...)):
     """
-    用户登录接口 (支持超级管理员 admin 与普通用户 user)
+    用户登录接口 (支持超级管理员 admin 与普通用户 user，含管理员注册审核校验)
     """
-    user_info = authenticate_user(body.username, body.password)
-    if not user_info:
+    user_info, auth_status = authenticate_user(body.username, body.password)
+    if auth_status == "PENDING_APPROVAL":
+        return api_response(
+            code=403,
+            message="该账号正在等待管理员审核，审核通过后方可登录系统。",
+            data=None,
+            status_code=status.HTTP_403_FORBIDDEN
+        )
+    elif auth_status == "REJECTED":
+        return api_response(
+            code=403,
+            message="该账号注册申请已被管理员拒绝，无法登录系统。如有疑问请联系管理员。",
+            data=None,
+            status_code=status.HTTP_403_FORBIDDEN
+        )
+    elif not user_info or auth_status != "OK":
         return api_response(
             code=401,
             message="账号或密码错误，请核对后重试",
@@ -445,6 +462,7 @@ async def api_user_login(body: LoginRequest = Body(...)):
             "username": user_info["username"],
             "role": user_info["role"],
             "real_name": user_info["real_name"],
+            "status": user_info.get("status", "approved"),
             "last_login": user_info["last_login"]
         }
     )
@@ -453,7 +471,7 @@ async def api_user_login(body: LoginRequest = Body(...)):
 @app.post("/api/auth/register")
 async def api_user_register(body: RegisterRequest = Body(...)):
     """
-    用户快速注册接口（默认赋予普通用户 user 权限）
+    用户快速注册接口（普通用户需管理员在后台审核通过后方可登录）
     """
     success, msg = register_user(
         username=body.username,
@@ -464,8 +482,8 @@ async def api_user_register(body: RegisterRequest = Body(...)):
     if success:
         return api_response(
             code=200,
-            message="账号注册成功，请使用新账号登录",
-            data={"username": body.username, "role": body.role}
+            message=msg or "账号注册成功！需管理员审核通过后方可登录，请联系管理员审批。",
+            data={"username": body.username, "role": body.role, "status": "pending"}
         )
     else:
         return api_response(
@@ -608,6 +626,26 @@ async def api_update_role(body: UpdateRoleRequest = Body(...), request: Request 
             status_code=status.HTTP_400_BAD_REQUEST
         )
     success, msg = update_user_role(body.target_username, body.new_role)
+    if success:
+        return api_response(code=200, message=msg)
+    return api_response(code=400, message=msg, status_code=status.HTTP_400_BAD_REQUEST)
+
+
+class AdminApproveUserRequest(BaseModel):
+    target_username: str = Field(..., description="目标审核用户名")
+    approved: bool = Field(..., description="是否通过审核 (True: 通过, False: 拒绝)")
+
+
+@app.post("/api/auth/approve_user")
+async def api_admin_approve_user(body: AdminApproveUserRequest = Body(...), request: Request = None):
+    """超级管理员审核普通用户注册申请 (仅超级管理员)"""
+    if not is_super_admin(request):
+        return api_response(
+            code=403,
+            message="权限不足：仅系统默认超级管理员 (admin) 拥有审核用户注册的特权",
+            status_code=status.HTTP_403_FORBIDDEN
+        )
+    success, msg = admin_approve_user(body.target_username, body.approved)
     if success:
         return api_response(code=200, message=msg)
     return api_response(code=400, message=msg, status_code=status.HTTP_400_BAD_REQUEST)
@@ -2191,17 +2229,42 @@ async def get_weekly_backups_api(device_type: str, device_id: str):
 async def get_device_logs_api(
     device_type: str,
     device_id: str,
-    limit: int = Query(60, ge=1, le=200, description="返回最新日志条数"),
-    level: Optional[str] = Query(None, description="级别筛选: ALL/INFO/WARN/ERROR/ACTION")
+    limit: int = Query(100, ge=1, le=500, description="返回最新日志条数"),
+    level: Optional[str] = Query(None, description="级别筛选: ALL/INFO/WARN/ERROR/ACTION"),
+    filter_type: Optional[str] = Query(None, description="图标类型筛选: ALL/action/error/warn/info")
 ):
     """
-    获取设备官方 SDK 规范实时日志流水 (华数 ProxyMotion/ProxySys/ProxyIO，及各机型原生报文日志)
+    获取设备示教器规范级原生运行日志流水 (1:1 还原华数示教器 HSR-Pad 运行日志)
     """
     dev = get_device_by_id(device_id)
     if not dev:
         return api_response(code=404, message=f"未找到设备: {device_id}", data=[])
-    logs = get_device_logs(device_id=device_id, limit=limit, level=level)
+    logs = get_device_logs(device_id=device_id, limit=limit, level=level, filter_type=filter_type)
     return api_response(code=200, message="success", data=logs)
+
+
+@app.post("/api/devices/{device_type}/{device_id}/logs/confirm_alarms")
+async def confirm_device_alarms_api(
+    device_type: str,
+    device_id: str,
+    request: Request = None
+):
+    """
+    1:1 复刻华数示教器【确认所有Mc报警信息!】操作
+    在设备原生运行日志追加操作流水，并解除当前设备活动报警
+    """
+    dev = get_device_by_id(device_id)
+    if not dev:
+        return api_response(code=404, message=f"未找到设备: {device_id}", data=None)
+
+    operator = "Normal"
+    if request:
+        user_name = request.headers.get("X-User-Name")
+        if user_name and user_name != "guest":
+            operator = user_name
+
+    result = confirm_all_alarms_log(device_id=device_id, operator=operator)
+    return api_response(code=200, message="已确认所有Mc报警信息!", data=result)
 
 
 

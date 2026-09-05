@@ -400,6 +400,7 @@
             const btn = document.getElementById('btnLoginSubmit');
 
             errBox.classList.add('hidden');
+            errBox.className = 'p-2.5 rounded-lg text-xs';
             btn.disabled = true;
             btn.innerText = '正在验证安全凭证...';
 
@@ -417,10 +418,17 @@
                     localStorage.setItem('xinbang_user', JSON.stringify(userData));
                     window.location.href = '/';
                 } else {
-                    errBox.innerText = data.message || '登录失败，请检查工号或密码';
                     errBox.classList.remove('hidden');
+                    if (res.status === 403 || (data.message && data.message.includes('审核'))) {
+                        errBox.className = 'p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-xs flex items-start gap-2';
+                        errBox.innerHTML = `<span class="text-base leading-none">⏳</span><span>${data.message || '该账号正在等待管理员审核，审核通过后方可登录。'}</span>`;
+                    } else {
+                        errBox.className = 'p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400 text-xs';
+                        errBox.innerText = data.message || '登录失败，请检查工号或密码';
+                    }
                 }
             } catch (err) {
+                errBox.className = 'p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400 text-xs';
                 errBox.innerText = '服务器通信失败: ' + err.message;
                 errBox.classList.remove('hidden');
             } finally {
@@ -439,7 +447,7 @@
 
             errBox.classList.add('hidden');
             btn.disabled = true;
-            btn.innerText = '正在注册...';
+            btn.innerText = '正在提交注册申请...';
 
             try {
                 const res = await fetch('/api/auth/register', {
@@ -449,30 +457,23 @@
                 });
                 const data = await res.json();
                 if (data.code === 200) {
-                    alert('注册成功！正在为您自动登录...');
-                    // Auto login with new credentials
-                    const loginRes = await fetch('/api/auth/login', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ username: u, password: p })
-                    });
-                    const loginData = await loginRes.json();
-                    if (loginData.code === 200 && loginData.data) {
-                        const userData = loginData.data;
-                        localStorage.setItem('robot_token', userData.token || '');
-                        localStorage.setItem('robot_user', JSON.stringify(userData));
-                        localStorage.setItem('xinbang_user', JSON.stringify(userData));
-                        window.location.href = '/';
-                    } else {
-                        switchTab('login');
-                        document.getElementById('loginUsername').value = u;
-                        document.getElementById('loginPassword').value = p;
+                    alert('✅ 账号注册申请已成功提交！\n\n【权限审核规范】：\n普通操作员账号需由超级管理员在后台【设置 -> 用户与权限管理】中审核通过后方可登录。\n请联系管理员审批后再行登录系统。');
+                    switchTab('login');
+                    document.getElementById('loginUsername').value = u;
+                    document.getElementById('loginPassword').value = '';
+                    const loginErrBox = document.getElementById('loginErrorBox');
+                    if (loginErrBox) {
+                        loginErrBox.className = 'p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-xs flex items-start gap-2';
+                        loginErrBox.innerHTML = `<span class="text-base leading-none">⏳</span><span>账号 <b>${u}</b> 注册申请已提交，等待超级管理员审核中。</span>`;
+                        loginErrBox.classList.remove('hidden');
                     }
                 } else {
+                    errBox.className = 'p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400 text-xs';
                     errBox.innerText = data.message || '注册失败';
                     errBox.classList.remove('hidden');
                 }
             } catch (err) {
+                errBox.className = 'p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400 text-xs';
                 errBox.innerText = '服务器通信失败: ' + err.message;
                 errBox.classList.remove('hidden');
             } finally {

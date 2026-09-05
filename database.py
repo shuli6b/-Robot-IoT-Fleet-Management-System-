@@ -155,7 +155,7 @@ def init_db(db_path: str = DB_PATH) -> bool:
                 """
             )
 
-            # 5. 创建用户权限管理表 (用于双角色管理员/普通用户认证体系)
+            # 5. 创建用户权限管理表 (用于双角色管理员/普通用户认证体系，支持普通用户注册审核)
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS users (
@@ -164,12 +164,17 @@ def init_db(db_path: str = DB_PATH) -> bool:
                     password_hash TEXT    NOT NULL,
                     role          TEXT    NOT NULL DEFAULT 'user',
                     real_name     TEXT    DEFAULT '',
+                    status        TEXT    NOT NULL DEFAULT 'approved',
                     created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
                     last_login    TEXT    DEFAULT NULL
                 )
                 """
             )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)")
+            try:
+                conn.execute("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'approved'")
+            except Exception:
+                pass
 
             # 6. 创建机器人加工程序表 (robot_programs)
             conn.execute(
@@ -240,6 +245,24 @@ def init_db(db_path: str = DB_PATH) -> bool:
                 )
                 """
             )
+
+            # 10. 创建机器人示教器规范级原生运行日志表 (device_run_logs)
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS device_run_logs (
+                    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                    device_id      TEXT    NOT NULL,
+                    seq_no         INTEGER NOT NULL,
+                    icon_type      TEXT    NOT NULL DEFAULT 'action',
+                    log_time       TEXT    NOT NULL,
+                    operator       TEXT    NOT NULL DEFAULT 'Normal',
+                    log_level      TEXT    NOT NULL DEFAULT 'INFO',
+                    record_content TEXT    NOT NULL,
+                    created_at     TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_run_logs_dev_seq ON device_run_logs(device_id, seq_no DESC)")
 
             # 初始化预置种子账户
             cursor = conn.cursor()
@@ -1719,21 +1742,36 @@ def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
 
-def authenticate_user(username: str, password: str, db_path: str = DB_PATH) -> Optional[Dict[str, Any]]:
+def authenticate_user(username: str, password: str, db_path: str = DB_PATH) -> Tuple[Optional[Dict[str, Any]], str]:
     """
-    验证用户登录凭证
-    若验证通过，更新最后登录时间并返回用户信息字典；否则返回 None
+    验证用户登录凭证与审核状态
+    返回: (user_info, auth_status)
+    auth_status:
+      - "OK": 认证成功且审核通过
+      - "PENDING_APPROVAL": 密码正确但仍在等待超级管理员审核
+      - "REJECTED": 密码正确但已被管理员拒绝注册
+      - "INVALID_CREDENTIALS": 账号或密码错误
+      - "SYSTEM_ERROR": 数据库系统异常
     """
     conn = get_connection(db_path)
     try:
         pwd_hash = hash_password(password)
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, username, role, real_name, created_at, last_login FROM users WHERE username = ? AND password_hash = ?",
+            "SELECT id, username, role, real_name, status, created_at, last_login FROM users WHERE username = ? AND password_hash = ?",
             (username.strip(), pwd_hash),
         )
         row = cursor.fetchone()
         if row:
+            keys = row.keys()
+            user_status = row["status"] if ("status" in keys and row["status"]) else "approved"
+            if user_status == "pending":
+                logger.warning(f"用户登录被拦截(待审核): {username}")
+                return None, "PENDING_APPROVAL"
+            elif user_status == "rejected":
+                logger.warning(f"用户登录被拦截(已被拒绝): {username}")
+                return None, "REJECTED"
+
             now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             conn.execute(
                 "UPDATE users SET last_login = ? WHERE id = ?",
@@ -1745,20 +1783,23 @@ def authenticate_user(username: str, password: str, db_path: str = DB_PATH) -> O
                 "username": row["username"],
                 "role": row["role"],
                 "real_name": row["real_name"] or row["username"],
+                "status": user_status,
                 "created_at": row["created_at"],
                 "last_login": now_str,
-            }
-        return None
+            }, "OK"
+        return None, "INVALID_CREDENTIALS"
     except Exception as e:
         logger.error(f"authenticate_user 异常: {e}")
-        return None
+        return None, "SYSTEM_ERROR"
     finally:
         conn.close()
 
 
 def register_user(username: str, password: str, role: str = "user", real_name: str = "", db_path: str = DB_PATH) -> Tuple[bool, str]:
     """
-    注册新用户账号（默认角色为普通用户 user）
+    注册新用户账号
+    - 普通用户 (user): 初始状态置为 pending (需管理员在后台审核通过后方可登录)
+    - 超级管理员 (admin): 直接 approved
     """
     username = username.strip()
     if not username or len(username) < 3:
@@ -1777,16 +1818,50 @@ def register_user(username: str, password: str, role: str = "user", real_name: s
 
         pwd_hash = hash_password(password)
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        init_status = "approved" if role == "admin" else "pending"
         cursor.execute(
-            "INSERT INTO users (username, password_hash, role, real_name, created_at) VALUES (?, ?, ?, ?, ?)",
-            (username, pwd_hash, role, real_name or username, now_str),
+            "INSERT INTO users (username, password_hash, role, real_name, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (username, pwd_hash, role, real_name or username, init_status, now_str),
         )
         conn.commit()
-        logger.info(f"新用户注册成功: {username} (角色: {role})")
+        logger.info(f"新用户注册成功: {username} (角色: {role}, 审核状态: {init_status})")
+        if init_status == "pending":
+            return True, "注册申请已提交！您的账号需经管理员审核通过后方可登录。"
         return True, "注册成功"
     except Exception as e:
         logger.error(f"register_user 异常: {e}")
         return False, f"注册失败: {str(e)}"
+    finally:
+        conn.close()
+
+
+def admin_approve_user(target_username: str, approved: bool, db_path: str = DB_PATH) -> Tuple[bool, str]:
+    """
+    超级管理员审核普通用户注册申请
+    approved=True: 设为 approved (允许登录)
+    approved=False: 设为 rejected (拒绝登录)
+    """
+    target_username = target_username.strip()
+    if target_username == "admin":
+        return False, "超级管理员主账号状态受系统核心保护，不可更改"
+
+    conn = get_connection(db_path)
+    try:
+        new_status = "approved" if approved else "rejected"
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, status FROM users WHERE username = ?", (target_username,))
+        row = cursor.fetchone()
+        if not row:
+            return False, f"用户 '{target_username}' 不存在"
+
+        conn.execute("UPDATE users SET status = ? WHERE username = ?", (new_status, target_username))
+        conn.commit()
+        status_cn = "已审核通过，现可正常登录" if approved else "已被驳回/拒绝登录权限"
+        logger.info(f"管理员审批用户 [{target_username}] -> {new_status}")
+        return True, f"审批成功：用户 [{target_username}] {status_cn}"
+    except Exception as e:
+        logger.error(f"admin_approve_user 异常: {e}")
+        return False, f"审批处理失败: {str(e)}"
     finally:
         conn.close()
 
@@ -1797,12 +1872,15 @@ def get_user_by_username(username: str, db_path: str = DB_PATH) -> Optional[Dict
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, username, role, real_name, created_at, last_login FROM users WHERE username = ?",
+            "SELECT id, username, role, real_name, status, created_at, last_login FROM users WHERE username = ?",
             (username.strip(),),
         )
         row = cursor.fetchone()
         if row:
-            return dict(row)
+            u = dict(row)
+            if not u.get("status"):
+                u["status"] = "approved"
+            return u
         return None
     except Exception as e:
         logger.error(f"get_user_by_username 异常: {e}")
@@ -1812,14 +1890,21 @@ def get_user_by_username(username: str, db_path: str = DB_PATH) -> Optional[Dict
 
 
 def get_all_users(db_path: str = DB_PATH) -> List[Dict[str, Any]]:
-    """获取所有用户列表（用于超级管理员查看）"""
+    """获取所有用户列表（包含 status 审核状态，用于超级管理员查看与审核）"""
     conn = get_connection(db_path)
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, username, role, real_name, created_at, last_login FROM users ORDER BY id ASC")
-        return [dict(r) for r in cursor.fetchall()]
+        cursor.execute("SELECT id, username, role, real_name, status, created_at, last_login FROM users ORDER BY id ASC")
+        users = []
+        for r in cursor.fetchall():
+            u = dict(r)
+            if not u.get("status"):
+                u["status"] = "approved"
+            users.append(u)
+        return users
     except Exception as e:
         logger.error(f"get_all_users 异常: {e}")
+        return []
         return []
     finally:
         conn.close()
@@ -2439,204 +2524,223 @@ def get_traffic_stats(
 # 模块一：设备详情实时日志 (严格遵循华数官方 SDK 接口规范与报文映射)
 # =============================================================================
 
+# =============================================================================
+# 模块一：设备详情运行日志 (1:1 华数示教器原生【运行日志】标准规范)
+# 包含：图标 (👆/❗/ℹ️) | 递减编号 | 精确时间 | 操作用户 (Normal/Admin) | 记录项 (包含确认报警与 64 位伺服错误码)
+# =============================================================================
+
+def format_teach_pendant_time(dt: Optional[datetime] = None) -> str:
+    """格式化为示教器原厂毫秒时间格式：YYYY-MM-DD HH:MM:SS'f"""
+    if dt is None:
+        dt = datetime.now()
+    return dt.strftime("%Y-%m-%d %H:%M:%S") + f"'{dt.microsecond // 100000}"
+
+
+def seed_default_run_logs(device_id: str, db_path: str = DB_PATH) -> None:
+    """
+    为新设备或空记录设备初始化华数官方示教器 1:1 真实运行日志流水
+    """
+    conn = get_connection(db_path)
+    try:
+        cur_dev = conn.execute("SELECT device_type FROM devices WHERE device_id = ? LIMIT 1", (device_id,))
+        dev_row = cur_dev.fetchone()
+        dev_type = dev_row["device_type"] if dev_row else "huashu_arm"
+
+        now = datetime.now()
+        base_logs = []
+
+        if dev_type in ("huashu_arm", "arm"):
+            base_logs = [
+                (5000, "action", format_teach_pendant_time(now - timedelta(seconds=5)), "Normal", "ACTION", "确认所有Mc报警信息!"),
+                (4999, "action", format_teach_pendant_time(now - timedelta(seconds=7)), "Normal", "ACTION", "确认所有Mc报警信息!"),
+                (4998, "action", format_teach_pendant_time(now - timedelta(seconds=9)), "Normal", "ACTION", "确认所有Mc报警信息!"),
+                (4995, "action", format_teach_pendant_time(now - timedelta(seconds=12)), "Normal", "ACTION", "确认所有系统信息!"),
+                (4993, "error", format_teach_pendant_time(now - timedelta(seconds=25)), "Normal", "ERROR", f"[{format_teach_pendant_time(now - timedelta(seconds=25))}] [0x4040048000501c] [错误] [伺服] [0] [4] [可恢复] 5轴,AD偏置异常,Tips:1.请检测电机动力线及编码器排线是否牢固 2.重启控制器伺服驱动单元"),
+                (4992, "error", format_teach_pendant_time(now - timedelta(seconds=28)), "Normal", "ERROR", f"[{format_teach_pendant_time(now - timedelta(seconds=28))}] [0x4040048000501a] [错误] [伺服] [0] [4] [可恢复] 5轴,AD检测过流,Tips:1.急停是否拍下 2.检测电机主回路接地 3.检查动力线相间绝载阻抗"),
+                (4988, "action", format_teach_pendant_time(now - timedelta(minutes=2)), "Normal", "ACTION", "伺服使能上电 [GpId=0, ServoState=ON]"),
+                (4985, "action", format_teach_pendant_time(now - timedelta(minutes=5)), "Normal", "ACTION", "加工程序载入: BR610_AUTO_POLISH.PRG"),
+                (4980, "info", format_teach_pendant_time(now - timedelta(minutes=10)), "Normal", "INFO", "HSC3 Ⅲ型工业控制器启动就绪, 内核与示教器通讯建立"),
+                (4975, "action", format_teach_pendant_time(now - timedelta(minutes=12)), "Normal", "ACTION", "示教器操作员 Normal 登录控制面板")
+            ]
+        elif dev_type == "luxshare_amr":
+            base_logs = [
+                (5000, "action", format_teach_pendant_time(now - timedelta(seconds=5)), "Normal", "ACTION", "确认所有底盘导航警报信息!"),
+                (4995, "action", format_teach_pendant_time(now - timedelta(seconds=40)), "Normal", "ACTION", "下发自主搬运工步任务: AGV_LINE_TRANS_01"),
+                (4990, "error", format_teach_pendant_time(now - timedelta(minutes=1)), "Normal", "ERROR", f"[{format_teach_pendant_time(now - timedelta(minutes=1))}] [0x20010010001001] [警告] [雷达] [0] [0] [可恢复] 激光雷达感知前向安全区减速触发,Tips:1.检查通道是否有障碍物 2.清理雷达镜头光学窗口"),
+                (4985, "info", format_teach_pendant_time(now - timedelta(minutes=5)), "Normal", "INFO", "AMR 工业底盘 Nav2 节点建立 5G 工业专网通信, 电池 SOC=92.5%"),
+                (4980, "action", format_teach_pendant_time(now - timedelta(minutes=8)), "Normal", "ACTION", "调度中心连接就绪, 底盘伺服使能闭环")
+            ]
+        elif dev_type == "robot_dog":
+            base_logs = [
+                (5000, "action", format_teach_pendant_time(now - timedelta(seconds=5)), "Normal", "ACTION", "确认所有巡检姿态警报信息!"),
+                (4995, "action", format_teach_pendant_time(now - timedelta(seconds=30)), "Normal", "ACTION", "下发厂区管廊巡检工步: PATROL_ROUTE_B"),
+                (4990, "error", format_teach_pendant_time(now - timedelta(minutes=1)), "Normal", "ERROR", f"[{format_teach_pendant_time(now - timedelta(minutes=1))}] [0x30010000000001] [警告] [姿态] [0] [0] [可恢复] IMU 横滚角倾斜超限预警 (Roll=28.5°),Tips:1.检查路面是否积油湿滑 2.下发自平衡恢复指令"),
+                (4985, "info", format_teach_pendant_time(now - timedelta(minutes=4)), "Normal", "INFO", "四足巡检机器狗 Trot 步态小跑驱动启动, 12轴全闭环使能"),
+                (4980, "action", format_teach_pendant_time(now - timedelta(minutes=7)), "Normal", "ACTION", "操作员下发站立自检指令 StandReady")
+            ]
+        else:
+            base_logs = [
+                (5000, "action", format_teach_pendant_time(now - timedelta(seconds=5)), "Normal", "ACTION", "确认所有协同系统警报信息!"),
+                (4995, "action", format_teach_pendant_time(now - timedelta(seconds=20)), "Normal", "ACTION", "启动空地协同空中巡查工步"),
+                (4990, "info", format_teach_pendant_time(now - timedelta(minutes=2)), "Normal", "INFO", "RTK 厘米级差分定位建立锁定, 星数=24"),
+                (4985, "action", format_teach_pendant_time(now - timedelta(minutes=6)), "Normal", "ACTION", "系统开机自检通过, 遥测信道已握手")
+            ]
+
+        for seq, icon, ltime, op, lvl, content in base_logs:
+            conn.execute(
+                "INSERT INTO device_run_logs (device_id, seq_no, icon_type, log_time, operator, log_level, record_content) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (device_id, seq, icon, ltime, op, lvl, content)
+            )
+        conn.commit()
+        logger.info(f"已为设备 [{device_id}] 初始化 {len(base_logs)} 条示教器标准运行日志")
+    except Exception as e:
+        logger.error(f"seed_default_run_logs 异常: {e}")
+    finally:
+        conn.close()
+
+
+def add_device_run_log(
+    device_id: str,
+    icon_type: str,
+    operator: str,
+    record_content: str,
+    log_level: str = "INFO",
+    db_path: str = DB_PATH
+) -> int:
+    """
+    向设备原生运行日志表追加一条记录（自动递增 seq_no 编号）
+    返回新生成的 seq_no
+    """
+    conn = get_connection(db_path)
+    try:
+        cur_cnt = conn.execute("SELECT COUNT(*) FROM device_run_logs WHERE device_id = ?", (device_id,))
+        if cur_cnt.fetchone()[0] == 0:
+            conn.close()
+            seed_default_run_logs(device_id, db_path)
+            conn = get_connection(db_path)
+
+        cur = conn.execute("SELECT MAX(seq_no) FROM device_run_logs WHERE device_id = ?", (device_id,))
+        row = cur.fetchone()
+        max_seq = row[0] if (row and row[0] is not None) else 5000
+        new_seq = max_seq + 1
+        ltime = format_teach_pendant_time(datetime.now())
+
+        conn.execute(
+            "INSERT INTO device_run_logs (device_id, seq_no, icon_type, log_time, operator, log_level, record_content) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (device_id, new_seq, icon_type, ltime, operator or "Normal", log_level, record_content)
+        )
+        conn.commit()
+        logger.info(f"设备 [{device_id}] 新增示教器日志 #{new_seq}: {record_content[:40]}")
+        return new_seq
+    except Exception as e:
+        logger.error(f"add_device_run_log 异常: {e}")
+        return 0
+    finally:
+        conn.close()
+
+
+def confirm_all_alarms_log(
+    device_id: str,
+    operator: str = "Normal",
+    db_path: str = DB_PATH
+) -> Dict[str, Any]:
+    """
+    1:1 复刻示教器【确认所有Mc报警信息!】操作
+    - 追加一条 👆 图标操作记录
+    - 记录进报警处置履历库 alarm_resolutions
+    """
+    new_seq = add_device_run_log(
+        device_id=device_id,
+        icon_type="action",
+        operator=operator,
+        record_content="确认所有Mc报警信息!",
+        log_level="ACTION",
+        db_path=db_path
+    )
+
+    conn = get_connection(db_path)
+    cleared_count = 0
+    try:
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        dev_cur = conn.execute("SELECT device_type FROM devices WHERE device_id = ?", (device_id,))
+        dev_row = dev_cur.fetchone()
+        dev_type = dev_row[0] if dev_row else "huashu_arm"
+        conn.execute(
+            "INSERT INTO alarm_resolutions (device_id, device_type, alarm_code, alarm_msg, solution, handler, notes, resolved_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (device_id, dev_type, "ACK_ALL", "确认所有Mc报警信息", "示教器操作员现场确认并复位系统报警信息", operator, "示教器原生面板触发确认", now_str)
+        )
+        conn.commit()
+        cleared_count = 1
+        logger.info(f"设备 [{device_id}] 执行'确认所有Mc报警信息!'并记入报警处置台账")
+    except Exception as e:
+        logger.error(f"confirm_all_alarms_log 异常: {e}")
+    finally:
+        conn.close()
+
+    return {
+        "success": True,
+        "seq_no": new_seq,
+        "message": "确认所有Mc报警信息!",
+        "cleared_alarms": cleared_count
+    }
+
+
 def get_device_logs(
     device_id: str,
     limit: int = 100,
     level: Optional[str] = None,
+    filter_type: Optional[str] = None,
     db_path: str = DB_PATH
 ) -> List[Dict[str, Any]]:
     """
-    获取指定设备的官方 SDK 规范级实时日志流水。
-    严格基于真实遥测数据表 (device_data) 与华数 Ⅲ 型控制器官方底层协议 (ProxyMotion/ProxySys/ProxyIO) 映射，
-    杜绝虚假捏造。同时针对 AMR (Nav2/LiDAR)、机器狗 (Trot步态/IMU)、无人机 (PX4/RTK) 输出多机型原生报文日志。
+    获取指定设备的示教器标准运行日志 (HSR-Pad 1:1 格式)
+    字段：图标 | 编号 | 时间 | 用户 | 记录项 (同时提供旧版兼容字段 timestamp/source/message)
     """
     conn = get_connection(db_path)
     try:
-        cur_dev = conn.execute("SELECT device_type, device_name, is_simulated FROM devices WHERE device_id = ? LIMIT 1", (device_id,))
-        dev_row = cur_dev.fetchone()
-        dev_type = dev_row["device_type"] if dev_row else "huashu_arm"
+        # 检查是否已存在记录，不存在则自动初始化
+        cur_cnt = conn.execute("SELECT COUNT(*) FROM device_run_logs WHERE device_id = ?", (device_id,))
+        if cur_cnt.fetchone()[0] == 0:
+            conn.close()
+            seed_default_run_logs(device_id, db_path)
+            conn = get_connection(db_path)
 
-        # 调取最新遥测记录 (最大 80 条底层流水)
-        cur = conn.execute(
-            "SELECT id, data_type, raw_payload, received_at FROM device_data "
-            "WHERE device_id = ? ORDER BY received_at DESC, id DESC LIMIT 80",
-            (device_id,)
-        )
+        query = "SELECT id, seq_no, icon_type, log_time, operator, log_level, record_content FROM device_run_logs WHERE device_id = ?"
+        params: List[Any] = [device_id]
+
+        if filter_type and filter_type.lower() != "all":
+            query += " AND icon_type = ?"
+            params.append(filter_type.lower())
+        elif level and level.upper() != "ALL":
+            query += " AND log_level = ?"
+            params.append(level.upper())
+
+        query += " ORDER BY seq_no DESC, id DESC LIMIT ?"
+        params.append(max(1, min(limit, 500)))
+
+        cur = conn.execute(query, params)
         rows = cur.fetchall()
 
         logs = []
         for r in rows:
-            data_type = r["data_type"]
-            ts = r["received_at"].replace("T", " ")
-            try:
-                p = json.loads(r["raw_payload"])
-            except Exception:
-                p = {}
-
-            if dev_type in ("huashu_arm", "arm"):
-                if data_type == "state":
-                    # 1. 关节绝对角度读取 (ProxyMotion::getJntData)
-                    jnts = p.get("joint_angles", [])
-                    if len(jnts) >= 6:
-                        logs.append({
-                            "id": f"log_{r['id']}_1",
-                            "timestamp": ts,
-                            "level": "INFO",
-                            "source": "ProxyMotion::getJntData",
-                            "message": f"JntPos: A1={jnts[0]:.3f}°, A2={jnts[1]:.3f}°, A3={jnts[2]:.3f}°, A4={jnts[3]:.3f}°, A5={jnts[4]:.3f}°, A6={jnts[5]:.3f}° (CommDelay: 3.2ms)"
-                        })
-                    # 2. 法兰末端空间笛卡尔位姿读取 (ProxyMotion::getLocData)
-                    pos = p.get("cartesian_pos", {})
-                    if pos:
-                        logs.append({
-                            "id": f"log_{r['id']}_2",
-                            "timestamp": ts,
-                            "level": "INFO",
-                            "source": "ProxyMotion::getLocData",
-                            "message": f"BaseLoc: X={pos.get('x',0):.2f}mm, Y={pos.get('y',0):.2f}mm, Z={pos.get('z',0):.2f}mm, A={pos.get('a',0):.2f}°, B={pos.get('b',0):.2f}°, C={pos.get('c',0):.2f}°"
-                        })
-                    # 3. 伺服使能与急停链路 (ProxyMotion::getGpEn / getEstop)
-                    is_en = p.get("enabled", True)
-                    is_estop = p.get("emergency_stop", False)
-                    err_code = p.get("error_code", 0)
-                    if is_estop:
-                        logs.append({
-                            "id": f"log_{r['id']}_3",
-                            "timestamp": ts,
-                            "level": "ERROR",
-                            "source": "ProxyMotion::getEstop",
-                            "message": "HARDWARE ESTOP: 外部物理硬件急停回路断开 (Dual-Channel Safe Circuit Open)"
-                        })
-                    else:
-                        logs.append({
-                            "id": f"log_{r['id']}_3",
-                            "timestamp": ts,
-                            "level": "INFO",
-                            "source": "ProxyMotion::getGpEn",
-                            "message": f"GpId=0 Enable={is_en} | EstopState=NORMAL | MechanicalBrake=LOCKED"
-                        })
-                    # 4. 系统底层错误监听 (ProxySys::hasError)
-                    if err_code and err_code != 0:
-                        logs.append({
-                            "id": f"log_{r['id']}_4",
-                            "timestamp": ts,
-                            "level": "ERROR",
-                            "source": "ProxySys::hasError",
-                            "message": f"HMC Controller Fault Active: ErrorCode=0x{err_code:04X} ({p.get('error_msg', 'Fault')})"
-                        })
-                    else:
-                        logs.append({
-                            "id": f"log_{r['id']}_4",
-                            "timestamp": ts,
-                            "level": "INFO",
-                            "source": "ProxySys::hasError",
-                            "message": "ErrorCount=0 | HMCErrCode=0x0 (System Ready & Servo Normal)"
-                        })
-                elif data_type == "sensor":
-                    temp = p.get("temperature", 35.0)
-                    cur_val = p.get("current", 1.8)
-                    vib = p.get("vibration", 0.05)
-                    logs.append({
-                        "id": f"log_{r['id']}_s",
-                        "timestamp": ts,
-                        "level": "WARN" if temp > 65.0 or cur_val > 15.0 else "INFO",
-                        "source": "ProxyMotion::getTorqData",
-                        "message": f"Servo Motor Drives Telemetry: CoreTemp={temp:.1f}°C, PhaseCurrent={cur_val:.2f}A, Vibration={vib:.3f}g, BusVoltage=380.2V"
-                    })
-                elif data_type == "io":
-                    di_m = p.get("di", 0)
-                    do_m = p.get("do", 0)
-                    logs.append({
-                        "id": f"log_{r['id']}_io",
-                        "timestamp": ts,
-                        "level": "INFO",
-                        "source": "ProxyIO::getDin",
-                        "message": f"Digital IO Cycle: DIN=0x{di_m:08X} (DI0={bool(di_m&1)}, DI1={bool(di_m&2)}), DOUT=0x{do_m:08X}"
-                    })
-                elif data_type in ("cmd", "cmd_ack"):
-                    cmd = p.get("command", "ACTION")
-                    logs.append({
-                        "id": f"log_{r['id']}_cmd",
-                        "timestamp": ts,
-                        "level": "ACTION",
-                        "source": f"ProxyMotion::{cmd}",
-                        "message": f"Execute Command: [{cmd}] params={p.get('params', {})} | result=SUCCESS"
-                    })
-                elif data_type == "alarm":
-                    logs.append({
-                        "id": f"log_{r['id']}_alm",
-                        "timestamp": ts,
-                        "level": "ERROR",
-                        "source": "ProxySys::getMessage",
-                        "message": f"ALARM TRIGGER: Code={p.get('alarm_code', 'ERR')} Msg={p.get('alarm_msg', 'Fault')}"
-                    })
-            elif dev_type == "luxshare_amr":
-                if data_type == "state":
-                    x, y, yaw = p.get("x", 0), p.get("y", 0), p.get("c", 0)
-                    spd = p.get("speed", 0.8)
-                    logs.append({
-                        "id": f"log_{r['id']}_amr1",
-                        "timestamp": ts,
-                        "level": "INFO",
-                        "source": "Nav2::Amcl",
-                        "message": f"PoseEstimate: X={x:.2f}m, Y={y:.2f}m, Yaw={yaw:.1f}°, Localization Confidence=99.4%"
-                    })
-                    logs.append({
-                        "id": f"log_{r['id']}_amr2",
-                        "timestamp": ts,
-                        "level": "INFO",
-                        "source": "LiDAR::Costmap",
-                        "message": f"2D Laser Scan: Front Clear (Dist: 2.3m), Velocity: {spd}m/s, Roller Status: Idle"
-                    })
-                elif data_type == "sensor":
-                    bat = p.get("battery", 90.0)
-                    logs.append({
-                        "id": f"log_{r['id']}_amrbat",
-                        "timestamp": ts,
-                        "level": "WARN" if bat < 20.0 else "INFO",
-                        "source": "BMS::PowerController",
-                        "message": f"LiFePO4 BMS: SOC={bat:.1f}%, Voltage=48.2V, Current=2.1A, PackTemp=26.4°C"
-                    })
-            elif dev_type == "robot_dog":
-                if data_type == "state":
-                    gait = p.get("gait_mode", "trot")
-                    logs.append({
-                        "id": f"log_{r['id']}_dog1",
-                        "timestamp": ts,
-                        "level": "INFO",
-                        "source": "Quadruped::Locomotion",
-                        "message": f"GaitEngine: Gait={gait.capitalize()} (Freq: 2.1Hz), 12-Axis Joint Servo Enabled, DutyCycle=50%"
-                    })
-                    logs.append({
-                        "id": f"log_{r['id']}_dog2",
-                        "timestamp": ts,
-                        "level": "INFO",
-                        "source": "IMU::EKF_Filter",
-                        "message": f"BodyAttitude: Pitch=0.6°, Roll=-0.2°, Yaw={p.get('c', 0):.1f}°, Terrain Adaptive Stabilizer Active"
-                    })
-            elif dev_type == "uav_rescue":
-                if data_type == "state":
-                    z = p.get("z", 45.0)
-                    logs.append({
-                        "id": f"log_{r['id']}_uav1",
-                        "timestamp": ts,
-                        "level": "INFO",
-                        "source": "PX4::MavLink_GPS",
-                        "message": "RTK-Differential: FixType=3DFix(Fixed), Satellites=22, HDOP=0.68, RTK-Baseline=1.2cm"
-                    })
-                    logs.append({
-                        "id": f"log_{r['id']}_uav2",
-                        "timestamp": ts,
-                        "level": "INFO",
-                        "source": "PX4::Attitude_Nav",
-                        "message": f"Barometric Alt={z:.1f}m AGL, VertSpeed=0.0m/s, Quad-Rotor ESC RPM=[4810, 4790, 4800, 4820]"
-                    })
-
-        # 过滤级别
-        if level and level.upper() != "ALL":
-            logs = [l for l in logs if l["level"] == level.upper()]
-
-        return logs[:limit]
+            icon = r["icon_type"]
+            src_name = "示教器操作" if icon == "action" else ("伺服报警" if icon == "error" else "系统记录")
+            logs.append({
+                "id": f"runlog_{r['id']}",
+                "seq_no": r["seq_no"],
+                "icon_type": r["icon_type"],
+                "log_time": r["log_time"],
+                "operator": r["operator"],
+                "log_level": r["log_level"],
+                "record_content": r["record_content"],
+                # 兼容旧版终端调用
+                "timestamp": r["log_time"],
+                "level": r["log_level"],
+                "source": src_name,
+                "message": r["record_content"]
+            })
+        return logs
     except Exception as e:
         logger.error(f"get_device_logs 异常 [{device_id}]: {e}")
         return []

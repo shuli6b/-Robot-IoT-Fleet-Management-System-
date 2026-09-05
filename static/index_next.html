@@ -1138,39 +1138,57 @@
                     </div>
                 </div>
 
-                <!-- ==================== TAB 5: REAL-TIME SDK LOGS ==================== -->
-                <div id="robotTabPanelLog" class="hidden space-y-4">
-                    <!-- Top Control Toolbar -->
+                <!-- ==================== TAB 5: TEACH PENDANT RUN LOGS ==================== -->
+                <div id="robotTabPanelLog" class="hidden space-y-3">
+                    <!-- Top Control Toolbar (Teach Pendant Style) -->
                     <div class="p-3 rounded-xl bg-slate-900 border border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
-                        <div class="flex items-center gap-2">
-                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                            <span class="font-bold text-slate-200">底层工业协议与 SDK 规范实时日志流水</span>
-                            <span class="text-[10px] px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800/60 font-mono">HSC3 SocketCmd / ROS / PX4</span>
-                        </div>
                         <div class="flex items-center gap-2.5">
-                            <select id="logLevelSelect" onchange="loadDeviceLiveLogs()" class="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none">
-                                <option value="ALL">全部级别 (ALL)</option>
-                                <option value="INFO">🟢 正常信息 (INFO)</option>
-                                <option value="WARN">🟡 预警提示 (WARN)</option>
-                                <option value="ERROR">🔴 故障错误 (ERROR)</option>
-                                <option value="ACTION">🔵 指令动作 (ACTION)</option>
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                            <span class="font-bold text-slate-100 text-sm">华数示教器原生【运行日志】</span>
+                            <span id="teachLogCountBadge" class="text-[11px] px-2.5 py-0.5 rounded-full bg-blue-950 text-blue-300 border border-blue-800/60 font-mono font-bold">5000 记录项</span>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <!-- Filter Type -->
+                            <select id="logFilterTypeSelect" onchange="loadDeviceLiveLogs()" class="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none">
+                                <option value="ALL">全部类型 (ALL)</option>
+                                <option value="action">👆 示教器操作 (ACTION)</option>
+                                <option value="error">❗ 伺服/硬件故障 (ERROR)</option>
+                                <option value="info">ℹ️ 系统提示 (INFO)</option>
                             </select>
-                            <label class="flex items-center gap-1.5 text-slate-300 text-xs cursor-pointer select-none">
-                                <input type="checkbox" id="logAutoScroll" checked class="rounded border-slate-700 text-blue-600 focus:ring-0">
-                                <span>自动置顶</span>
-                            </label>
-                            <button onclick="clearLiveLogViewer()" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition flex items-center gap-1">
-                                <span>🧹 清屏</span>
+                            <!-- Confirm All Mc Alarms button (exact replica of Teach Pendant button) -->
+                            <button onclick="confirmAllTeachAlarms()" class="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition shadow-sm flex items-center gap-1.5" title="复刻华数示教器现场确认所有Mc报警">
+                                <span>🔔 确认所有Mc报警</span>
+                            </button>
+                            <!-- Jump to Head/Tail -->
+                            <button onclick="scrollTeachLogs('top')" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition flex items-center gap-1" title="滚动至最新日志">
+                                <span>🔝 日志头</span>
+                            </button>
+                            <button onclick="scrollTeachLogs('bottom')" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition flex items-center gap-1" title="滚动至早期日志">
+                                <span>🔚 日志尾</span>
+                            </button>
+                            <button onclick="loadDeviceLiveLogs()" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition flex items-center gap-1">
+                                <span>🔄 刷新</span>
                             </button>
                             <button onclick="exportLiveLogs()" class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs transition shadow-sm flex items-center gap-1">
-                                <span>💾 导出日志 (.log)</span>
+                                <span>💾 导出 (.log)</span>
                             </button>
                         </div>
                     </div>
 
-                    <!-- Monospace Industrial Console Output -->
-                    <div id="modalLiveLogTerminal" class="w-full h-[460px] bg-slate-950 text-slate-200 font-mono text-xs rounded-xl p-4 overflow-y-auto border border-slate-800 space-y-2 leading-relaxed shadow-inner select-text">
-                        <div class="text-slate-500 py-12 text-center text-xs">正在连接底层控制器读取官方 SDK 实时报文流水...</div>
+                    <!-- Teach Pendant Standard Table Container -->
+                    <div class="w-full border border-slate-800 rounded-xl overflow-hidden bg-slate-950 shadow-inner">
+                        <!-- Table Head (1:1 with Huashu Pendant) -->
+                        <div class="grid grid-cols-12 bg-slate-900/90 border-b border-slate-800 text-[11px] font-semibold text-slate-400 px-3 py-2.5 select-none">
+                            <div class="col-span-1 text-center">图标</div>
+                            <div class="col-span-1 text-center font-mono">编号</div>
+                            <div class="col-span-3 sm:col-span-2 font-mono">时间</div>
+                            <div class="col-span-2 sm:col-span-1 text-center">用户</div>
+                            <div class="col-span-5 sm:col-span-7 pl-2">记录项</div>
+                        </div>
+                        <!-- Table Body / Rows -->
+                        <div id="modalLiveLogTerminal" class="w-full h-[450px] overflow-y-auto divide-y divide-slate-900 font-mono text-xs select-text">
+                            <div class="text-slate-500 py-16 text-center text-xs">正在连接华数示教器内核读取原生运行日志...</div>
+                        </div>
                     </div>
                 </div>
 
@@ -1491,8 +1509,11 @@
                     <div id="setPaneUsers" class="hidden space-y-4">
                         <div class="flex items-center justify-between">
                             <div>
-                                <h4 class="font-bold text-sm text-slate-900 dark:text-slate-100">系统全员账号与权限管理</h4>
-                                <p class="text-slate-500 dark:text-slate-400 text-[11px] mt-0.5">超级管理员专享特权：可重置任意人密码、授权管理员或降为操作员</p>
+                                <div class="flex items-center gap-2">
+                                    <h4 class="font-bold text-sm text-slate-900 dark:text-slate-100">系统全员账号与权限管理</h4>
+                                    <span id="adminPendingUserBadge" class="hidden text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/40 font-bold animate-pulse">待审核: 0 人</span>
+                                </div>
+                                <p class="text-slate-500 dark:text-slate-400 text-[11px] mt-0.5">超级管理员专享特权：新用户注册审核授权、重置密码、授权管理员或降为操作员</p>
                             </div>
                             <button onclick="loadAdminUsersList()" class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium transition flex items-center gap-1">
                                 <span>🔄 刷新列表</span>
@@ -1505,6 +1526,7 @@
                                         <th class="p-3">工号 / 用户名</th>
                                         <th class="p-3">真实姓名/岗位</th>
                                         <th class="p-3">当前权限角色</th>
+                                        <th class="p-3">注册审核状态</th>
                                         <th class="p-3">注册时间</th>
                                         <th class="p-3 text-right">超级管理员操作</th>
                                     </tr>
@@ -4764,14 +4786,14 @@
 
             const terminal = document.getElementById('modalLiveLogTerminal');
             if (terminal && (!cachedLiveLogs || cachedLiveLogs._devId !== currentReqId)) {
-                terminal.innerHTML = '<div class="text-slate-400 dark:text-slate-500 py-12 text-center text-xs font-mono flex flex-col items-center justify-center gap-2"><div class="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div><span>[Connecting] 正在订阅该设备通讯与状态日志流...</span></div>';
+                terminal.innerHTML = '<div class="text-slate-400 dark:text-slate-500 py-16 text-center text-xs font-mono flex flex-col items-center justify-center gap-2"><div class="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div><span>[HSR-Pad] 正在读取华数示教器原生运行日志...</span></div>';
             }
 
-            const levelSelect = document.getElementById('logLevelSelect');
-            const level = levelSelect ? levelSelect.value : 'ALL';
+            const filterSelect = document.getElementById('logFilterTypeSelect');
+            const filterType = filterSelect ? filterSelect.value : 'ALL';
 
             try {
-                const res = await fetch(`/api/devices/${encodeURIComponent(devType)}/${encodeURIComponent(devId)}/logs?limit=80&level=${encodeURIComponent(level)}`);
+                const res = await fetch(`/api/devices/${encodeURIComponent(devType)}/${encodeURIComponent(devId)}/logs?limit=100&filter_type=${encodeURIComponent(filterType)}`);
                 if (!selectedDevice || selectedDevice.id !== currentReqId) return;
                 const body = await res.json();
                 if (!selectedDevice || selectedDevice.id !== currentReqId) return;
@@ -4790,39 +4812,90 @@
             if (!terminal) return;
 
             if (!logs || logs.length === 0) {
-                terminal.innerHTML = '<div class="text-slate-500 py-12 text-center text-xs">当前暂无匹配级别的实时通讯日志流水</div>';
+                terminal.innerHTML = '<div class="text-slate-500 py-16 text-center text-xs font-mono">当前暂无匹配条件的示教器运行日志记录</div>';
                 return;
             }
 
-            const levelStyles = {
-                'INFO': 'bg-emerald-950 text-emerald-300 border-emerald-800',
-                'WARN': 'bg-amber-950 text-amber-300 border-amber-800',
-                'ERROR': 'bg-rose-950 text-rose-300 border-rose-800',
-                'ACTION': 'bg-blue-950 text-cyan-300 border-blue-800'
-            };
+            const countBadge = document.getElementById('teachLogCountBadge');
+            if (countBadge && logs[0] && logs[0].seq_no) {
+                countBadge.innerText = `${logs[0].seq_no} 记录项`;
+            }
 
             const html = logs.map(l => {
-                const lvlClass = levelStyles[l.level] || 'bg-slate-800 text-slate-300 border-slate-700';
-                return `<div class="flex items-start gap-2 text-[11px] font-mono py-1 hover:bg-slate-900/90 px-1 rounded transition border-b border-slate-900">
-                    <span class="text-slate-500 shrink-0 select-none">[${l.timestamp}]</span>
-                    <span class="px-1.5 py-0.2 rounded border text-[10px] font-bold shrink-0 ${lvlClass}">${l.level}</span>
-                    <span class="text-blue-400 font-semibold shrink-0">[${l.source}]</span>
-                    <span class="text-slate-200 break-all select-text">${l.message}</span>
+                const isError = (l.icon_type === 'error' || l.log_level === 'ERROR');
+                const isAction = (l.icon_type === 'action' || l.log_level === 'ACTION');
+
+                let iconHtml = '<span class="inline-flex items-center justify-center w-6 h-6 rounded-md bg-slate-800 text-cyan-300 border border-slate-700 text-xs shadow-sm select-none" title="系统信息">ℹ️</span>';
+                let rowBg = 'hover:bg-slate-900/90 text-slate-200';
+
+                if (isError) {
+                    iconHtml = '<span class="inline-flex items-center justify-center w-6 h-6 rounded-md bg-rose-950 text-rose-300 border border-rose-700/80 text-xs font-bold shadow-sm animate-pulse select-none" title="控制器故障报警">❗</span>';
+                    rowBg = 'bg-rose-950/20 hover:bg-rose-950/30 text-rose-200 border-l-2 border-rose-500';
+                } else if (isAction) {
+                    iconHtml = '<span class="inline-flex items-center justify-center w-6 h-6 rounded-md bg-blue-950 text-amber-300 border border-blue-700/80 text-xs font-bold shadow-sm select-none" title="示教器操作动作">👆</span>';
+                    rowBg = 'hover:bg-slate-900/90 text-slate-100';
+                }
+
+                // 重点格式化 Tips 排障指引
+                let contentHtml = l.record_content || l.message || '';
+                if (contentHtml.includes('Tips:')) {
+                    const parts = contentHtml.split('Tips:');
+                    contentHtml = `<div>${parts[0]}</div><div class="mt-1 px-2.5 py-1 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[11px] font-sans flex items-start gap-1.5"><span>💡</span><span><b>现场排查与解决建议:</b> ${parts[1]}</span></div>`;
+                }
+
+                return `
+                <div class="grid grid-cols-12 items-center px-3 py-2 text-[11px] transition ${rowBg}">
+                    <div class="col-span-1 flex items-center justify-center">${iconHtml}</div>
+                    <div class="col-span-1 text-center font-bold text-slate-400 select-none">${l.seq_no || '--'}</div>
+                    <div class="col-span-3 sm:col-span-2 text-slate-400 font-mono text-[10.5px]">${l.log_time || l.timestamp}</div>
+                    <div class="col-span-2 sm:col-span-1 text-center">
+                        <span class="px-1.5 py-0.5 rounded bg-slate-800/80 border border-slate-700/60 text-slate-300 text-[10px]">${l.operator || 'Normal'}</span>
+                    </div>
+                    <div class="col-span-5 sm:col-span-7 pl-2 leading-relaxed break-all select-text font-mono">${contentHtml}</div>
                 </div>`;
             }).join('');
 
             terminal.innerHTML = html;
+        }
 
-            const autoScroll = document.getElementById('logAutoScroll')?.checked;
-            if (autoScroll) {
+        async function confirmAllTeachAlarms() {
+            const devType = selectedDevice ? selectedDevice.type : 'huashu_arm';
+            const devId = selectedDevice ? selectedDevice.id : 'arm_001';
+            try {
+                const res = await fetch(`/api/devices/${encodeURIComponent(devType)}/${encodeURIComponent(devId)}/logs/confirm_alarms`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-Name': (currentUser ? currentUser.username : 'Normal'),
+                        'X-User-Role': (currentUser ? currentUser.role : 'user')
+                    }
+                });
+                const body = await res.json();
+                if (res.ok && body.code === 200) {
+                    showToast('✅ 已执行【确认所有Mc报警信息!】并记入示教器运行日志', '🔔');
+                    await loadDeviceLiveLogs(devType, devId);
+                } else {
+                    showToast('确认报警失败: ' + body.message, '❌');
+                }
+            } catch (e) {
+                showToast('通信异常: ' + e.message, '❌');
+            }
+        }
+
+        function scrollTeachLogs(pos) {
+            const terminal = document.getElementById('modalLiveLogTerminal');
+            if (!terminal) return;
+            if (pos === 'top') {
                 terminal.scrollTop = 0;
+            } else {
+                terminal.scrollTop = terminal.scrollHeight;
             }
         }
 
         function clearLiveLogViewer() {
             const terminal = document.getElementById('modalLiveLogTerminal');
             if (terminal) {
-                terminal.innerHTML = '<div class="text-slate-500 py-12 text-center text-xs">已手动清空控制台日志输出</div>';
+                terminal.innerHTML = '<div class="text-slate-500 py-16 text-center text-xs font-mono">已清空当前屏幕显示</div>';
             }
         }
 
@@ -4832,17 +4905,17 @@
                 return;
             }
             const devId = selectedDevice ? selectedDevice.id : 'device';
-            const logContent = cachedLiveLogs.map(l => `[${l.timestamp}] [${l.level}] [${l.source}] ${l.message}`).join('\n');
+            const logContent = cachedLiveLogs.map(l => `[${l.seq_no || ''}] [${l.log_time || l.timestamp}] [${l.operator || 'Normal'}] [${l.log_level || l.level}] ${l.record_content || l.message}`).join('\n');
             const blob = new Blob([logContent], { type: 'text/plain;charset=utf-8' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${devId}_sdk_logs_${new Date().toISOString().slice(0, 10)}.log`;
+            a.download = `${devId}_hsr_teach_logs_${new Date().toISOString().slice(0, 10)}.log`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            showToast('已导出控制台日志文件 (.log)', '💾');
+            showToast('已导出示教器原生运行日志 (.log)', '💾');
         }
 
         // --- Status Report ---
@@ -5742,7 +5815,7 @@
             if (!isSuperAdmin) return;
 
             const tbody = document.getElementById('adminUsersTableBody');
-            tbody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-slate-400">正在同步全员用户清单...</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" class="py-4 text-center text-slate-400">正在同步全员用户清单...</td></tr>`;
 
             try {
                 const res = await fetch('/api/auth/users', {
@@ -5751,6 +5824,13 @@
                 const body = await res.json();
                 if (res.ok && body.code === 200) {
                     const users = body.data.users || [];
+                    const pendingCount = users.filter(u => u.status === 'pending').length;
+                    const badgeElem = document.getElementById('adminPendingUserBadge');
+                    if (badgeElem) {
+                        badgeElem.innerText = `待审核: ${pendingCount} 人`;
+                        badgeElem.classList.toggle('hidden', pendingCount === 0);
+                    }
+
                     tbody.innerHTML = users.map(u => `
                         <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                             <td class="p-3 font-mono font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
@@ -5763,9 +5843,18 @@
                                     ${u.username === 'admin' ? '超级管理员 (root)' : (u.role === 'admin' ? '管理员 (admin)' : '操作员 (user)')}
                                 </span>
                             </td>
+                            <td class="p-3">
+                                ${u.status === 'pending' ? '<span class="px-2 py-0.5 rounded text-[10px] font-mono bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 font-bold animate-pulse">🟡 待审核</span>' : (u.status === 'rejected' ? '<span class="px-2 py-0.5 rounded text-[10px] font-mono bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800 font-bold">🔴 已拒绝</span>' : '<span class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 font-bold">🟢 已通过</span>')}
+                            </td>
                             <td class="p-3 text-slate-400 font-mono text-[11px]">${u.created_at || '--'}</td>
                             <td class="p-3 text-right space-x-1.5">
                                 ${u.username !== 'admin' ? `
+                                    ${u.status === 'pending' || u.status === 'rejected' ? `
+                                        <button onclick="adminApproveUser('${u.username}', true)" class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-medium transition shadow-sm">✅ 通过审核</button>
+                                        <button onclick="adminApproveUser('${u.username}', false)" class="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-medium transition shadow-sm">❌ 拒绝</button>
+                                    ` : `
+                                        <button onclick="adminApproveUser('${u.username}', false)" class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-rose-100 dark:bg-slate-800 dark:hover:bg-rose-950/60 text-slate-500 hover:text-rose-400 text-[11px] transition" title="撤销该账号登录权限">🚫 停用</button>
+                                    `}
                                     <button onclick="adminResetUserPwd('${u.username}')" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-medium border border-slate-200 dark:border-slate-700 transition">🔑 重置密码</button>
                                     ${u.role === 'user' ? `<button onclick="adminSetUserRole('${u.username}', 'admin')" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 text-[11px] font-medium transition">设为管理员</button>` : `<button onclick="adminSetUserRole('${u.username}', 'user')" class="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800 text-[11px] font-medium transition">降为操作员</button>`}
                                 ` : '<span class="text-[11px] text-amber-600 dark:text-amber-400 font-medium">系统主账号 (受保护)</span>'}
@@ -5773,10 +5862,27 @@
                         </tr>
                     `).join('');
                 } else {
-                    tbody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-rose-600">无法加载: ${body.message}</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="6" class="py-4 text-center text-rose-600">无法加载: ${body.message}</td></tr>`;
                 }
             } catch (e) {
-                tbody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-rose-600">加载失败: ${e.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="py-4 text-center text-rose-600">加载失败: ${e.message}</td></tr>`;
+            }
+        }
+
+        async function adminApproveUser(targetUser, approved) {
+            const actionText = approved ? '通过审核' : '拒绝/停用';
+            if (!confirm(`【超级管理员特权】确认对用户 [${targetUser}] 执行 [${actionText}] 操作？`)) return;
+            try {
+                const res = await fetch('/api/auth/approve_user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-User-Role': currentUser.role, 'X-User-Name': currentUser.username },
+                    body: JSON.stringify({ target_username: targetUser, approved: approved })
+                });
+                const data = await res.json();
+                showToast(data.message || '审批完成', approved ? '✅' : 'ℹ️');
+                loadAdminUsersList();
+            } catch (e) {
+                showToast('审批异常: ' + e.message, '❌');
             }
         }
 
