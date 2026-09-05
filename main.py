@@ -81,6 +81,9 @@ from database import (
     set_system_config,
     get_command_ack,
     get_traffic_stats,
+    get_device_logs,
+    get_device_report_data,
+    get_alarm_analytics_stats,
 )
 
 # ---------------------------------------------------------------------------
@@ -218,19 +221,23 @@ def on_mqtt_message(client, userdata, msg):
         except Exception:
             raw_payload = str(msg.payload)
 
-        # 尝试检查 payload 中是否有设备自带的时间戳
+        # 尝试检查 payload 中是否有设备自带的时间戳及离线状态
         report_time = None
+        is_offline_msg = False
         try:
             parsed_json = json.loads(raw_payload)
-            if isinstance(parsed_json, dict) and "timestamp" in parsed_json:
-                report_time = str(parsed_json["timestamp"])
+            if isinstance(parsed_json, dict):
+                if "timestamp" in parsed_json:
+                    report_time = str(parsed_json["timestamp"])
+                if parsed_json.get("status") == "offline":
+                    is_offline_msg = True
         except Exception:
             pass
 
         if not report_time:
             report_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
 
-        # 数据入库并更新设备状态为 online
+        # 数据入库 (若包含离线报文/遗嘱，则自动更新为 offline)
         row_id = insert_device_data(
             device_id=device_id,
             device_type=device_type,
@@ -240,9 +247,14 @@ def on_mqtt_message(client, userdata, msg):
         )
 
         if row_id:
-            logger.info(
-                f"收到设备数据入库成功 [{device_type}/{device_id}] type={data_type} row_id={row_id}"
-            )
+            if is_offline_msg:
+                logger.warning(
+                    f"⚠️ 收到设备下线/遗嘱消息 [{device_type}/{device_id}], 已置为 offline (row_id={row_id})"
+                )
+            else:
+                logger.info(
+                    f"收到设备数据入库成功 [{device_type}/{device_id}] type={data_type} row_id={row_id}"
+                )
         else:
             logger.warning(f"数据入库返回空 row_id [{topic}]")
 
@@ -864,15 +876,12 @@ def publish_command_downlink(
     payload_json = json.dumps(payload_dict, ensure_ascii=False)
     topic = f"cmd/{device_type}/{device_id}"
 
-    # 仿真设备识别：指令仅进入模拟链路，明确告知
+    # 仿真设备识别
+    is_sim_dev = False
     try:
         dev_info = get_device_by_id(device_id)
         if dev_info and dev_info.get("is_simulated"):
-            insert_device_data(
-                device_id=device_id, device_type=device_type, data_type="cmd",
-                raw_payload=payload_json, topic=topic,
-            )
-            return "simulated", "该设备为仿真设备，指令仅模拟执行（未作用于物理设备）", payload_dict
+            is_sim_dev = True
     except Exception as e:
         logger.error(f"仿真设备判定异常: {e}")
 
@@ -895,6 +904,8 @@ def publish_command_downlink(
             info = mqtt_client_instance.publish(topic, payload_json, qos=1)
             info.wait_for_publish(timeout=2.0)
             logger.info(f"已向设备下发指令 -> Topic: {topic} | Payload: {payload_json}")
+            if is_sim_dev:
+                return "delivered", "仿真设备指令已送达消息总线，仿真服务已模拟执行", payload_dict
             return "delivered", "指令已送达消息总线，等待设备执行确认", payload_dict
         except Exception as e:
             logger.error(f"MQTT 指令发送失败: {e}")
@@ -919,11 +930,11 @@ async def dispatch_device_command(
     - Topic: cmd/{device_type}/{device_id}
     - 严格遵循《技术需求书》1.5.1 下行 Topic 与 JSON 格式
     """
-    role = request.headers.get("X-User-Role", "admin")
-    if role == "user":
+    role = request.headers.get("X-User-Role", "")
+    if role != "admin":
         return api_response(
             code=403,
-            message="权限受限：当前登录为【普通用户】角色，仅拥有大屏只读监控权限。请使用超级管理员账号登录后再下发工业控制指令！",
+            message="权限受限：未授权或当前角色无权下发工业控制指令。请使用管理员账号登录后再操作！",
             data=None,
             status_code=status.HTTP_403_FORBIDDEN
         )
@@ -1293,6 +1304,7 @@ class SiteConfigModel(BaseModel):
     system_subtitle: Optional[str] = Field(None, description="系统英文副标题")
     company_name: Optional[str] = Field(None, description="公司品牌")
     footer_text: Optional[str] = Field(None, description="页脚版权文字")
+    site_footer_text: Optional[str] = Field(None, description="页脚版权文字别名")
     modal_twin_footer_badge: Optional[str] = Field(None, description="数字孪生弹窗徽章文字")
     
     # 基地 1: 番禺
@@ -1400,6 +1412,10 @@ async def api_save_site_config(body: SiteConfigModel = Body(...), request: Reque
             status_code=status.HTTP_403_FORBIDDEN
         )
     update_data = {k: v for k, v in body.dict().items() if v is not None}
+    footer_val = update_data.get("site_footer_text") or update_data.get("footer_text")
+    if footer_val:
+        update_data["footer_text"] = footer_val
+        update_data["site_footer_text"] = footer_val
     success = save_site_config(update_data)
     if success:
         return api_response(code=200, message="站点品牌与图文配置保存成功，全站已实时生效", data=get_site_config())
@@ -1956,9 +1972,8 @@ async def test_huashu_connection_api(body: HuashuTestRequest = Body(...)):
 # ---------------------------------------------------------------------------
 try:
     import tunnel_manager
-except Exception as e:
+except Exception:
     tunnel_manager = None
-    logger.warning(f"tunnel_manager 模块加载异常或不存在: {e}")
 
 
 class TunnelStartRequest(BaseModel):
@@ -2142,10 +2157,25 @@ async def backup_device_system_api(device_type: str, device_id: str):
         return api_response(code=502, message=f"连接华数控制器 FTP 失败: {e}", data=None)
 
     timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    zip_bytes = zip_buffer.getvalue()
+    filename = f"robot_real_backup_{device_id}_{timestamp_str}.zip"
+
+    # 同步在服务器历史归档目录保存一份备份文件
+    for archive_dir in ["/opt/robot-iot/backups", "backups"]:
+        try:
+            os.makedirs(archive_dir, exist_ok=True)
+            archive_path = os.path.join(archive_dir, filename)
+            with open(archive_path, "wb") as f_arch:
+                f_arch.write(zip_bytes)
+            logger.info(f"备份已同步保存至服务器归档目录: {archive_path}")
+            break
+        except Exception as e_arch:
+            logger.warning(f"写入服务器归档目录 {archive_dir} 异常: {e_arch}")
+
     headers = {
-        "Content-Disposition": f"attachment; filename=robot_real_backup_{device_id}_{timestamp_str}.zip"
+        "Content-Disposition": f"attachment; filename={filename}"
     }
-    return Response(content=zip_buffer.getvalue(), media_type="application/zip", headers=headers)
+    return Response(content=zip_bytes, media_type="application/zip", headers=headers)
 
 
 
@@ -2154,6 +2184,57 @@ async def get_weekly_backups_api(device_type: str, device_id: str):
     """获取每周自动备份文件列表"""
     data = get_weekly_backups_list(device_id)
     return api_response(code=200, message="success", data=data)
+
+
+
+@app.get("/api/devices/{device_type}/{device_id}/logs")
+async def get_device_logs_api(
+    device_type: str,
+    device_id: str,
+    limit: int = Query(60, ge=1, le=200, description="返回最新日志条数"),
+    level: Optional[str] = Query(None, description="级别筛选: ALL/INFO/WARN/ERROR/ACTION")
+):
+    """
+    获取设备官方 SDK 规范实时日志流水 (华数 ProxyMotion/ProxySys/ProxyIO，及各机型原生报文日志)
+    """
+    dev = get_device_by_id(device_id)
+    if not dev:
+        return api_response(code=404, message=f"未找到设备: {device_id}", data=[])
+    logs = get_device_logs(device_id=device_id, limit=limit, level=level)
+    return api_response(code=200, message="success", data=logs)
+
+
+
+@app.get("/api/devices/{device_type}/{device_id}/report")
+async def get_device_report_api(
+    device_type: str,
+    device_id: str,
+    period: str = Query("daily", description="报告周期: daily(每日) 或 monthly(每月)"),
+    date: Optional[str] = Query(None, description="指定日期 YYYY-MM-DD")
+):
+    """
+    获取设备每日/每月专业运行状态报告 (参考 FANUC iCare: 稼动率、节拍分析、健康度及维保倒计时)
+    """
+    dev = get_device_by_id(device_id)
+    if not dev:
+        return api_response(code=404, message=f"未找到设备: {device_id}", data=None)
+    report = get_device_report_data(device_id=device_id, period=period, date_str=date)
+    return api_response(code=200, message="success", data=report)
+
+
+
+@app.get("/api/devices/{device_type}/{device_id}/alarms/analytics")
+async def get_alarm_analytics_api(
+    device_type: str,
+    device_id: str,
+    days: int = Query(14, ge=3, le=30, description="统计分析天数")
+):
+    """
+    获取报警统计分析图表数据 (参考 FANUC ZDT: 14天报警发生趋势、华数四大类故障分布与TOP5排障建议)
+    """
+    stats = get_alarm_analytics_stats(device_id=device_id, days=days)
+    return api_response(code=200, message="success", data=stats)
+
 
 
 

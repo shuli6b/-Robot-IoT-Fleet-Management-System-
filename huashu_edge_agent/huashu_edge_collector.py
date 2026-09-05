@@ -231,7 +231,7 @@ class HuashuSocketCmdClient:
                 # 8. DI 数字量输入采样 (采样 DIN0 ~ DIN3)
                 di_vals = []
                 for di_port in range(4):
-                    d_str = self.send_cmd(f"io.getDIn({di_port})")
+                    d_str = self.send_cmd(f"io.getDin({di_port})")
                     di_vals.append(1 if d_str in ["1", "true", "True"] else 0)
 
                 return {
@@ -270,9 +270,9 @@ class HuashuSocketCmdClient:
                 return True, "已成功下发紧急制动与程序停止指令"
 
             elif cmd_lower in ["reset", "clear_error", "clear_alarm"]:
-                # 系统复位与解除急停
-                self.send_cmd("sys.clearError()")
+                # 系统复位与解除急停 (官方原生复位接口)
                 self.send_cmd("sys.reset()")
+                self.send_cmd(f"mot.gpReset({group_id})")
                 self.send_cmd("mot.setEstop(false)")
                 return True, "已成功执行故障清除与伺服复位指令"
 
@@ -313,7 +313,7 @@ class HuashuSocketCmdClient:
                 # 控制数字量输出 (气爪/电磁阀)
                 port = int(params.get("port", 0))
                 val = "true" if params.get("value", 1) in [1, True, "1", "true"] else "false"
-                self.send_cmd(f"io.setDOut({port}, {val})")
+                self.send_cmd(f"io.setDout({port}, {val})")
                 return True, f"数字量输出 DOUT{port} 已置为 {val}"
 
             elif cmd_lower in ["jog", "start_jog"]:
@@ -384,7 +384,9 @@ class HuashuEdgeDeviceRunner:
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "model": self.device_name,
             "status": "offline",
-            "battery": 0,
+            "power_source": "AC 380V",
+            "is_mains_powered": True,
+            "battery": None,
             "error_code": 0,
             "error_msg": "Edge Gateway Disconnected"
         }, ensure_ascii=False)
@@ -454,7 +456,9 @@ class HuashuEdgeDeviceRunner:
                                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                                 "model": self.device_name,
                                 "status": "offline",
-                                "battery": 0,
+                                "power_source": "AC 380V",
+                                "is_mains_powered": True,
+                                "battery": None,
                                 "error_code": 0,
                                 "error_msg": "Robot Offline"
                             }
@@ -486,7 +490,9 @@ class HuashuEdgeDeviceRunner:
                         "timestamp": now_str,
                         "model": self.device_name,
                         "status": status_str,
-                        "battery": 100.0,
+                        "power_source": "AC 380V",
+                        "is_mains_powered": True,
+                        "battery": None,
                         "error_code": telemetry.get("error_code", 0),
                         "error_msg": "Normal" if telemetry.get("error_code", 0) == 0 else f"ErrorCode_{telemetry.get('error_code')}",
                         "joint_angles": telemetry.get("joint_angles", [0.0] * 6),

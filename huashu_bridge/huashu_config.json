@@ -3,16 +3,16 @@
     {
       "device_id": "arm_001",
       "device_name": "华数BR610六轴工业机械臂_A线",
-      "ip": "10.10.56.214",
-      "port": 23234,
+      "ip": "192.168.1.169",
+      "port": 23333,
       "group_id": 0,
       "axis_count": 6
     },
     {
       "device_id": "arm_002",
       "device_name": "华数BR610六轴工业机械臂_B线",
-      "ip": "10.10.56.215",
-      "port": 23234,
+      "ip": "192.168.1.170",
+      "port": 23333,
       "group_id": 0,
       "axis_count": 6
     }

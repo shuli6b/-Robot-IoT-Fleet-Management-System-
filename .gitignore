@@ -23,9 +23,16 @@ __pycache__/
 *.rar
 mosquitto_installer.exe
 offline_packages/
+offline_deploy/
+backups/
 
-# Proprietary vendor SDK (keep locally, do not upload)
+# Third-party vendor SDKs & developer materials (Keep locally, NEVER push to GitHub)
 huashu_sdk/
+机器人后台/
+后续/
+
+# Private credentials & sensitive server documents (Keep locally, NEVER push to GitHub)
+系统永久运维档案与机密凭据速查(私有运维专用).md
 
 # Virtual Environment
 venv/

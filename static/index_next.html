@@ -720,7 +720,7 @@
         <div class="clean-modal rounded-2xl w-full max-w-5xl max-h-[94vh] flex flex-col overflow-hidden shadow-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
             
             <!-- Top Modal Header -->
-            <div class="px-6 py-3.5 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+            <div class="px-6 py-3.5 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
                 <div class="flex items-center gap-3">
                     <div>
                         <div class="flex items-center gap-2">
@@ -736,23 +736,29 @@
             </div>
 
             <!-- Top Navigation Tab Bar -->
-            <div class="flex items-center px-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-medium gap-2">
-                <button id="tabBtnRobot3D" onclick="switchRobotModalTab('3d')" class="px-3.5 py-2.5 font-bold text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 flex items-center gap-1.5 transition">
+            <div class="flex items-center px-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-medium gap-2 overflow-x-auto no-scrollbar shrink-0">
+                <button id="tabBtnRobot3D" onclick="switchRobotModalTab('3d')" class="px-3.5 py-2.5 font-bold text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 flex items-center gap-1.5 transition shrink-0 whitespace-nowrap">
                     <span>🎮 3D数字孪生与控制</span>
                 </button>
-                <button id="tabBtnRobotIO" onclick="switchRobotModalTab('io')" class="px-3.5 py-2.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border-b-2 border-transparent flex items-center gap-1.5 transition">
+                <button id="tabBtnRobotIO" onclick="switchRobotModalTab('io')" class="px-3.5 py-2.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border-b-2 border-transparent flex items-center gap-1.5 transition shrink-0 whitespace-nowrap">
                     <span>⚡ I/O 实时信号监控</span>
                 </button>
-                <button id="tabBtnRobotProg" onclick="switchRobotModalTab('prog')" class="px-3.5 py-2.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border-b-2 border-transparent flex items-center gap-1.5 transition">
+                <button id="tabBtnRobotProg" onclick="switchRobotModalTab('prog')" class="px-3.5 py-2.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border-b-2 border-transparent flex items-center gap-1.5 transition shrink-0 whitespace-nowrap">
                     <span>📄 加工程序与远程备份</span>
                 </button>
-                <button id="tabBtnRobotAlarm" onclick="switchRobotModalTab('alarm')" class="px-3.5 py-2.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border-b-2 border-transparent flex items-center gap-1.5 transition">
-                    <span>🚨 说明书故障库与处理档案</span>
+                <button id="tabBtnRobotAlarm" onclick="switchRobotModalTab('alarm')" class="px-3.5 py-2.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border-b-2 border-transparent flex items-center gap-1.5 transition shrink-0 whitespace-nowrap">
+                    <span>🚨 故障库与报警统计</span>
+                </button>
+                <button id="tabBtnRobotLog" onclick="switchRobotModalTab('log')" class="px-3.5 py-2.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border-b-2 border-transparent flex items-center gap-1.5 transition shrink-0 whitespace-nowrap">
+                    <span>📟 实时日志</span>
+                </button>
+                <button id="tabBtnRobotReport" onclick="switchRobotModalTab('report')" class="px-3.5 py-2.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border-b-2 border-transparent flex items-center gap-1.5 transition shrink-0 whitespace-nowrap">
+                    <span>📊 运行状态报告</span>
                 </button>
             </div>
 
             <!-- Scrollable Body -->
-            <div class="p-5 sm:p-6 overflow-y-auto flex-1 bg-slate-50 dark:bg-slate-950">
+            <div class="p-5 sm:p-6 overflow-y-auto flex-1 min-h-0 bg-slate-50 dark:bg-slate-950">
                 
                 <!-- ==================== TAB 1: 3D DIGITAL TWIN & CONTROL ==================== -->
                 <div id="robotTabPanel3D" class="space-y-5">
@@ -965,26 +971,30 @@
                 <!-- ==================== TAB 3: PROGRAMS & BACKUP ==================== -->
                 <div id="robotTabPanelProg" class="hidden space-y-5">
                     <!-- Weekly Auto-Backup Strategy Banner -->
-                    <div class="p-4 rounded-xl bg-gradient-to-r from-blue-900/30 via-slate-900 to-indigo-950/40 border border-blue-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                        <div class="space-y-1">
-                            <div class="font-bold text-slate-100 flex items-center gap-2 text-sm">
+                    <div class="p-4 rounded-xl bg-slate-900/95 border border-blue-500/50 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                        <div class="space-y-1.5">
+                            <div class="font-bold text-white flex items-center gap-2 text-sm">
                                 <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
                                 <span>每周定时自动保存策略已激活 (Weekly Auto-Backup Active)</span>
                             </div>
-                            <p class="text-slate-400 text-xs">系统默认每周日 00:00 自动执行全量程序、系统参数与 I/O 配置文件打包存档，支持手动一键下载或全量备份。</p>
+                            <p class="text-slate-200 font-medium text-xs leading-relaxed">系统默认每周日 00:00（周日零点）自动执行全量程序、系统参数与 I/O 配置文件打包存档，支持手动一键下载或全量备份。</p>
+                            <p class="text-emerald-400 dark:text-emerald-300 font-mono text-[11px] flex items-center gap-1.5">
+                                <span>🗄️ 服务器归档提示：</span>
+                                <span>保存在服务器的 <span class="text-cyan-300 font-bold underline">/opt/robot-iot/backups/</span> 目录下做历史归档。</span>
+                            </p>
                         </div>
-                        <div class="flex items-center gap-2 shrink-0">
-                            <button onclick="triggerRemoteBackup()" class="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs shadow-md transition flex items-center gap-1.5">
+                        <div class="flex flex-col sm:flex-row items-start sm:items-center gap-2 shrink-0">
+                            <button onclick="triggerRemoteBackup()" class="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs shadow-md transition flex items-center gap-1.5" title="下载全量备份至当前电脑，并自动在服务器 /opt/robot-iot/backups/ 存档">
                                 <span>📦 立即全量备份 (ZIP)</span>
                             </button>
                         </div>
                     </div>
 
                     <div class="flex flex-col lg:flex-row gap-4">
-                        <!-- Left: Program List & Weekly Archive List -->
-                        <div class="w-full lg:w-5/12 space-y-4">
+                        <!-- Left: Program List -->
+                        <div class="w-full lg:w-5/12">
                             <!-- Program List -->
-                            <div class="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+                            <div class="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3 h-full flex flex-col">
                                 <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                                     <span class="font-bold text-slate-900 dark:text-slate-100 text-xs flex items-center gap-1.5">
                                         <span>📄 加工程序清单</span>
@@ -992,18 +1002,7 @@
                                     </span>
                                     <span class="text-[11px] text-slate-400">点击程序查看源码</span>
                                 </div>
-                                <div id="modalProgListContainer" class="space-y-2 text-xs max-h-[160px] overflow-y-auto pr-1"></div>
-                            </div>
-
-                            <!-- Weekly Backups History Archive List -->
-                            <div class="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-                                <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                                    <span class="font-bold text-slate-900 dark:text-slate-100 text-xs flex items-center gap-1.5">
-                                        <span>🗄️ 每周历史自动备份归档</span>
-                                    </span>
-                                    <span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono">自动存档</span>
-                                </div>
-                                <div id="modalWeeklyBackupList" class="space-y-2 text-xs max-h-[140px] overflow-y-auto pr-1"></div>
+                                <div id="modalProgListContainer" class="space-y-2 text-xs flex-1 max-h-[340px] overflow-y-auto pr-1"></div>
                             </div>
                         </div>
 
@@ -1030,6 +1029,50 @@
 
                 <!-- ==================== TAB 4: ALARMS KNOWLEDGE & RESOLUTIONS ==================== -->
                 <div id="robotTabPanelAlarm" class="hidden space-y-5">
+                    <!-- FANUC ZDT Style Alarm Analytics Board -->
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                        <!-- Chart 1: 14-day Trend (7 cols) -->
+                        <div class="lg:col-span-7 bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm space-y-2">
+                            <div class="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
+                                <div>
+                                    <h4 class="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                                        <span>📈 近 14 天报警发生频次趋势</span>
+                                        <span class="text-[10px] text-rose-500 bg-rose-950/40 px-1.5 py-0.2 rounded border border-rose-800/40 font-mono">ZDT 故障预防</span>
+                                    </h4>
+                                    <p class="text-[10px] text-slate-400">平均无故障工作时间 (MTBF): <span class="font-mono text-emerald-400 font-bold" id="analyticsMtbf">--h</span> | 平均修复时间: <span class="font-mono text-blue-400 font-bold" id="analyticsMttr">--min</span></p>
+                                </div>
+                                <span class="text-xs font-mono font-bold text-slate-400" id="analyticsTotalAlarmsBadge">近14天: 0次</span>
+                            </div>
+                            <div id="modalAlarmTrendChart" style="width: 100%; height: 200px;"></div>
+                        </div>
+
+                        <!-- Chart 2: 4-Category Fault Distribution (5 cols) -->
+                        <div class="lg:col-span-5 bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm space-y-2">
+                            <div class="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
+                                <div>
+                                    <h4 class="text-xs font-bold text-slate-900 dark:text-slate-100">华数官方四大类故障分布</h4>
+                                    <p class="text-[10px] text-slate-400">伺服/运动/IO/底层通信分类占比</p>
+                                </div>
+                                <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-mono">环形诊断</span>
+                            </div>
+                            <div id="modalAlarmCategoryChart" style="width: 100%; height: 200px;"></div>
+                        </div>
+                    </div>
+
+                    <!-- TOP 5 Frequent Alarms & Troubleshooting Guide -->
+                    <div class="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+                        <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                            <div>
+                                <h4 class="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                                    <span>⚡ 易发报警 TOP 5 统计与官方排障指南</span>
+                                    <span class="text-[10px] text-amber-500 bg-amber-950/40 px-1.5 py-0.2 rounded border border-amber-800/40 font-mono">智能排障建议</span>
+                                </h4>
+                                <p class="text-[10px] text-slate-400">基于华数 HSC3 官方维护手册提炼的精准处置策略</p>
+                            </div>
+                        </div>
+                        <div id="modalTopAlarmsContainer" class="space-y-2 text-xs"></div>
+                    </div>
+
                     <!-- Top: Robot Handbook Knowledgebase Search -->
                     <div class="bg-white dark:bg-slate-900 rounded-xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
                         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
@@ -1095,9 +1138,214 @@
                     </div>
                 </div>
 
+                <!-- ==================== TAB 5: REAL-TIME SDK LOGS ==================== -->
+                <div id="robotTabPanelLog" class="hidden space-y-4">
+                    <!-- Top Control Toolbar -->
+                    <div class="p-3 rounded-xl bg-slate-900 border border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                            <span class="font-bold text-slate-200">底层工业协议与 SDK 规范实时日志流水</span>
+                            <span class="text-[10px] px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800/60 font-mono">HSC3 SocketCmd / ROS / PX4</span>
+                        </div>
+                        <div class="flex items-center gap-2.5">
+                            <select id="logLevelSelect" onchange="loadDeviceLiveLogs()" class="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none">
+                                <option value="ALL">全部级别 (ALL)</option>
+                                <option value="INFO">🟢 正常信息 (INFO)</option>
+                                <option value="WARN">🟡 预警提示 (WARN)</option>
+                                <option value="ERROR">🔴 故障错误 (ERROR)</option>
+                                <option value="ACTION">🔵 指令动作 (ACTION)</option>
+                            </select>
+                            <label class="flex items-center gap-1.5 text-slate-300 text-xs cursor-pointer select-none">
+                                <input type="checkbox" id="logAutoScroll" checked class="rounded border-slate-700 text-blue-600 focus:ring-0">
+                                <span>自动置顶</span>
+                            </label>
+                            <button onclick="clearLiveLogViewer()" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition flex items-center gap-1">
+                                <span>🧹 清屏</span>
+                            </button>
+                            <button onclick="exportLiveLogs()" class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs transition shadow-sm flex items-center gap-1">
+                                <span>💾 导出日志 (.log)</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Monospace Industrial Console Output -->
+                    <div id="modalLiveLogTerminal" class="w-full h-[460px] bg-slate-950 text-slate-200 font-mono text-xs rounded-xl p-4 overflow-y-auto border border-slate-800 space-y-2 leading-relaxed shadow-inner select-text">
+                        <div class="text-slate-500 py-12 text-center text-xs">正在连接底层控制器读取官方 SDK 实时报文流水...</div>
+                    </div>
+                </div>
+
+                <!-- ==================== TAB 6: RUNNING STATUS REPORT ==================== -->
+                <div id="robotTabPanelReport" class="hidden space-y-5">
+                    <!-- Report Header -->
+                    <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <h4 class="text-sm font-bold text-slate-100" id="reportDevTitle">设备运行综合性能分析报告</h4>
+                                <span class="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-mono">FANUC iCare 架构</span>
+                            </div>
+                            <p class="text-slate-400 text-xs mt-0.5" id="reportDevMeta">工位: 智能示范产线 | 控制器: HSC3-V3.2.18-PROD | 周期: 当日报告</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div class="inline-flex rounded-lg bg-slate-950 p-1 border border-slate-800 text-xs">
+                                <button id="btnReportDaily" onclick="switchReportPeriod('daily')" class="px-3 py-1 rounded-md bg-blue-600 text-white font-medium transition">每日报告</button>
+                                <button id="btnReportMonthly" onclick="switchReportPeriod('monthly')" class="px-3 py-1 rounded-md text-slate-400 hover:text-slate-200 transition">每月趋势</button>
+                            </div>
+                            <button onclick="printOrExportReport()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-xs transition border border-slate-700 flex items-center gap-1.5">
+                                <span>🖨️ 打印 / 导出 PDF</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Metrics Grid Row 1: OEE & Cycle Time -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs">
+                        <!-- Card 1: Availability & Hours Breakdown -->
+                        <div class="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+                            <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                                <span class="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                                    <span>⏱️ 工时与稼动率 (OEE)</span>
+                                </span>
+                                <span class="text-emerald-500 font-mono font-bold text-sm" id="reportOeePct">92.4%</span>
+                            </div>
+                            <div class="flex items-center gap-4">
+                                <div class="w-24 h-24 rounded-full border-4 border-emerald-500 flex items-center justify-center shrink-0 bg-emerald-500/10 shadow-[0_0_15px_rgba(16,185,129,0.2)]">
+                                    <div class="text-center">
+                                        <div class="text-lg font-mono font-bold text-slate-900 dark:text-slate-100" id="reportOeeCenter">92.4%</div>
+                                        <div class="text-[9px] text-slate-400">设备稼动率</div>
+                                    </div>
+                                </div>
+                                <div class="flex-1 space-y-2 font-mono">
+                                    <div class="flex justify-between items-center text-slate-600 dark:text-slate-300">
+                                        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-400"></span>生产运行工时</span>
+                                        <span class="font-bold" id="reportHoursRunning">22.2 h (92.4%)</span>
+                                    </div>
+                                    <div class="flex justify-between items-center text-slate-600 dark:text-slate-300">
+                                        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-400"></span>待机待料工时</span>
+                                        <span class="font-bold" id="reportHoursStandby">1.4 h (5.8%)</span>
+                                    </div>
+                                    <div class="flex justify-between items-center text-slate-600 dark:text-slate-300">
+                                        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-rose-500"></span>报警停机工时</span>
+                                        <span class="font-bold" id="reportHoursDowntime">0.4 h (1.8%)</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Card 2: Production CT -->
+                        <div class="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+                            <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                                <span class="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                                    <span>⚙️ 生产节拍分析 (Cycle Time)</span>
+                                </span>
+                                <span class="text-blue-500 font-mono font-bold" id="reportCycleCountBadge">492 循环</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3 text-center">
+                                <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60">
+                                    <div class="text-[10px] text-slate-400">平均节拍 (Average CT)</div>
+                                    <div class="text-base font-mono font-bold text-blue-600 dark:text-blue-400 mt-0.5" id="reportAvgCt">42.5 s</div>
+                                </div>
+                                <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60">
+                                    <div class="text-[10px] text-slate-400">节拍稳定性 (StdDev)</div>
+                                    <div class="text-base font-mono font-bold text-emerald-600 dark:text-emerald-400 mt-0.5" id="reportCtStability">±1.2 s (优)</div>
+                                </div>
+                                <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60">
+                                    <div class="text-[10px] text-slate-400">最优极速节拍 (Min CT)</div>
+                                    <div class="text-sm font-mono font-bold text-slate-700 dark:text-slate-200 mt-0.5" id="reportMinCt">38.6 s</div>
+                                </div>
+                                <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60">
+                                    <div class="text-[10px] text-slate-400">最长延阻节拍 (Max CT)</div>
+                                    <div class="text-sm font-mono font-bold text-slate-700 dark:text-slate-200 mt-0.5" id="reportMaxCt">46.2 s</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Metrics Grid Row 2: Health & Maintenance -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs">
+                        <!-- Card 3: Health & Electrical Diagnostics -->
+                        <div class="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+                            <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                                <span class="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                                    <span>🩺 电气工况与健康评级</span>
+                                </span>
+                                <span class="px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-mono font-bold text-xs" id="reportHealthGrade">98.6 分 (优等)</span>
+                            </div>
+                            <div class="space-y-2.5">
+                                <div>
+                                    <div class="flex justify-between text-[11px] text-slate-500 mb-1">
+                                        <span>电机平均负载率: <span class="font-mono text-slate-900 dark:text-slate-100 font-bold" id="reportMotorLoad">28.4%</span></span>
+                                        <span>额定健康阈值 ≤ 70%</span>
+                                    </div>
+                                    <div class="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                                        <div id="reportMotorLoadBar" class="h-full bg-blue-500 rounded-full" style="width: 28.4%"></div>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2 text-[11px] pt-1 border-t border-slate-100 dark:border-slate-800/80 font-mono">
+                                    <div class="p-2 rounded bg-slate-50 dark:bg-slate-800/40">
+                                        <div class="text-slate-400">电机最高温升</div>
+                                        <div class="font-bold text-slate-800 dark:text-slate-200 mt-0.5" id="reportPeakTemp">42.5 °C (温升正常)</div>
+                                    </div>
+                                    <div class="p-2 rounded bg-slate-50 dark:bg-slate-800/40">
+                                        <div class="text-slate-400">综合用电能耗</div>
+                                        <div class="font-bold text-slate-800 dark:text-slate-200 mt-0.5" id="reportPowerKwh">46.8 kWh (~¥33.7)</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Card 4: Preventive Maintenance Countdown -->
+                        <div class="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+                            <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                                <span class="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                                    <span>⏳ 预防性维保倒计时 (ZDT Maintenance)</span>
+                                </span>
+                                <span class="text-[10px] text-slate-400 font-mono">周期监控</span>
+                            </div>
+                            <div class="space-y-2 text-[11px]">
+                                <div>
+                                    <div class="flex justify-between text-slate-600 dark:text-slate-300 mb-1">
+                                        <span>减速机润滑脂更换</span>
+                                        <span class="font-mono font-bold text-emerald-500" id="reportGreaseHours">剩余 3,850h / 5,000h</span>
+                                    </div>
+                                    <div class="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                                        <div class="h-full bg-emerald-500 rounded-full" style="width: 77%"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-slate-600 dark:text-slate-300 mb-1">
+                                        <span>绝对值编码器备用电池</span>
+                                        <span class="font-mono font-bold text-emerald-500" id="reportBatteryDays">剩余 286天 / 365天</span>
+                                    </div>
+                                    <div class="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                                        <div class="h-full bg-emerald-500 rounded-full" style="width: 78%"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-slate-600 dark:text-slate-300 mb-1">
+                                        <span>齿形同步带与气路密封检查</span>
+                                        <span class="font-mono font-bold text-blue-500" id="reportBeltHours">剩余 620h / 1,000h</span>
+                                    </div>
+                                    <div class="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                                        <div class="h-full bg-blue-500 rounded-full" style="width: 62%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Evaluation Summary Banner -->
+                    <div class="p-3.5 rounded-xl bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-xs flex items-start gap-3">
+                        <span class="text-lg">💡</span>
+                        <div class="space-y-1 flex-1">
+                            <div class="font-bold text-slate-900 dark:text-slate-100">智能运维专家评价与工程师建议</div>
+                            <p class="text-slate-600 dark:text-slate-400 leading-relaxed text-[11px]" id="reportEvalSummary">设备当前整体综合性能卓越，综合稼动率稳定在 92.4%，生产节拍稳定性优良。伺服电机各轴温升最高 42.5°C，处于额定轻载区间。减速机润滑脂与编码器电池寿命充沛，建议按常规保养计划在下次周期节点进行例行点检。</p>
+                        </div>
+                    </div>
+                </div>
+                </div>
+
             </div>
 
-            <div class="px-6 py-3.5 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end">
+            <div class="px-6 py-3.5 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end shrink-0">
                 <button onclick="closeRobot3DModal()" class="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition shadow-sm">完成查看</button>
             </div>
         </div>
@@ -2483,17 +2731,32 @@
                 if (elTcpY) elTcpY.innerText = `Y: ${Math.round(tcpY)}`;
                 if (elTcpZ) elTcpZ.innerText = `Z: ${Math.round(tcpZ)}`;
                 
-                const bat = dev.battery !== undefined ? Math.round(dev.battery) : 98;
-                if (elBat) elBat.innerText = `${bat}% (正常)`;
-                if (elBatB) {
-                    elBatB.style.width = `${Math.min(100, Math.max(0, bat))}%`;
-                    elBatB.className = (bat < 30 ? 'bg-amber-500' : 'bg-slate-900 dark:bg-blue-500') + ' h-full rounded-full transition-all duration-300';
+                // 供电/电池状态更新 (华数机械臂为 AC 380V 市电直供)
+                if (elBat && elBatB) {
+                    if (dev.device_type === 'huashu_arm' || dev.is_mains_powered) {
+                        elBat.innerText = '市电直供 (AC 380V)';
+                        elBatB.style.width = '100%';
+                        elBatB.className = 'bg-blue-500 h-full rounded-full transition-all duration-300';
+                    } else {
+                        const bat = (dev.battery !== undefined && dev.battery !== null) ? Math.round(dev.battery) : 98;
+                        elBat.innerText = `${bat}%`;
+                        elBatB.style.width = `${Math.min(100, Math.max(0, bat))}%`;
+                        elBatB.className = (bat < 30 ? 'bg-amber-500' : 'bg-slate-900 dark:bg-blue-500') + ' h-full rounded-full transition-all duration-300';
+                    }
                 }
                 if (elStat) {
                     elStat.innerHTML = isOnline 
                         ? `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span><span>实时在线</span>` 
                         : `<span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span><span>已离线</span>`;
                     elStat.className = `px-2 py-0.5 rounded bg-slate-900/80 backdrop-blur-md text-[10px] font-mono ${isOnline ? 'text-emerald-400 border border-emerald-800' : 'text-slate-400 border border-slate-700'} flex items-center gap-1 shadow-sm`;
+                }
+
+                const elIo = document.getElementById(`card_io_${dev.device_id}`);
+                if (elIo) {
+                    elIo.innerHTML = isOnline
+                        ? `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span><span>16 DI / 16 DO 在线</span>`
+                        : `<span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span><span>已离线 (未同步)</span>`;
+                    elIo.className = `font-mono ${isOnline ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-slate-400 font-medium'} flex items-center gap-1`;
                 }
             });
         }
@@ -2562,22 +2825,32 @@
                             <!-- Live I/O Status Badge -->
                             <div class="flex items-center justify-between text-[11px] pt-0.5">
                                 <span class="text-slate-500 dark:text-slate-400">I/O 信号状态:</span>
-                                <span class="font-mono text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                    <span>16 DI / 16 DO 在线</span>
+                                <span id="card_io_${dev.device_id}" class="font-mono ${isOnline ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-slate-400 font-medium'} flex items-center gap-1">
+                                    <span class="w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-slate-400'}"></span>
+                                    <span>${isOnline ? '16 DI / 16 DO 在线' : '已离线 (未同步)'}</span>
                                 </span>
                             </div>
 
-                            <!-- Battery & Backup Policy -->
+                            <!-- Power source / Battery (华数工业臂市电直供，移动机器人显示电量) -->
+                            ${dev.device_type === 'huashu_arm' || dev.is_mains_powered ? `
+                            <div class="flex items-center justify-between text-[11px] py-0.5">
+                                <span class="text-slate-500 dark:text-slate-400">供电方式:</span>
+                                <span class="font-mono text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-1">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                                    <span>市电直供 (AC 380V)</span>
+                                </span>
+                            </div>
+                            ` : `
                             <div class="space-y-1">
                                 <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 text-[11px]">
-                                    <span>母线动力/电池</span>
-                                    <span id="card_bat_${dev.device_id}" class="font-mono text-slate-900 dark:text-slate-100 font-semibold">${dev.battery !== undefined ? Math.round(dev.battery) : 98}% (正常)</span>
+                                    <span>机载电池电量</span>
+                                    <span id="card_bat_${dev.device_id}" class="font-mono text-slate-900 dark:text-slate-100 font-semibold">${dev.battery !== undefined && dev.battery !== null ? Math.round(dev.battery) : 98}%</span>
                                 </div>
                                 <div class="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                                    <div id="card_bat_bar_${dev.device_id}" class="${(dev.battery || 98) < 30 ? 'bg-amber-500' : 'bg-slate-900 dark:bg-blue-500'} h-full rounded-full transition-all duration-300" style="width: ${dev.battery !== undefined ? Math.min(100, Math.max(0, Math.round(dev.battery))) : 98}%"></div>
+                                    <div id="card_bat_bar_${dev.device_id}" class="${(dev.battery || 98) < 30 ? 'bg-amber-500' : 'bg-slate-900 dark:bg-blue-500'} h-full rounded-full transition-all duration-300" style="width: ${dev.battery !== undefined && dev.battery !== null ? Math.min(100, Math.max(0, Math.round(dev.battery))) : 98}%"></div>
                                 </div>
                             </div>
+                            `}
 
                             <div class="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px]">
                                 <span class="text-slate-400">自动周备份: <span class="text-emerald-600 dark:text-emerald-400 font-mono font-medium">已激活</span></span>
@@ -2608,7 +2881,8 @@
                 const isOnline = dev.status === 'online';
                 const typeName = dev.device_type_display || DEVICE_TYPE_NAMES[dev.device_type] || dev.device_type;
                 const devDisplayName = dev.device_name ? `${dev.device_name} (${dev.device_id})` : dev.device_id;
-                const bat = dev.battery !== undefined ? Math.round(dev.battery) : 98;
+                const isArm = dev.device_type === 'huashu_arm' || dev.is_mains_powered;
+                const batText = isArm ? '市电直供 (AC 380V)' : `${(dev.battery !== undefined && dev.battery !== null) ? Math.round(dev.battery) : 98}%`;
 
                 return `
                     <tr onclick="selectDevice('${dev.device_type}', '${dev.device_id}'); openRobot3DModal();" 
@@ -2625,7 +2899,7 @@
                                 <span>${isOnline ? '运行正常' : '已离线'}</span>
                             </span>
                         </td>
-                        <td class="py-3 font-mono text-slate-800 dark:text-slate-200 text-xs font-semibold">${bat}%</td>
+                        <td class="py-3 font-mono text-slate-800 dark:text-slate-200 text-xs font-semibold">${batText}</td>
                         <td class="py-3 text-[11px] text-slate-500 dark:text-slate-400 font-mono">${formatRelativeTime(dev.last_report_time)}</td>
                         <td class="py-3 text-right">
                             <button class="px-3 py-1 text-xs rounded-md bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:border dark:border-slate-700 text-white font-medium transition">
@@ -2688,7 +2962,9 @@
             'uav_rescue': [
                 { label: '空地协同搜救航线巡航 (collab_patrol)', cmd: 'collab_patrol', params: { radius_m: 500, altitude_m: 35 } },
                 { label: '全景红外多光谱测绘 (multispectral_scan)', cmd: 'multispectral_scan', params: { resolution: "4k", sensor: "thermal+optical" } },
-                { label: '自动返航并降落充电舱 (auto_land_recharge)', cmd: 'auto_land_recharge', params: { nest_id: "NEST_01" } }
+                { label: '自主起飞并进入高空悬停 (takeoff)', cmd: 'takeoff', params: { altitude_m: 45 } },
+                { label: '自动返航并降落充电舱 (auto_land_recharge)', cmd: 'auto_land_recharge', params: { nest_id: "NEST_01" } },
+                { label: '航线巡飞紧急制动停机 (stop)', cmd: 'stop', params: { reason: "manual_abort" } }
             ]
         };
 
@@ -2791,6 +3067,7 @@
                 const body = await res.json();
                 if (res.ok && body.code === 200) {
                     showToast(`指令 [${cmd}] 已成功下发至设备!`, '✅');
+                    setTimeout(refreshModalLiveTelemetry, 200);
                 } else {
                     showToast('下发失败: ' + body.message, '❌');
                 }
@@ -2883,6 +3160,130 @@
             }
         }
 
+        function resetRobotModalData(type, id) {
+            const dev = currentDevices.find(d => d.device_id === id) || { device_id: id, device_type: type };
+            const typeDisplay = dev.device_type_display || DEVICE_TYPE_NAMES[type] || type;
+            const devDisplayName = dev.device_name ? `${dev.device_name} (${id})` : `${typeDisplay} (${id})`;
+
+            // 0. 立即移除上一台设备的 3D 模型与骨骼，杜绝残影
+            if (robot3dScene && robot3dModel) {
+                try { robot3dScene.remove(robot3dModel); } catch (e) {}
+                robot3dModel = null;
+                robot3dJointNodes = [];
+            }
+
+            // 1. 顶部标头与基础信息
+            const titleEl = document.getElementById('modalDevTitle'); if (titleEl) titleEl.innerText = devDisplayName;
+            const subTitleEl = document.getElementById('modalDevSubTitle'); if (subTitleEl) subTitleEl.innerText = `ID: ${id} | 安装工位: ${dev.location || '智能制造示范产线'} | 实时 3D 运动学、I/O 监控与报警处理档案`;
+            const bannerEl = document.getElementById('modalBannerType'); if (bannerEl) bannerEl.innerText = `${typeDisplay} · ${dev.device_name || id}`;
+
+            // 2. 3D 数字孪生 HUD 空间位姿与关节角度
+            const hudX = document.getElementById('hudTcpX'); if (hudX) hudX.innerText = '--';
+            const hudY = document.getElementById('hudTcpY'); if (hudY) hudY.innerText = '--';
+            const hudZ = document.getElementById('hudTcpZ'); if (hudZ) hudZ.innerText = '--';
+            const hudA = document.getElementById('hudTcpA'); if (hudA) hudA.innerText = '--°';
+            const hudB = document.getElementById('hudTcpB'); if (hudB) hudB.innerText = '--°';
+            const hudC = document.getElementById('hudTcpC'); if (hudC) hudC.innerText = '--°';
+            const compactHud = document.getElementById('hudCompactPos'); if (compactHud) compactHud.innerText = '正在同步设备实时位姿...';
+            
+            const jointsContainer = document.getElementById('modalJointsContainer');
+            if (jointsContainer) {
+                jointsContainer.innerHTML = '<div class="col-span-full py-4 text-center text-slate-400 dark:text-slate-500 text-xs flex items-center justify-center gap-2"><div class="w-3.5 h-3.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div><span>正在同步该设备各轴实时角度...</span></div>';
+            }
+
+            // 3. 实时遥测与工况重置
+            const cartEl = document.getElementById('modalCartesianPos'); if (cartEl) cartEl.innerText = '正在读取末端坐标...';
+            const eulerEl = document.getElementById('modalEulerAngles'); if (eulerEl) eulerEl.innerText = '正在读取欧拉角...';
+            const cycleEl = document.getElementById('modalCycleCount'); if (cycleEl) cycleEl.innerText = '—';
+            const runEl = document.getElementById('modalRunHours'); if (runEl) runEl.innerText = '—';
+            const maintEl = document.getElementById('modalMaintRemain'); if (maintEl) maintEl.innerText = '—';
+            const modelEl = document.getElementById('modalRobotModel'); if (modelEl) modelEl.innerText = '—';
+            const opEl = document.getElementById('modalOpMode'); if (opEl) opEl.innerText = '—';
+            const errEl = document.getElementById('modalErrorCount'); if (errEl) errEl.innerText = '—';
+
+            const currGrid = document.getElementById('modalMotorCurrentsGrid');
+            if (currGrid) {
+                currGrid.innerHTML = [1, 2, 3, 4, 5, 6].map(i => `
+                    <div class="bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-center">
+                        <div class="text-[9px] text-slate-400">M${i} 伺服</div>
+                        <div class="text-slate-400 font-mono text-xs">--A</div>
+                    </div>
+                `).join('');
+            }
+
+            // 4. I/O 实时信号监控
+            const diGrid = document.getElementById('modalDiGrid');
+            const doGrid = document.getElementById('modalDoGrid');
+            if (diGrid) {
+                diGrid.innerHTML = '<div class="col-span-4 py-8 text-center text-slate-400 dark:text-slate-500 text-xs flex flex-col items-center justify-center gap-2"><div class="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div><span>正在读取 34 路数字量输入 (DI) 信号...</span></div>';
+            }
+            if (doGrid) {
+                doGrid.innerHTML = '<div class="col-span-4 py-8 text-center text-slate-400 dark:text-slate-500 text-xs flex flex-col items-center justify-center gap-2"><div class="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div><span>正在读取 34 路数字量输出 (DO) 信号...</span></div>';
+            }
+            const quickIo = document.getElementById('modalQuickIoList');
+            if (quickIo) quickIo.innerHTML = '<span class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-400 text-[10px] animate-pulse">正在同步外部 IO...</span>';
+            const diMaskEl = document.getElementById('modalDiMaskHex'); if (diMaskEl) diMaskEl.innerText = 'MASK: 0x----';
+            const doMaskEl = document.getElementById('modalDoMaskHex'); if (doMaskEl) doMaskEl.innerText = 'MASK: 0x----';
+
+            // 5. 加工程序与远程备份
+            currentModalPrograms = [];
+            currentEditingProgName = '';
+            const progContainer = document.getElementById('modalProgListContainer');
+            if (progContainer) {
+                progContainer.innerHTML = '<div class="py-10 text-center text-slate-400 dark:text-slate-500 text-xs flex flex-col items-center justify-center gap-2"><div class="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div><span>正在读取加工程序清单 (.PRG)...</span></div>';
+            }
+            const progNameEl = document.getElementById('modalCurrentProgName'); if (progNameEl) progNameEl.innerText = '正在载入程序...';
+            const progViewer = document.getElementById('modalProgramCodeViewer'); if (progViewer) progViewer.value = '; 正在从设备读取程序源码...';
+
+            // 6. 故障库与报警统计
+            const mtbfEl = document.getElementById('analyticsMtbf'); if (mtbfEl) mtbfEl.innerText = '--h';
+            const mttrEl = document.getElementById('analyticsMttr'); if (mttrEl) mttrEl.innerText = '--min';
+            const totalBadge = document.getElementById('analyticsTotalAlarmsBadge'); if (totalBadge) totalBadge.innerText = '近14天: 统计中...';
+            const topContainer = document.getElementById('modalTopAlarmsContainer');
+            if (topContainer) {
+                topContainer.innerHTML = '<div class="py-8 text-center text-slate-400 dark:text-slate-500 text-xs flex flex-col items-center justify-center gap-2"><div class="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div><span>正在检索并统计该设备近14天真实故障与处置指南...</span></div>';
+            }
+            const resTimeline = document.getElementById('modalAlarmResolutionsTimeline');
+            if (resTimeline) {
+                resTimeline.innerHTML = '<div class="p-4 text-center text-slate-400 dark:text-slate-500 text-xs flex items-center justify-center gap-2"><div class="w-3.5 h-3.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div><span>正在获取历史处置记录...</span></div>';
+            }
+            if (alarmTrendChart) alarmTrendChart.clear();
+            if (alarmCategoryChart) alarmCategoryChart.clear();
+
+            // 7. 实时日志流
+            cachedLiveLogs = [];
+            const logTerminal = document.getElementById('modalLiveLogTerminal');
+            if (logTerminal) {
+                logTerminal.innerHTML = '<div class="text-slate-400 dark:text-slate-500 py-12 text-center text-xs font-mono flex flex-col items-center justify-center gap-2"><div class="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div><span>[Connecting] 正在订阅该设备通讯与状态日志流...</span></div>';
+            }
+
+            // 8. 运行状态报告
+            const repTitle = document.getElementById('reportDevTitle'); if (repTitle) repTitle.innerText = `${devDisplayName} · 运行综合性能分析报告`;
+            const repMeta = document.getElementById('reportDevMeta'); if (repMeta) repMeta.innerText = '正在计算设备稼动率、节拍分析与健康度诊断...';
+            const repOee = document.getElementById('reportOeePct'); if (repOee) repOee.innerText = '--%';
+            const repOeeC = document.getElementById('reportOeeCenter'); if (repOeeC) repOeeC.innerText = '--%';
+            const repRun = document.getElementById('reportHoursRunning'); if (repRun) repRun.innerText = '-- h';
+            const repStd = document.getElementById('reportHoursStandby'); if (repStd) repStd.innerText = '-- h';
+            const repDown = document.getElementById('reportHoursDowntime'); if (repDown) repDown.innerText = '-- h';
+            const repCyc = document.getElementById('reportCycleCountBadge'); if (repCyc) repCyc.innerText = '-- 循环';
+            const repAvgCt = document.getElementById('reportAvgCt'); if (repAvgCt) repAvgCt.innerText = '-- s';
+            const repStab = document.getElementById('reportCtStability'); if (repStab) repStab.innerText = '计算中...';
+            const repMinCt = document.getElementById('reportMinCt'); if (repMinCt) repMinCt.innerText = '-- s';
+            const repMaxCt = document.getElementById('reportMaxCt'); if (repMaxCt) repMaxCt.innerText = '-- s';
+            const repGrade = document.getElementById('reportHealthGrade'); if (repGrade) repGrade.innerText = '评估中...';
+            const repLoad = document.getElementById('reportMotorLoad'); if (repLoad) repLoad.innerText = '--%';
+            const repLoadBar = document.getElementById('reportMotorLoadBar'); if (repLoadBar) repLoadBar.style.width = '0%';
+            const repTemp = document.getElementById('reportPeakTemp'); if (repTemp) repTemp.innerText = '-- °C';
+            const repPwr = document.getElementById('reportPowerKwh'); if (repPwr) repPwr.innerText = '-- kWh';
+            const repGrease = document.getElementById('reportGreaseHours'); if (repGrease) repGrease.innerText = '计算中...';
+            const repBat = document.getElementById('reportBatteryDays'); if (repBat) repBat.innerText = '计算中...';
+            const repBelt = document.getElementById('reportBeltHours'); if (repBelt) repBelt.innerText = '计算中...';
+            const repEval = document.getElementById('reportEvalSummary');
+            if (repEval) {
+                repEval.innerHTML = '<span class="text-slate-400 dark:text-slate-500 flex items-center gap-2"><span class="w-3.5 h-3.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin inline-block"></span>正在综合评估该设备运行工况与电气指标...</span>';
+            }
+        }
+
         function openRobot3DModal() {
             try {
                 if (!selectedDevice) {
@@ -2891,8 +3292,8 @@
                 }
                 const { type, id } = selectedDevice;
 
-                try { loadDeviceIO(type, id); } catch (e) {}
-                try { loadWeeklyBackups(type, id); } catch (e) {}
+                // 立即清空并重置模态框中所有标签页数据为加载中状态，坚决杜绝上一台设备的数据残留！
+                resetRobotModalData(type, id);
                 
                 const wsEl = document.getElementById('hudWorkstation');
                 if (wsEl) {
@@ -2911,9 +3312,6 @@
                     cfg.cat4_vendor
                 ) || DEVICE_TYPE_VENDORS[type] || '昕邦工业装备';
 
-                const titleEl = document.getElementById('modalDevTitle'); if (titleEl) titleEl.innerText = devDisplayName;
-                const subTitleEl = document.getElementById('modalDevSubTitle'); if (subTitleEl) subTitleEl.innerText = `ID: ${id} | 安装工位: ${dev.location || '智能制造示范产线'} | 实时 3D 运动学、I/O 监控与报警处理档案`;
-                const bannerEl = document.getElementById('modalBannerType'); if (bannerEl) bannerEl.innerText = `${typeDisplay} · ${dev.device_name || id}`;
                 const brandEl = document.getElementById('modalSpecBrand'); if (brandEl) brandEl.innerText = devVendor;
 
                 const twinBadge = cfg.modal_twin_footer_badge || '广州番禺示范线 · 昕邦工业机器人数字孪生接入点';
@@ -2954,11 +3352,17 @@
                     initRobot3DScene();
                     buildRobot3DModel(type);
                     onRobot3DResize();
+
+                    // 立即将外层设备列表中已有的最新物理状态注入新构建的模态框 3D 模型中，杜绝归零跳变与内外不同步
+                    const currentDev = currentDevices.find(d => d.device_id === id);
+                    if (currentDev && currentDev.latest_state && currentDev.latest_state.parsed_payload) {
+                        updateRobot3DKinematics(currentDev.latest_state.parsed_payload, type);
+                    }
+                    refreshModalLiveTelemetry();
                 }, 80);
 
-                refreshModalLiveTelemetry();
                 if (window.modalLiveTimer) clearInterval(window.modalLiveTimer);
-                window.modalLiveTimer = setInterval(refreshModalLiveTelemetry, 1500);
+                window.modalLiveTimer = setInterval(refreshModalLiveTelemetry, 800);
             } catch (err) {
                 console.error("openRobot3DModal critical error:", err);
                 const modal = document.getElementById('robot3DModal');
@@ -2972,17 +3376,25 @@
                 return;
             }
             const { type, id } = selectedDevice;
+            const currentReqId = id;
             try {
                 const res = await fetch(`/api/devices/${encodeURIComponent(type)}/${encodeURIComponent(id)}/latest`);
+                if (!selectedDevice || selectedDevice.id !== currentReqId) return;
                 const body = await res.json();
+                if (!selectedDevice || selectedDevice.id !== currentReqId) return;
                 if (body.code === 200 && body.data && body.data.latest_data) {
                     const parsed = body.data.latest_data.parsed_payload || {};
                     
+                    // 1. 关节角度 (J1 ~ J6)
+                    const fallbackDev = currentDevices.find(d => d.device_id === id);
+                    const fallbackJoints = fallbackDev && fallbackDev.latest_state && fallbackDev.latest_state.parsed_payload ? (fallbackDev.latest_state.parsed_payload.joint_angles || fallbackDev.latest_state.parsed_payload.arm_sr3_pose) : null;
+                    const joints = parsed.joint_angles || parsed.arm_sr3_pose || fallbackJoints || [0, 0, 0, 0, 0, 0];
+                    if (!parsed.joint_angles && fallbackJoints) {
+                        parsed.joint_angles = fallbackJoints;
+                    }
+
                     // Update 3D Digital Twin Model Kinematics in Real-time!
                     updateRobot3DKinematics(parsed, type);
-
-                    // 1. 关节角度 (J1 ~ J6)
-                    const joints = parsed.joint_angles || parsed.arm_sr3_pose || [0, 0, 0, 0, 0, 0];
                     const jointLabels = type === 'huashu_arm' ? ['J1 基座', 'J2 大臂', 'J3 小臂', 'J4 手腕', 'J5 俯仰', 'J6 旋转'] :
                                        type === 'luxshare_amr' ? ['J1 回转', 'J2 肩部', 'J3 肘部', 'J4 腕1', 'J5 腕2', 'J6 腕3'] :
                                        type === 'robot_dog' ? ['前左髋', '前左膝', '前右髋', '前右膝', '后左腿', '后右腿'] :
@@ -3054,15 +3466,31 @@
                         }).join('');
                     }
 
-                    // 4. 工单节拍与工时
+                    // 4. 累计上报次数（数据库真实计数）/ 工时（无真实来源，显示—）
                     const cycleEl = document.getElementById('modalCycleCount');
                     const runEl = document.getElementById('modalRunHours');
-                    if (cycleEl && parsed.cycle_count !== undefined) {
-                        cycleEl.innerText = `${parsed.cycle_count.toLocaleString()} 次`;
+                    const maintEl = document.getElementById('modalMaintRemain');
+                    const modalDev = selectedDevice;
+                    const reportCount = (modalDev && modalDev.real_report_count !== undefined)
+                        ? modalDev.real_report_count
+                        : (parsed.report_count !== undefined ? parsed.report_count : null);
+                    if (cycleEl) {
+                        cycleEl.innerText = reportCount !== null ? `${Number(reportCount).toLocaleString()} 次` : '—';
                     }
-                    if (runEl && parsed.running_hours !== undefined) {
-                        runEl.innerText = `${parsed.running_hours.toFixed(1)} 小时`;
+                    if (runEl) runEl.innerText = '—';
+                    if (maintEl) maintEl.innerText = '—';
+
+                    // 控制器真实工况（机型/操作模式/报警数，来自华数 SocketCmd 真实返回）
+                    const modelEl = document.getElementById('modalRobotModel');
+                    const opEl = document.getElementById('modalOpMode');
+                    const errEl = document.getElementById('modalErrorCount');
+                    if (modelEl) modelEl.innerText = parsed.robot_model || '—';
+                    if (opEl) {
+                        const om = parsed.op_mode;
+                        const omMap = { 1: '手动T1', 2: '手动T2', 3: '自动运行', 4: '外部运行' };
+                        opEl.innerText = (om !== undefined && om !== null) ? (omMap[om] || `模式${om}`) : '—';
                     }
+                    if (errEl) errEl.innerText = parsed.error_code !== undefined ? String(parsed.error_code) : '—';
                 }
             } catch (e) {
                 console.error('refreshModalLiveTelemetry error:', e);
@@ -3071,6 +3499,10 @@
 
         function closeRobot3DModal() {
             if (window.modalLiveTimer) clearInterval(window.modalLiveTimer);
+            if (window.liveLogPollingTimer) {
+                clearInterval(window.liveLogPollingTimer);
+                window.liveLogPollingTimer = null;
+            }
             document.getElementById('robot3DModal').classList.add('hidden');
         }
 
@@ -3683,10 +4115,16 @@
                             if (jn[6]) jn[6].rotation.x = THREE.MathUtils.lerp(jn[6].rotation.x, rads[2] || 0, speed);
                             if (jn[7]) jn[7].rotation.x = THREE.MathUtils.lerp(jn[7].rotation.x, rads[3] || 0, speed);
                         } else if (deviceType === 'uav_rescue') {
-                            const isFlying = (payload.altitude !== undefined && payload.altitude > 0) || (payload.motor_rpm !== undefined && payload.motor_rpm > 0);
+                            const isFlying = (payload.altitude_m !== undefined && payload.altitude_m > 0) ||
+                                             (payload.altitude !== undefined && payload.altitude > 0) ||
+                                             (payload.flight_speed_mps !== undefined && payload.flight_speed_mps > 0) ||
+                                             payload.status === 'running';
                             if (isFlying && dev.status === 'online') {
                                 const spinRate = (payload.motor_rpm ? payload.motor_rpm * 0.0005 : 0.45);
                                 jn.forEach(p => p.rotation.y += spinRate);
+                            }
+                            if (item.rootGroup && payload.cartesian_pos && payload.cartesian_pos.c !== undefined) {
+                                item.rootGroup.rotation.y = THREE.MathUtils.degToRad(payload.cartesian_pos.c);
                             }
                         }
                     }
@@ -3855,8 +4293,29 @@
                 if (robot3dJointNodes[6]) robot3dJointNodes[6].userData.target = { axis: 'x', val: rads[2] || 0 };
                 if (robot3dJointNodes[7]) robot3dJointNodes[7].userData.target = { axis: 'x', val: rads[3] || 0 };
             } else if (deviceType === 'uav_rescue') {
-                window.modalDroneFlying = (parsedPayload.altitude !== undefined && parsedPayload.altitude > 0) || (parsedPayload.motor_rpm !== undefined && parsedPayload.motor_rpm > 0);
+                const alt = (parsedPayload.altitude_m !== undefined) ? parsedPayload.altitude_m : (parsedPayload.altitude !== undefined ? parsedPayload.altitude : 0);
+                const speed = parsedPayload.flight_speed_mps || 0;
+                const isFlying = (alt > 0) || (speed > 0) || (parsedPayload.status === 'running');
+                window.modalDroneFlying = isFlying;
                 window.modalDroneSpinRate = parsedPayload.motor_rpm ? parsedPayload.motor_rpm * 0.0005 : 0.45;
+
+                const cart = parsedPayload.cartesian_pos || {};
+                if (robot3dModel) {
+                    if (cart.c !== undefined) {
+                        const targetYaw = THREE.MathUtils.degToRad(cart.c);
+                        robot3dModel.rotation.y = THREE.MathUtils.lerp(robot3dModel.rotation.y, targetYaw, 0.08);
+                    }
+                    if (cart.a !== undefined) {
+                        const targetRoll = THREE.MathUtils.degToRad(cart.a);
+                        robot3dModel.rotation.z = THREE.MathUtils.lerp(robot3dModel.rotation.z, targetRoll, 0.08);
+                    }
+                    if (cart.b !== undefined) {
+                        const targetPitch = THREE.MathUtils.degToRad(cart.b);
+                        robot3dModel.rotation.x = THREE.MathUtils.lerp(robot3dModel.rotation.x, targetPitch, 0.08);
+                    }
+                    const targetY = isFlying ? 1.6 : 0.2;
+                    robot3dModel.position.y = THREE.MathUtils.lerp(robot3dModel.position.y, targetY, 0.08);
+                }
             }
         }
 
@@ -3889,15 +4348,21 @@
         function switchRobotModalTab(tabKey) {
             currentActiveModalTab = tabKey;
             
-            const tabMap = { '3d': '3D', 'io': 'IO', 'prog': 'Prog', 'alarm': 'Alarm' };
-            const tabs = ['3d', 'io', 'prog', 'alarm'];
+            // Clear live log polling timer if switching away
+            if (window.liveLogPollingTimer) {
+                clearInterval(window.liveLogPollingTimer);
+                window.liveLogPollingTimer = null;
+            }
+
+            const tabMap = { '3d': '3D', 'io': 'IO', 'prog': 'Prog', 'alarm': 'Alarm', 'log': 'Log', 'report': 'Report' };
+            const tabs = ['3d', 'io', 'prog', 'alarm', 'log', 'report'];
             tabs.forEach(t => {
                 const suffix = tabMap[t] || (t.charAt(0).toUpperCase() + t.slice(1));
                 const btn = document.getElementById(`tabBtnRobot${suffix}`);
                 const panel = document.getElementById(`robotTabPanel${suffix}`);
                 if (t === tabKey) {
                     if (btn) {
-                        btn.className = "px-3.5 py-2.5 font-bold text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 flex items-center gap-1.5 transition";
+                        btn.className = "px-3.5 py-2.5 font-bold text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 flex items-center gap-1.5 transition shrink-0 whitespace-nowrap";
                     }
                     if (panel) {
                         panel.classList.remove('hidden');
@@ -3905,7 +4370,7 @@
                     }
                 } else {
                     if (btn) {
-                        btn.className = "px-3.5 py-2.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border-b-2 border-transparent flex items-center gap-1.5 transition";
+                        btn.className = "px-3.5 py-2.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border-b-2 border-transparent flex items-center gap-1.5 transition shrink-0 whitespace-nowrap";
                     }
                     if (panel) {
                         panel.classList.add('hidden');
@@ -3913,6 +4378,10 @@
                     }
                 }
             });
+
+            // Scroll modal body smoothly to top when switching tabs
+            const modalBody = document.querySelector('#robot3DModal .overflow-y-auto');
+            if (modalBody) modalBody.scrollTop = 0;
 
             if (!selectedDevice) return;
             const { type, id } = selectedDevice;
@@ -3927,6 +4396,16 @@
                 loadActiveAlarms(type, id);
                 loadAlarmResolutions(id);
                 searchAlarmKnowledgeBase();
+                loadAlarmAnalyticsCharts(type, id);
+            } else if (tabKey === 'log') {
+                loadDeviceLiveLogs(type, id);
+                window.liveLogPollingTimer = setInterval(() => {
+                    if (currentActiveModalTab === 'log' && selectedDevice) {
+                        loadDeviceLiveLogs(selectedDevice.type, selectedDevice.id);
+                    }
+                }, 2000);
+            } else if (tabKey === 'report') {
+                loadDeviceStatusReport(type, id, currentReportPeriod || 'daily');
             }
         }
 
@@ -3934,35 +4413,39 @@
         // I/O SIGNAL MONITORING
         // -------------------------------------------------------------
         async function loadDeviceIO(type, id) {
+            const currentReqId = id;
+            const diGrid = document.getElementById('modalDiGrid');
+            const doGrid = document.getElementById('modalDoGrid');
+            if (diGrid) {
+                diGrid.innerHTML = '<div class="col-span-4 py-8 text-center text-slate-400 dark:text-slate-500 text-xs flex flex-col items-center justify-center gap-2"><div class="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div><span>正在读取 34 路数字量输入 (DI) 信号...</span></div>';
+            }
+            if (doGrid) {
+                doGrid.innerHTML = '<div class="col-span-4 py-8 text-center text-slate-400 dark:text-slate-500 text-xs flex flex-col items-center justify-center gap-2"><div class="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div><span>正在读取 34 路数字量输出 (DO) 信号...</span></div>';
+            }
+
             try {
                 const res = await fetch(`/api/devices/${encodeURIComponent(type)}/${encodeURIComponent(id)}/io`);
+                if (!selectedDevice || selectedDevice.id !== currentReqId) return;
                 const body = await res.json();
+                if (!selectedDevice || selectedDevice.id !== currentReqId) return;
                 if (body.code === 200 && body.data) {
                     const data = body.data;
-                    const diMaskEl = document.getElementById('modalDiMaskHex');
-                    const doMaskEl = document.getElementById('modalDoMaskHex');
-                    if (diMaskEl) diMaskEl.innerText = `MASK: 0x${data.di_mask.toString(16).toUpperCase().padStart(4, '0')}`;
-                    if (doMaskEl) doMaskEl.innerText = `MASK: 0x${data.do_mask.toString(16).toUpperCase().padStart(4, '0')}`;
-
-                    const diGrid = document.getElementById('modalDiGrid');
-                    if (diGrid) {
-                        diGrid.innerHTML = data.di.map(item => `
-                            <div class="p-3 rounded-xl border ${item.state ? 'bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700' : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700'} flex items-center justify-between transition shadow-sm">
-                                <div>
-                                    <div class="font-mono font-bold ${item.state ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400'}">DI_${String(item.index).padStart(2, '0')}</div>
-                                    <div class="text-[11px] text-slate-700 dark:text-slate-300 truncate max-w-[120px] font-medium" title="${item.name}">${item.name}</div>
-                                </div>
-                                <span class="w-3.5 h-3.5 rounded-full ${item.state ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.9)]' : 'bg-slate-300 dark:bg-slate-600'}"></span>
-                            </div>
-                        `).join('');
+                    if (data.source === 'no_data') {
+                        if (diGrid) diGrid.innerHTML = '<div class="col-span-4 py-6 text-center text-slate-400 text-xs">无实时 IO 上报数据<br><span class="text-[10px]">设备尚未上报 IO 状态（真实设备需桥接采集 io.getDinGrp/getDoutGrp）</span></div>';
+                        if (doGrid) doGrid.innerHTML = '';
+                        const quickIo = document.getElementById('modalQuickIoList');
+                        if (quickIo) quickIo.innerHTML = '<span class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 text-[10px]">无实时 IO</span>';
+                        const diMaskEl = document.getElementById('modalDiMaskHex');
+                        const doMaskEl = document.getElementById('modalDoMaskHex');
+                        if (diMaskEl) diMaskEl.innerText = 'MASK: 0x----';
+                        if (doMaskEl) doMaskEl.innerText = 'MASK: 0x----';
+                        return;
                     }
-
                     const diMaskEl = document.getElementById('modalDiMaskHex');
                     const doMaskEl = document.getElementById('modalDoMaskHex');
-                    if (diMaskEl) diMaskEl.innerText = `MASK: 0x${(data.di_mask >>> 0).toString(16).toUpperCase().padStart(8, '0')}`;
-                    if (doMaskEl) doMaskEl.innerText = `MASK: 0x${(data.do_mask >>> 0).toString(16).toUpperCase().padStart(8, '0')}`;
+                    if (diMaskEl) diMaskEl.innerText = `MASK: 0x${BigInt(data.di_mask || 0).toString(16).toUpperCase().padStart(9, '0')}`;
+                    if (doMaskEl) doMaskEl.innerText = `MASK: 0x${BigInt(data.do_mask || 0).toString(16).toUpperCase().padStart(9, '0')}`;
 
-                    const diGrid = document.getElementById('modalDiGrid');
                     if (diGrid) {
                         diGrid.innerHTML = data.di.map(item => `
                             <div class="p-2.5 rounded-lg border ${item.state ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300' : 'bg-slate-900/60 border-slate-800 text-slate-400'} flex items-center justify-between transition shadow-sm">
@@ -3994,7 +4477,6 @@
                         quickIo.innerHTML = (diPills + doPills) || '<span class="text-slate-500 text-xs">无外部信号</span>';
                     }
 
-                    const doGrid = document.getElementById('modalDoGrid');
                     if (doGrid) {
                         doGrid.innerHTML = data.do.map(item => `
                             <div class="p-2.5 rounded-lg border ${item.state ? 'bg-blue-500/20 border-blue-500 text-blue-300' : 'bg-slate-900/60 border-slate-800 text-slate-400'} flex items-center justify-between transition shadow-sm">
@@ -4016,18 +4498,39 @@
         // PROGRAMS & BACKUP MANAGEMENT
         // -------------------------------------------------------------
         async function loadDevicePrograms(type, id) {
+            const currentReqId = id;
+            const container = document.getElementById('modalProgListContainer');
+            if (container) {
+                container.innerHTML = '<div class="py-10 text-center text-slate-400 dark:text-slate-500 text-xs flex flex-col items-center justify-center gap-2"><div class="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div><span>正在读取加工程序清单 (.PRG)...</span></div>';
+            }
+            const progNameEl = document.getElementById('modalCurrentProgName'); if (progNameEl) progNameEl.innerText = '正在载入程序...';
+            const viewer = document.getElementById('modalProgramCodeViewer'); if (viewer) viewer.value = '; 正在从设备读取程序源码...';
+
             try {
                 const res = await fetch(`/api/devices/${encodeURIComponent(type)}/${encodeURIComponent(id)}/programs`);
+                if (!selectedDevice || selectedDevice.id !== currentReqId) return;
                 const body = await res.json();
+                if (!selectedDevice || selectedDevice.id !== currentReqId) return;
                 if (body.code === 200 && Array.isArray(body.data)) {
                     currentModalPrograms = body.data;
-                    const container = document.getElementById('modalProgListContainer');
                     if (container) {
+                        if (!currentModalPrograms.length) {
+                            container.innerHTML = `<div class="py-8 text-center text-slate-400 text-xs">
+                                <div class="text-lg mb-1.5">📄</div>
+                                ${selectedDevice && selectedDevice.is_simulated
+                                    ? '该仿真设备暂未配置演示程序'
+                                    : '该设备当前无程序<br><span class="text-[10px] text-slate-400">真机控制器主程序区为空（vm.mainProgNames 为空），可在上方编辑上传</span>'}
+                            </div>`;
+                            if (viewer) viewer.value = '; 该设备当前无程序';
+                            return;
+                        }
+                        const isSim = !!(selectedDevice && selectedDevice.is_simulated);
                         container.innerHTML = currentModalPrograms.map((p, idx) => `
                             <div onclick="viewProgramCode('${p.prog_name}')" class="p-2.5 rounded-lg border ${p.is_active ? 'bg-blue-50/80 dark:bg-blue-950/40 border-blue-300 dark:border-blue-800' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700'} hover:border-blue-500 cursor-pointer transition flex items-center justify-between">
                                 <div>
                                     <div class="font-mono font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
                                         <span>📄 ${p.prog_name}</span>
+                                        ${isSim ? '<span class="text-[9px] px-1 py-0.2 rounded bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800">仿真</span>' : ''}
                                         ${p.is_active ? '<span class="text-[9px] px-1 py-0.2 rounded bg-emerald-500 text-white">运行中</span>' : ''}
                                     </div>
                                     <div class="text-[10px] text-slate-400 mt-0.5">${(p.file_size / 1024).toFixed(1)} KB | ${p.updated_at.split(' ')[0]}</div>
@@ -4049,18 +4552,23 @@
 
         async function viewProgramCode(progName) {
             if (!selectedDevice) return;
+            const currentReqId = selectedDevice.id;
             currentEditingProgName = progName;
             const nameEl = document.getElementById('modalCurrentProgName');
             if (nameEl) nameEl.innerText = progName;
 
             const viewer = document.getElementById('modalProgramCodeViewer');
+            if (viewer) viewer.value = `; 正在从设备读取程序 [${progName}] 源码...`;
             try {
                 const res = await fetch(`/api/devices/${encodeURIComponent(selectedDevice.type)}/${encodeURIComponent(selectedDevice.id)}/programs/${encodeURIComponent(progName)}`);
+                if (!selectedDevice || selectedDevice.id !== currentReqId) return;
                 const body = await res.json();
+                if (!selectedDevice || selectedDevice.id !== currentReqId) return;
                 if (body.code === 200 && body.data) {
                     if (viewer) viewer.value = body.data.prog_content || '';
                 }
             } catch (e) {
+                if (!selectedDevice || selectedDevice.id !== currentReqId) return;
                 if (viewer) viewer.value = `; 读取程序 ${progName} 失败: ` + e.message;
             }
         }
@@ -4161,12 +4669,18 @@
         }
 
         async function loadAlarmResolutions(deviceId) {
+            const currentReqId = deviceId || (selectedDevice ? selectedDevice.id : '');
+            const timeline = document.getElementById('modalAlarmResolutionsTimeline');
+            if (timeline) {
+                timeline.innerHTML = '<div class="p-4 text-center text-slate-400 dark:text-slate-500 text-xs flex items-center justify-center gap-2"><div class="w-3.5 h-3.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div><span>正在获取历史处置记录...</span></div>';
+            }
             try {
-                const url = deviceId ? `/api/alarms/resolutions?device_id=${encodeURIComponent(deviceId)}` : '/api/alarms/resolutions';
+                const url = currentReqId ? `/api/alarms/resolutions?device_id=${encodeURIComponent(currentReqId)}` : '/api/alarms/resolutions';
                 const res = await fetch(url);
+                if (!selectedDevice || selectedDevice.id !== currentReqId) return;
                 const body = await res.json();
+                if (!selectedDevice || selectedDevice.id !== currentReqId) return;
                 if (body.code === 200 && Array.isArray(body.data)) {
-                    const timeline = document.getElementById('modalAlarmResolutionsTimeline');
                     if (timeline) {
                         if (body.data.length === 0) {
                             timeline.innerHTML = '<div class="p-4 text-center text-slate-400">暂无历史处理记录</div>';
@@ -4234,7 +4748,362 @@
             }
         }
 
-                function openEditDeviceModalFrom3D() {
+        // -------------------------------------------------------------
+        // LIVE LOGS (SDK SPECIFICATION) & REPORT & ALARM ANALYTICS
+        // -------------------------------------------------------------
+        let currentReportPeriod = 'daily';
+        let cachedLiveLogs = [];
+        let alarmTrendChart = null;
+        let alarmCategoryChart = null;
+
+        async function loadDeviceLiveLogs(type, id) {
+            const devType = type || (selectedDevice ? selectedDevice.type : '');
+            const devId = id || (selectedDevice ? selectedDevice.id : '');
+            if (!devId) return;
+            const currentReqId = devId;
+
+            const terminal = document.getElementById('modalLiveLogTerminal');
+            if (terminal && (!cachedLiveLogs || cachedLiveLogs._devId !== currentReqId)) {
+                terminal.innerHTML = '<div class="text-slate-400 dark:text-slate-500 py-12 text-center text-xs font-mono flex flex-col items-center justify-center gap-2"><div class="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div><span>[Connecting] 正在订阅该设备通讯与状态日志流...</span></div>';
+            }
+
+            const levelSelect = document.getElementById('logLevelSelect');
+            const level = levelSelect ? levelSelect.value : 'ALL';
+
+            try {
+                const res = await fetch(`/api/devices/${encodeURIComponent(devType)}/${encodeURIComponent(devId)}/logs?limit=80&level=${encodeURIComponent(level)}`);
+                if (!selectedDevice || selectedDevice.id !== currentReqId) return;
+                const body = await res.json();
+                if (!selectedDevice || selectedDevice.id !== currentReqId) return;
+                if (body.code === 200 && Array.isArray(body.data)) {
+                    cachedLiveLogs = body.data;
+                    cachedLiveLogs._devId = currentReqId;
+                    renderLiveLogsToTerminal(cachedLiveLogs);
+                }
+            } catch (e) {
+                console.error('loadDeviceLiveLogs error:', e);
+            }
+        }
+
+        function renderLiveLogsToTerminal(logs) {
+            const terminal = document.getElementById('modalLiveLogTerminal');
+            if (!terminal) return;
+
+            if (!logs || logs.length === 0) {
+                terminal.innerHTML = '<div class="text-slate-500 py-12 text-center text-xs">当前暂无匹配级别的实时通讯日志流水</div>';
+                return;
+            }
+
+            const levelStyles = {
+                'INFO': 'bg-emerald-950 text-emerald-300 border-emerald-800',
+                'WARN': 'bg-amber-950 text-amber-300 border-amber-800',
+                'ERROR': 'bg-rose-950 text-rose-300 border-rose-800',
+                'ACTION': 'bg-blue-950 text-cyan-300 border-blue-800'
+            };
+
+            const html = logs.map(l => {
+                const lvlClass = levelStyles[l.level] || 'bg-slate-800 text-slate-300 border-slate-700';
+                return `<div class="flex items-start gap-2 text-[11px] font-mono py-1 hover:bg-slate-900/90 px-1 rounded transition border-b border-slate-900">
+                    <span class="text-slate-500 shrink-0 select-none">[${l.timestamp}]</span>
+                    <span class="px-1.5 py-0.2 rounded border text-[10px] font-bold shrink-0 ${lvlClass}">${l.level}</span>
+                    <span class="text-blue-400 font-semibold shrink-0">[${l.source}]</span>
+                    <span class="text-slate-200 break-all select-text">${l.message}</span>
+                </div>`;
+            }).join('');
+
+            terminal.innerHTML = html;
+
+            const autoScroll = document.getElementById('logAutoScroll')?.checked;
+            if (autoScroll) {
+                terminal.scrollTop = 0;
+            }
+        }
+
+        function clearLiveLogViewer() {
+            const terminal = document.getElementById('modalLiveLogTerminal');
+            if (terminal) {
+                terminal.innerHTML = '<div class="text-slate-500 py-12 text-center text-xs">已手动清空控制台日志输出</div>';
+            }
+        }
+
+        function exportLiveLogs() {
+            if (!cachedLiveLogs || cachedLiveLogs.length === 0) {
+                showToast('暂无日志可供导出', 'ℹ️');
+                return;
+            }
+            const devId = selectedDevice ? selectedDevice.id : 'device';
+            const logContent = cachedLiveLogs.map(l => `[${l.timestamp}] [${l.level}] [${l.source}] ${l.message}`).join('\n');
+            const blob = new Blob([logContent], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${devId}_sdk_logs_${new Date().toISOString().slice(0, 10)}.log`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('已导出控制台日志文件 (.log)', '💾');
+        }
+
+        // --- Status Report ---
+        async function loadDeviceStatusReport(type, id, period = 'daily') {
+            const devType = type || (selectedDevice ? selectedDevice.type : '');
+            const devId = id || (selectedDevice ? selectedDevice.id : '');
+            if (!devId) return;
+            const currentReqId = devId;
+
+            currentReportPeriod = period;
+
+            const btnDaily = document.getElementById('btnReportDaily');
+            const btnMonthly = document.getElementById('btnReportMonthly');
+            if (btnDaily && btnMonthly) {
+                if (period === 'daily') {
+                    btnDaily.className = 'px-3 py-1 rounded-md bg-blue-600 text-white font-medium transition';
+                    btnMonthly.className = 'px-3 py-1 rounded-md text-slate-400 hover:text-slate-200 transition';
+                } else {
+                    btnDaily.className = 'px-3 py-1 rounded-md text-slate-400 hover:text-slate-200 transition';
+                    btnMonthly.className = 'px-3 py-1 rounded-md bg-blue-600 text-white font-medium transition';
+                }
+            }
+
+            const repMeta = document.getElementById('reportDevMeta'); if (repMeta) repMeta.innerText = '正在计算设备稼动率、节拍分析与健康度诊断...';
+            const repOee = document.getElementById('reportOeePct'); if (repOee) repOee.innerText = '--%';
+            const repOeeC = document.getElementById('reportOeeCenter'); if (repOeeC) repOeeC.innerText = '--%';
+            const repRun = document.getElementById('reportHoursRunning'); if (repRun) repRun.innerText = '-- h';
+            const repStd = document.getElementById('reportHoursStandby'); if (repStd) repStd.innerText = '-- h';
+            const repDown = document.getElementById('reportHoursDowntime'); if (repDown) repDown.innerText = '-- h';
+            const repCyc = document.getElementById('reportCycleCountBadge'); if (repCyc) repCyc.innerText = '-- 循环';
+            const repAvgCt = document.getElementById('reportAvgCt'); if (repAvgCt) repAvgCt.innerText = '-- s';
+            const repStab = document.getElementById('reportCtStability'); if (repStab) repStab.innerText = '计算中...';
+            const repMinCt = document.getElementById('reportMinCt'); if (repMinCt) repMinCt.innerText = '-- s';
+            const repMaxCt = document.getElementById('reportMaxCt'); if (repMaxCt) repMaxCt.innerText = '-- s';
+            const repGrade = document.getElementById('reportHealthGrade'); if (repGrade) repGrade.innerText = '评估中...';
+            const repLoad = document.getElementById('reportMotorLoad'); if (repLoad) repLoad.innerText = '--%';
+            const repLoadBar = document.getElementById('reportMotorLoadBar'); if (repLoadBar) repLoadBar.style.width = '0%';
+            const repTemp = document.getElementById('reportPeakTemp'); if (repTemp) repTemp.innerText = '-- °C';
+            const repPwr = document.getElementById('reportPowerKwh'); if (repPwr) repPwr.innerText = '-- kWh';
+            const repGrease = document.getElementById('reportGreaseHours'); if (repGrease) repGrease.innerText = '计算中...';
+            const repBat = document.getElementById('reportBatteryDays'); if (repBat) repBat.innerText = '计算中...';
+            const repBelt = document.getElementById('reportBeltHours'); if (repBelt) repBelt.innerText = '计算中...';
+            const repEval = document.getElementById('reportEvalSummary');
+            if (repEval) {
+                repEval.innerHTML = '<span class="text-slate-400 dark:text-slate-500 flex items-center gap-2"><span class="w-3.5 h-3.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin inline-block"></span>正在综合评估该设备运行工况与电气指标...</span>';
+            }
+
+            try {
+                const res = await fetch(`/api/devices/${encodeURIComponent(devType)}/${encodeURIComponent(devId)}/report?period=${encodeURIComponent(period)}`);
+                if (!selectedDevice || selectedDevice.id !== currentReqId) return;
+                const body = await res.json();
+                if (!selectedDevice || selectedDevice.id !== currentReqId) return;
+                if (body.code === 200 && body.data) {
+                    const r = body.data;
+                    const metaEl = document.getElementById('reportDevMeta');
+                    if (metaEl) metaEl.innerText = `工位: ${r.location} | 控制器: ${r.controller_version} | 周期: ${r.period_label} | 报告生成: ${r.report_generated_at}`;
+
+                    const titleEl = document.getElementById('reportDevTitle');
+                    if (titleEl) titleEl.innerText = `${r.device_name} · 运行综合性能分析报告 (${r.period === 'monthly' ? '月度' : '当日'})`;
+
+                    // OEE
+                    const oeePct = r.operating_hours?.oee_pct || 0;
+                    const oeeEl = document.getElementById('reportOeePct');
+                    if (oeeEl) oeeEl.innerText = `${oeePct}%`;
+                    const oeeCenterEl = document.getElementById('reportOeeCenter');
+                    if (oeeCenterEl) oeeCenterEl.innerText = `${oeePct}%`;
+
+                    const runEl = document.getElementById('reportHoursRunning');
+                    if (runEl) runEl.innerText = `${r.operating_hours?.running_hours || 0} h (${oeePct}%)`;
+                    const stdEl = document.getElementById('reportHoursStandby');
+                    if (stdEl) stdEl.innerText = `${r.operating_hours?.standby_hours || 0} h`;
+                    const downEl = document.getElementById('reportHoursDowntime');
+                    if (downEl) downEl.innerText = `${r.operating_hours?.downtime_hours || 0} h`;
+
+                    // CT
+                    const cycleBadge = document.getElementById('reportCycleCountBadge');
+                    if (cycleBadge) cycleBadge.innerText = `${r.production_metrics?.cycles_completed || 0} 循环`;
+                    const avgCtEl = document.getElementById('reportAvgCt');
+                    if (avgCtEl) avgCtEl.innerText = `${r.production_metrics?.avg_cycle_time_sec || 0} s`;
+                    const ctStabEl = document.getElementById('reportCtStability');
+                    if (ctStabEl) ctStabEl.innerText = `${r.production_metrics?.cycle_stability || '--'}`;
+                    const minCtEl = document.getElementById('reportMinCt');
+                    if (minCtEl) minCtEl.innerText = `${r.production_metrics?.min_cycle_time_sec || 0} s`;
+                    const maxCtEl = document.getElementById('reportMaxCt');
+                    if (maxCtEl) maxCtEl.innerText = `${r.production_metrics?.max_cycle_time_sec || 0} s`;
+
+                    // Health
+                    const gradeEl = document.getElementById('reportHealthGrade');
+                    if (gradeEl) gradeEl.innerText = `${r.health_diagnostics?.health_score || 0} 分 (${r.health_diagnostics?.health_grade || ''})`;
+                    const loadEl = document.getElementById('reportMotorLoad');
+                    if (loadEl) loadEl.innerText = `${r.health_diagnostics?.motor_load_avg_pct || 0}%`;
+                    const loadBar = document.getElementById('reportMotorLoadBar');
+                    if (loadBar) loadBar.style.width = `${Math.min(100, r.health_diagnostics?.motor_load_avg_pct || 0)}%`;
+                    const peakTempEl = document.getElementById('reportPeakTemp');
+                    if (peakTempEl) peakTempEl.innerText = `${r.health_diagnostics?.motor_temp_peak_c || 0} °C (正常)`;
+                    const pwrEl = document.getElementById('reportPowerKwh');
+                    if (pwrEl) pwrEl.innerText = `${r.health_diagnostics?.power_consumption_kwh || 0} kWh (~¥${r.health_diagnostics?.energy_cost_rmb || 0})`;
+
+                    // Maintenance
+                    const greaseEl = document.getElementById('reportGreaseHours');
+                    if (greaseEl) greaseEl.innerText = `剩余 ${r.maintenance_countdown?.grease_remaining_hours || 0}h / ${r.maintenance_countdown?.grease_total_hours || 0}h`;
+                    const batEl = document.getElementById('reportBatteryDays');
+                    if (batEl) batEl.innerText = `剩余 ${r.maintenance_countdown?.battery_remaining_days || 0}天 / ${r.maintenance_countdown?.battery_total_days || 0}天`;
+                    const beltEl = document.getElementById('reportBeltHours');
+                    if (beltEl) beltEl.innerText = `剩余 ${r.maintenance_countdown?.belt_inspection_remaining_hours || 0}h / 1000h`;
+
+                    // Evaluation
+                    const evalEl = document.getElementById('reportEvalSummary');
+                    if (evalEl) evalEl.innerText = r.evaluation_summary || '';
+                }
+            } catch (e) {
+                console.error('loadDeviceStatusReport error:', e);
+            }
+        }
+
+        function switchReportPeriod(period) {
+            if (!selectedDevice) return;
+            loadDeviceStatusReport(selectedDevice.type, selectedDevice.id, period);
+        }
+
+        function printOrExportReport() {
+            window.print();
+        }
+
+        // --- Alarm Analytics & ECharts ---
+        function renderAlarmCharts(trendData, categoryData) {
+            const trendEl = document.getElementById('modalAlarmTrendChart');
+            if (trendEl && window.echarts) {
+                if (!alarmTrendChart) {
+                    alarmTrendChart = echarts.init(trendEl, 'dark');
+                }
+                const dates = trendData.map(d => d.date.slice(5));
+                const counts = trendData.map(d => d.count);
+                alarmTrendChart.setOption({
+                    backgroundColor: 'transparent',
+                    tooltip: { trigger: 'axis', backgroundColor: '#1e293b', borderColor: '#334155', textStyle: { color: '#f8fafc', fontSize: 11 } },
+                    grid: { top: 25, right: 15, bottom: 25, left: 35 },
+                    xAxis: {
+                        type: 'category',
+                        data: dates,
+                        axisLine: { lineStyle: { color: '#475569' } },
+                        axisLabel: { color: '#94a3b8', fontSize: 10 }
+                    },
+                    yaxis: {
+                        type: 'value',
+                        minInterval: 1,
+                        splitLine: { lineStyle: { color: '#334155', type: 'dashed' } },
+                        axisLabel: { color: '#94a3b8', fontSize: 10 }
+                    },
+                    series: [{
+                        name: '报警次数',
+                        type: 'line',
+                        smooth: true,
+                        data: counts,
+                        symbol: 'circle',
+                        symbolSize: 6,
+                        itemStyle: { color: '#f43f5e' },
+                        lineStyle: { width: 2.5, color: '#f43f5e' },
+                        areaStyle: {
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                { offset: 0, color: 'rgba(244, 63, 94, 0.4)' },
+                                { offset: 1, color: 'rgba(244, 63, 94, 0.02)' }
+                            ])
+                        }
+                    }]
+                });
+                alarmTrendChart.resize();
+            }
+
+            const catEl = document.getElementById('modalAlarmCategoryChart');
+            if (catEl && window.echarts) {
+                if (!alarmCategoryChart) {
+                    alarmCategoryChart = echarts.init(catEl, 'dark');
+                }
+                alarmCategoryChart.setOption({
+                    backgroundColor: 'transparent',
+                    tooltip: { trigger: 'item', backgroundColor: '#1e293b', borderColor: '#334155', textStyle: { color: '#f8fafc', fontSize: 11 }, formatter: '{b}: {c}次 ({d}%)' },
+                    legend: { bottom: '0%', textStyle: { color: '#94a3b8', fontSize: 10 }, itemWidth: 10, itemHeight: 10 },
+                    series: [{
+                        name: '故障分类',
+                        type: 'pie',
+                        radius: ['42%', '68%'],
+                        center: ['50%', '42%'],
+                        avoidLabelOverlap: false,
+                        itemStyle: { borderRadius: 4, borderColor: '#0f172a', borderWidth: 2 },
+                        label: { show: false },
+                        data: (categoryData && categoryData.some(c => c.value > 0)) 
+                            ? categoryData.filter(c => c.value > 0).map(c => ({ value: c.value, name: c.name.split(' ')[0], itemStyle: { color: c.color } }))
+                            : [{ value: 100, name: '正常运行无故障', itemStyle: { color: '#10b981' } }]
+                    }]
+                });
+                alarmCategoryChart.resize();
+            }
+        }
+
+        async function loadAlarmAnalyticsCharts(type, id) {
+            const devType = type || (selectedDevice ? selectedDevice.type : '');
+            const devId = id || (selectedDevice ? selectedDevice.id : '');
+            if (!devId) return;
+            const currentReqId = devId;
+
+            const mtbfEl = document.getElementById('analyticsMtbf'); if (mtbfEl) mtbfEl.innerText = '--h';
+            const mttrEl = document.getElementById('analyticsMttr'); if (mttrEl) mttrEl.innerText = '--min';
+            const totalBadge = document.getElementById('analyticsTotalAlarmsBadge'); if (totalBadge) totalBadge.innerText = '近14天: 统计中...';
+            const topContainer = document.getElementById('modalTopAlarmsContainer');
+            if (topContainer) {
+                topContainer.innerHTML = '<div class="py-8 text-center text-slate-400 dark:text-slate-500 text-xs flex flex-col items-center justify-center gap-2"><div class="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div><span>正在检索并统计该设备近14天真实故障与处置指南...</span></div>';
+            }
+
+            try {
+                const res = await fetch(`/api/devices/${encodeURIComponent(devType)}/${encodeURIComponent(devId)}/alarms/analytics?days=14`);
+                if (!selectedDevice || selectedDevice.id !== currentReqId) return;
+                const body = await res.json();
+                if (!selectedDevice || selectedDevice.id !== currentReqId) return;
+                if (body.code === 200 && body.data) {
+                    const data = body.data;
+                    if (mtbfEl) mtbfEl.innerText = `${data.mtbf_hours || 500}h`;
+                    if (mttrEl) mttrEl.innerText = `${data.mttr_minutes || 0}min`;
+                    if (totalBadge) totalBadge.innerText = `近14天: ${data.total_alarms || 0}次`;
+
+                    setTimeout(() => {
+                        if (!selectedDevice || selectedDevice.id !== currentReqId) return;
+                        renderAlarmCharts(data.trend || [], data.categories || []);
+                    }, 80);
+
+                    // Top 5 Alarms (纯真实数据驱动：无报警时展示健康正常看板，发生报警时自动累加统计)
+                    if (topContainer && Array.isArray(data.top_alarms)) {
+                        if (data.top_alarms.length > 0) {
+                            topContainer.innerHTML = data.top_alarms.map((alm, idx) => `
+                                <div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 space-y-1.5 transition hover:border-slate-500">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-5 h-5 rounded-full ${idx === 0 ? 'bg-rose-500 text-white' : idx === 1 ? 'bg-amber-500 text-white' : 'bg-slate-700 text-slate-300'} flex items-center justify-center font-mono font-bold text-[10px]">TOP${idx+1}</span>
+                                            <span class="font-mono font-bold text-rose-500">[${alm.code}]</span>
+                                            <span class="font-bold text-slate-900 dark:text-slate-100">${alm.title}</span>
+                                            <span class="text-[10px] text-slate-400">(${alm.category})</span>
+                                        </div>
+                                        <div class="text-[11px] font-mono text-slate-400">频次: <span class="font-bold text-rose-500">${alm.count}次</span> | 均损时: <span class="font-bold text-slate-300">${alm.avg_downtime_min}min</span></div>
+                                    </div>
+                                    <div class="text-[11px] text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 p-2 rounded border border-emerald-200 dark:border-emerald-900/40 leading-relaxed">
+                                        <span class="font-medium">🛠️ 官方标准排查与处置指南:</span> ${alm.solution}
+                                    </div>
+                                </div>
+                            `).join('');
+                        } else {
+                            topContainer.innerHTML = `
+                                <div class="p-6 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 text-center space-y-2">
+                                    <div class="text-3xl">🛡️</div>
+                                    <div class="font-bold text-slate-900 dark:text-slate-100 text-xs">当前统计周期（近14天）无任何故障报警记录 (Zero Alarms)</div>
+                                    <div class="text-[11px] text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">设备处于高可靠稳定运行状态，未发生硬件、限位或总线通信中断。若现场实际产生故障报警，系统将自动捕获并在此动态累加频次与官方排障指南。</div>
+                                </div>
+                            `;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('loadAlarmAnalyticsCharts error:', e);
+            }
+        }
+
+        function openEditDeviceModalFrom3D() {
             if (!selectedDevice) return;
             openEditDeviceModal(selectedDevice.id);
         }
@@ -4412,8 +5281,9 @@
             }
 
             // Footer
-            if (cfg.site_footer_text) {
-                setText('siteFooterText', cfg.site_footer_text);
+            const fText = cfg.site_footer_text || cfg.footer_text;
+            if (fText) {
+                setText('siteFooterText', fText);
             } else {
                 setText('siteFooterText', `© 2026 ${cfg.company_name || '昕邦智能/NEWBOND'} · 机器人物联网管控平台 (${cfg.panyu_title || '广州番禺运营中心'} · ${cfg.nansha_title || '广州南沙研发中心'})`);
             }
@@ -4508,7 +5378,7 @@
             setVal('cmsSystemTitle', cfg.system_title || '昕邦智能装备 · 机器人物联网管控平台');
             setVal('cmsSystemSubtitle', cfg.system_subtitle || 'XINBANG INDUSTRIAL FLEET DIGITAL TWIN PLATFORM');
             setVal('cmsCompanyName', cfg.company_name || '昕邦智能装备');
-            setVal('cmsFooterText', cfg.site_footer_text || '© 2026 昕邦智能装备 · 机器人物联网管控平台 (广州番禺 · 广州南沙)');
+            setVal('cmsFooterText', cfg.site_footer_text || cfg.footer_text || '© 2026 昕邦智能装备 · 机器人物联网管控平台 (广州番禺 · 广州南沙)');
             setVal('cmsModalTwinBadge', cfg.modal_twin_footer_badge || '广州番禺示范线 · 昕邦工业机器人数字孪生接入点');
 
             setVal('cmsPanyuTitle', cfg.panyu_title || '广州番禺智造中心');
@@ -4633,11 +5503,13 @@
                 return el ? el.value.trim() : fallback;
             };
 
+            const footerVal = getVal('cmsFooterText', '© 2026 昕邦智能装备 · 机器人物联网管控平台 (广州番禺 · 广州南沙)');
             const payload = {
                 system_title: getVal('cmsSystemTitle', '昕邦智能装备 · 机器人物联网管控平台'),
                 system_subtitle: getVal('cmsSystemSubtitle', 'XINBANG INDUSTRIAL FLEET DIGITAL TWIN PLATFORM'),
                 company_name: getVal('cmsCompanyName', '昕邦智能装备'),
-                site_footer_text: getVal('cmsFooterText', '© 2026 昕邦智能装备 · 机器人物联网管控平台 (广州番禺 · 广州南沙)'),
+                footer_text: footerVal,
+                site_footer_text: footerVal,
                 modal_twin_footer_badge: getVal('cmsModalTwinBadge', '广州番禺示范线 · 昕邦工业机器人数字孪生接入点'),
                 
                 panyu_title: getVal('cmsPanyuTitle', '广州番禺智造中心'),

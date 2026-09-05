@@ -83,6 +83,27 @@ class HuashuRobotCollector(threading.Thread):
             if b"@hs@" in self.buffer:
                 packet, self.buffer = self.buffer.split(b"@hs@", 1)
                 raw_str = packet.decode('utf-8', errors='ignore')
+                # 优先处理控制器主动推送的突发硬件报警 (流水号 -1)
+                if raw_str.startswith("i:-1,") or raw_str.startswith("i:-1:"):
+                    idx = raw_str.find("d:")
+                    if idx != -1:
+                        alarm_content = raw_str[idx+2:]
+                        try:
+                            alarm_obj = json.loads(alarm_content)
+                            alarm_payload = {
+                                "device_id": self.device_id,
+                                "device_type": "huashu_arm",
+                                "alarm_code": str(alarm_obj.get("errorCode", "HW_ALARM")),
+                                "alarm_msg": str(alarm_obj.get("content", "控制器硬件报警")),
+                                "alarm_level": alarm_obj.get("errorLevel", 3),
+                                "timestamp": alarm_obj.get("time", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+                            }
+                            self.mqtt.publish(f"robot/huashu_arm/{self.device_id}/alarm", json.dumps(alarm_payload, ensure_ascii=False), qos=1)
+                            logger.warning(f"[{self.device_id}] 🚨 控制器主动推送突发硬件报警: {alarm_payload}")
+                        except Exception as ex:
+                            logger.warning(f"解析控制器主动报警异常: {ex}")
+                    continue
+
                 if raw_str.startswith(f"i:{curr_seq},") or raw_str.startswith(f"i:{curr_seq}:"):
                     idx = raw_str.find("d:")
                     if idx != -1:
@@ -116,6 +137,10 @@ class HuashuRobotCollector(threading.Thread):
             elif cmd_clean in ["reset", "fault_reset"]:
                 resp = self.send_cmd(sock, "mot.gpReset(0)")
                 logger.info(f"[{self.device_id}] 组复位指令响应: {resp}")
+            elif cmd_clean in ["home", "go_home"]:
+                self.send_cmd(sock, "mot.stopJog(0)")
+                resp = self.send_cmd(sock, "mot.gpReset(0)")
+                logger.info(f"[{self.device_id}] 物理机械臂已执行点动制动并组复位待命: {resp}")
             elif cmd_clean in ["stop", "emergency_stop"]:
                 self.send_cmd(sock, "mot.stopJog(0)")
                 resp = self.send_cmd(sock, "mot.setEstop(true)")
@@ -148,19 +173,26 @@ class HuashuRobotCollector(threading.Thread):
                 resp_stop = self.send_cmd(sock, "mot.stopJog(0)")
                 logger.info(f"[{self.device_id}] 停止轴 {axis+1} 点动 -> {resp_stop}")
 
-            # 5. 自动化程序工步控制
+            # 5. 自动化程序工步控制 (严格遵循华数官方 HSC3 SocketCmd 规范: vm. 命名空间)
             elif cmd_clean in ["start_cycle", "start_prog", "run"]:
-                resp = self.send_cmd(sock, "prog.start()")
-                logger.info(f"[{self.device_id}] 启动自动化程序 -> {resp}")
+                prog_name = params.get("prog_name", params.get("program", params.get("entry", "MAIN.PRG")))
+                resp = self.send_cmd(sock, f'vm.start("{prog_name}")')
+                logger.info(f"[{self.device_id}] 启动自动化程序 {prog_name} -> {resp}")
             elif cmd_clean in ["pause", "pause_prog"]:
-                resp = self.send_cmd(sock, "prog.pause()")
-                logger.info(f"[{self.device_id}] 暂停程序运行 -> {resp}")
+                prog_name = params.get("prog_name", params.get("program", params.get("entry", "MAIN.PRG")))
+                resp = self.send_cmd(sock, f'vm.pause("{prog_name}")')
+                logger.info(f"[{self.device_id}] 暂停程序运行 {prog_name} -> {resp}")
             elif cmd_clean in ["resume", "resume_prog"]:
-                resp = self.send_cmd(sock, "prog.resume()")
-                logger.info(f"[{self.device_id}] 继续程序运行 -> {resp}")
-            elif cmd_clean in ["select_prog"]:
-                prog_name = params.get("prog_name", params.get("program", "MAIN.PRG"))
-                resp = self.send_cmd(sock, f'prog.select("{prog_name}")')
+                prog_name = params.get("prog_name", params.get("program", params.get("entry", "MAIN.PRG")))
+                resp = self.send_cmd(sock, f'vm.start("{prog_name}")')
+                logger.info(f"[{self.device_id}] 继续程序运行 {prog_name} -> {resp}")
+            elif cmd_clean in ["stop_prog"]:
+                prog_name = params.get("prog_name", params.get("program", params.get("entry", "MAIN.PRG")))
+                resp = self.send_cmd(sock, f'vm.stop("{prog_name}")')
+                logger.info(f"[{self.device_id}] 停止程序运行 {prog_name} -> {resp}")
+            elif cmd_clean in ["select_prog", "load_prog"]:
+                prog_name = params.get("prog_name", params.get("program", params.get("entry", "MAIN.PRG")))
+                resp = self.send_cmd(sock, f'vm.load("","{prog_name}")')
                 logger.info(f"[{self.device_id}] 载入加工程序 {prog_name} -> {resp}")
 
             # 6. 数字量 I/O 输出控制 (直接采用现场 0~33 绝对端口索引)
@@ -218,29 +250,43 @@ class HuashuRobotCollector(threading.Thread):
                         else:
                             cartesian_pos = {"x": 500.0, "y": 0.0, "z": 400.0, "a": 180.0, "b": 0.0, "c": 0.0}
 
-                        # 3. 状态与急停
+                        # 3. 状态与急停 (兼容 HSC3 各版本返回 true/false 或 1/0)
                         en_str = self.send_cmd(sock, "mot.getGpEn(0)")
-                        enabled = (en_str.strip().lower() == "true")
+                        enabled = (str(en_str).strip().lower() in ["true", "1"])
                         
                         estop_str = self.send_cmd(sock, "mot.getEstop()")
-                        estop = (estop_str.strip().lower() == "true")
+                        estop = (str(estop_str).strip().lower() in ["true", "1"])
 
-                        # 4. 获取真实 I/O (采集 0..33 全通道：第0组 0..31 + 第1组 32..63)
+                        # 4. 真实伺服电机反馈电流 (mot.getJntEData)
+                        curr_str = self.send_cmd(sock, "mot.getJntEData(0)")
+                        curr_arr = parse_array_str(curr_str)
+                        motor_currents = [round(abs(c), 2) for c in curr_arr[:6]] if len(curr_arr) >= 6 else [0.0]*6
+
+                        # 5. 获取真实 I/O (采集 0..33 全通道：第0组 0..31 + 第1组 32..63)
                         di_str0 = self.send_cmd(sock, "io.getDinGrp(0)")
                         di_str1 = self.send_cmd(sock, "io.getDinGrp(1)")
                         do_str0 = self.send_cmd(sock, "io.getDoutGrp(0)")
                         do_str1 = self.send_cmd(sock, "io.getDoutGrp(1)")
                         
-                        di_0 = int(di_str0) if di_str0.isdigit() else 0
-                        di_1 = int(di_str1) if di_str1.isdigit() else 0
-                        do_0 = int(do_str0) if do_str0.isdigit() else 0
-                        do_1 = int(do_str1) if do_str1.isdigit() else 0
+                        def parse_grp_val(s):
+                            if not s: return 0
+                            try:
+                                clean = str(s).strip().strip("{}")
+                                return int(clean) & 0xFFFFFFFF
+                            except Exception:
+                                return 0
+
+                        di_0 = parse_grp_val(di_str0)
+                        di_1 = parse_grp_val(di_str1)
+                        do_0 = parse_grp_val(do_str0)
+                        do_1 = parse_grp_val(do_str1)
 
                         di_val = (di_0 & 0xFFFFFFFF) | ((di_1 & 0xFFFFFFFF) << 32)
                         do_val = (do_0 & 0xFFFFFFFF) | ((do_1 & 0xFFFFFFFF) << 32)
 
                         status = "error" if estop else ("online" if enabled else "standby")
 
+                        # 物理工业机械臂采用三相交流 380V/220V 电网供电，无物理蓄电池，真实标明供电类型
                         payload_state = {
                             "device_id": self.device_id,
                             "device_type": "huashu_arm",
@@ -248,12 +294,14 @@ class HuashuRobotCollector(threading.Thread):
                             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                             "joint_angles": joint_angles,
                             "cartesian_pos": cartesian_pos,
-                            "battery": 100.0,
+                            "motor_currents": motor_currents,
+                            "power_source": "AC 380V",
+                            "is_mains_powered": True,
+                            "battery": None,
                             "enabled": enabled,
                             "emergency_stop": estop,
                             "error_code": 1 if estop else 0,
                             "error_msg": "急停按下" if estop else ("伺服使能中" if enabled else "就绪待命 (静止)"),
-                            "cycle_count": 1890,
                             "running_hours": 360.5
                         }
 
@@ -306,6 +354,18 @@ def main():
             if target_id and target_id in collectors_map:
                 logger.info(f"📥 收到下发至真机 [{target_id}] 的控制指令: {payload}")
                 collectors_map[target_id].cmd_queue.put(payload)
+                task_id = payload.get("task_id", "")
+                if task_id:
+                    ack_msg = {
+                        "task_id": task_id,
+                        "device_id": target_id,
+                        "command": payload.get("command"),
+                        "status": "acknowledged",
+                        "code": 0,
+                        "msg": f"真机 [{target_id}] 已成功接收控制指令 [{payload.get('command')}]",
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    }
+                    client.publish(f"robot/huashu_arm/{target_id}/cmd_ack", json.dumps(ack_msg, ensure_ascii=False), qos=1)
             else:
                 logger.info(f"忽略非本地托管设备指令: topic={msg.topic}")
         except Exception as e:

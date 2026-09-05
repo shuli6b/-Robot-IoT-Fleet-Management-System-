@@ -158,13 +158,13 @@ class HuashuIIIProtocol:
                 locs = self._parse_array_str(loc_str) if loc_str else [0.0]*6
                 while len(locs) < 6: locs.append(0.0)
 
-                # 3. 获取急停状态 (0:关闭 1:打开)
+                # 3. 获取急停状态 (兼容 1/0 与 true/false)
                 estop_str = self._send_cmd("mot.getEstop()")
-                estop = (estop_str == "1")
+                estop = (str(estop_str).strip().lower() in ["1", "true"])
 
-                # 4. 获取使能状态 (0:关闭 1:打开)
+                # 4. 获取使能状态 (兼容 1/0 与 true/false)
                 en_str = self._send_cmd(f"mot.getGpEn({group_id})")
-                enabled = (en_str == "1")
+                enabled = (str(en_str).strip().lower() in ["1", "true"])
 
                 # 5. 获取错误/报警数量
                 err_str = self._send_cmd("sys.hasError()")
@@ -220,7 +220,7 @@ class HuashuBridgeService:
         self.device_id = self.robot_cfg.get("device_id", "arm_001")
         self.protocol = HuashuIIIProtocol(
             ip=self.robot_cfg.get("ip", "10.10.56.214"),
-            port=int(self.robot_cfg.get("port", 23234)),
+            port=int(self.robot_cfg.get("port", 23333)),
             timeout=float(self.robot_cfg.get("timeout_sec", 3.0))
         )
 

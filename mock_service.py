@@ -164,10 +164,20 @@ class VirtualRobot:
                 self.status = "idle"
                 self.is_moving = False
                 self.joint_angles = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-            elif cmd_clean == "start_cycle":
+                logger.info(f"[{self.device_id}] 🏠 机械臂已安全回原点并保持【静止待命】状态")
+            elif cmd_clean in ["start_cycle", "start_prog", "run"]:
                 self.status = "running"
                 self.is_moving = True
                 self.enabled = True
+                logger.info(f"[{self.device_id}] ▶️ 机械臂已启动自动化加工节拍")
+            elif cmd_clean in ["pause", "pause_prog"]:
+                self.status = "standby"
+                self.is_moving = False
+                logger.info(f"[{self.device_id}] ⏸️ 机械臂运动工步已暂停")
+            elif cmd_clean in ["resume", "resume_prog"]:
+                self.status = "running"
+                self.is_moving = True
+                logger.info(f"[{self.device_id}] ⏯️ 机械臂自动化工步已恢复")
             elif cmd_clean == "select_prog":
                 self.current_program = params.get("prog_name", self.current_program)
             elif cmd_clean == "jog_joint":
@@ -180,7 +190,7 @@ class VirtualRobot:
 
         # 4. 珞石复合 AMR 移动机器人专属指令响应
         elif self.device_type == "luxshare_amr":
-            if cmd_clean == "nav_to_point":
+            if cmd_clean in ["nav_to_point", "resume_nav"]:
                 self.status = "running"
                 self.is_moving = True
                 self.current_task = f"NAV_TO_{params.get('target_point', 'BAY_02')}"
@@ -188,21 +198,23 @@ class VirtualRobot:
                 self.status = "running"
                 self.is_moving = True
                 self.current_task = f"TRANSFER_{params.get('source_station', 'ST_A')}_TO_{params.get('target_station', 'ST_B')}"
-            elif cmd_clean == "auto_charge":
-                self.status = "charging"
+            elif cmd_clean in ["auto_charge", "pause_nav"]:
+                self.status = "charging" if cmd_clean == "auto_charge" else "standby"
                 self.is_moving = False
-                self.current_task = "DOCK_CHARGING"
+                self.current_task = "DOCK_CHARGING" if cmd_clean == "auto_charge" else "PAUSED"
 
         # 5. 空地协同无人机编队指令响应
         elif self.device_type == "uav_rescue":
-            if cmd_clean == "auto_land_recharge":
+            if cmd_clean in ["auto_land_recharge", "land", "stop"]:
                 self.status = "landing"
                 self.is_moving = False
                 self.z = 0.0
-            elif cmd_clean in ["collab_patrol", "multispectral_scan"]:
+                logger.info(f"[{self.device_id}] 🛬 无人机已触发自动返航降落充电舱")
+            elif cmd_clean in ["collab_patrol", "multispectral_scan", "takeoff", "start"]:
                 self.status = "running"
                 self.is_moving = True
                 self.z = 45.0
+                logger.info(f"[{self.device_id}] 🛫 无人机起飞并执行任务: {cmd_clean}")
 
     def update_state(self):
         """每周期计算并生成符合工业物理特性的实时遥测报文"""
@@ -433,6 +445,7 @@ class VirtualRobot:
                 self.motor_currents = [0.0] * 6
                 self.joint_angles = [0.0] * 6
                 cart = {"x": self.x, "y": self.y, "z": 0.0, "a": 0.0, "b": 0.0, "c": 0.0}
+                motor_rpm = 0
             elif self.is_moving:
                 self.joint_angles = [round(math.sin(self.step * 0.25 + i * 1.0) * 15.0, 2) for i in range(6)]
                 cart = {
@@ -445,10 +458,12 @@ class VirtualRobot:
                 }
                 self.motor_currents = [round(11.0 + abs(math.sin(self.step * 0.2 + i * 0.5)) * 2.5, 2) for i in range(6)]
                 flight_speed = round(5.2 + math.cos(self.step * 0.1) * 1.2, 2)
+                motor_rpm = 4800
             else:
                 flight_speed = 0.0
                 self.motor_currents = [2.0] * 6
                 cart = {"x": self.x, "y": self.y, "z": self.z, "a": 0.0, "b": 0.0, "c": self.c}
+                motor_rpm = 0
 
             state_msg = {
                 "timestamp": now_str,
@@ -457,8 +472,10 @@ class VirtualRobot:
                 "vendor": self.vendor,
                 "status": self.status,
                 "battery": max(50.0, round(98.0 - (self.step % 300) * 0.1, 1)),
+                "altitude": cart["z"],
                 "altitude_m": cart["z"],
                 "flight_speed_mps": flight_speed,
+                "motor_rpm": motor_rpm,
                 "signal_rssi_dbm": -58,
                 "collab_ground_dog_id": "robot_dog_01",
                 "joint_angles": self.joint_angles,
@@ -560,10 +577,27 @@ def main():
 
             cmd_name = payload.get("command")
             params = payload.get("params", {})
+            task_id = payload.get("task_id", "")
             
             if target_id and target_id in robot_map:
                 logger.info(f"[CMD] 收到精准下发指令 -> 设备: {target_id} | 指令: {cmd_name} | 参数: {params}")
-                robot_map[target_id].handle_command(cmd_name, params)
+                robot = robot_map[target_id]
+                robot.handle_command(cmd_name, params)
+                # 收到指令后立即推流一次最新状态，使 3D 姿态与控制面板瞬间响应
+                st_data, sn_data = robot.update_state()
+                c.publish(f"robot/{robot.device_type}/{robot.device_id}/state", json.dumps(st_data, ensure_ascii=False), qos=1)
+                c.publish(f"robot/{robot.device_type}/{robot.device_id}/sensor", json.dumps(sn_data, ensure_ascii=False), qos=1)
+                if task_id:
+                    ack_msg = {
+                        "task_id": task_id,
+                        "device_id": target_id,
+                        "command": cmd_name,
+                        "status": "acknowledged",
+                        "code": 0,
+                        "msg": f"指令 [{cmd_name}] 执行成功",
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    }
+                    c.publish(f"robot/{robot.device_type}/{robot.device_id}/cmd_ack", json.dumps(ack_msg, ensure_ascii=False), qos=1)
             else:
                 logger.warning(f"[CMD] 未知目标设备或广播指令 -> Topic: {msg.topic} | Command: {cmd_name}")
         except Exception as e:
