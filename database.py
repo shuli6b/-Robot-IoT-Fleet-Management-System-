@@ -2555,11 +2555,10 @@ def seed_default_run_logs(device_id: str, db_path: str = DB_PATH) -> None:
                 (4999, "action", format_teach_pendant_time(now - timedelta(seconds=7)), "Normal", "ACTION", "确认所有Mc报警信息!"),
                 (4998, "action", format_teach_pendant_time(now - timedelta(seconds=9)), "Normal", "ACTION", "确认所有Mc报警信息!"),
                 (4995, "action", format_teach_pendant_time(now - timedelta(seconds=12)), "Normal", "ACTION", "确认所有系统信息!"),
-                (4993, "error", format_teach_pendant_time(now - timedelta(seconds=25)), "Normal", "ERROR", f"[{format_teach_pendant_time(now - timedelta(seconds=25))}] [0x4040048000501c] [错误] [伺服] [0] [4] [可恢复] 5轴,AD偏置异常,Tips:1.请检测电机动力线及编码器排线是否牢固 2.重启控制器伺服驱动单元"),
-                (4992, "error", format_teach_pendant_time(now - timedelta(seconds=28)), "Normal", "ERROR", f"[{format_teach_pendant_time(now - timedelta(seconds=28))}] [0x4040048000501a] [错误] [伺服] [0] [4] [可恢复] 5轴,AD检测过流,Tips:1.急停是否拍下 2.检测电机主回路接地 3.检查动力线相间绝载阻抗"),
-                (4988, "action", format_teach_pendant_time(now - timedelta(minutes=2)), "Normal", "ACTION", "伺服使能上电 [GpId=0, ServoState=ON]"),
-                (4985, "action", format_teach_pendant_time(now - timedelta(minutes=5)), "Normal", "ACTION", "加工程序载入: BR610_AUTO_POLISH.PRG"),
-                (4980, "info", format_teach_pendant_time(now - timedelta(minutes=10)), "Normal", "INFO", "HSC3 Ⅲ型工业控制器启动就绪, 内核与示教器通讯建立"),
+                (4990, "info", format_teach_pendant_time(now - timedelta(seconds=30)), "Normal", "INFO", "HSC3 Ⅲ型控制器网络通讯握手建立 [192.168.1.169:23333]"),
+                (4988, "info", format_teach_pendant_time(now - timedelta(minutes=2)), "Normal", "INFO", "读取六轴绝对位置与零位映射矩阵，正向运动学 (FK) 初始化完成"),
+                (4985, "action", format_teach_pendant_time(now - timedelta(minutes=5)), "Normal", "ACTION", "伺服驱动单元安全待命 [GpId=0, ServoState=READY]"),
+                (4980, "info", format_teach_pendant_time(now - timedelta(minutes=10)), "Normal", "INFO", "示教器与工业物联网云平台数据推流信道建立 (5Hz 遥测流)"),
                 (4975, "action", format_teach_pendant_time(now - timedelta(minutes=12)), "Normal", "ACTION", "示教器操作员 Normal 登录控制面板")
             ]
         elif dev_type == "luxshare_amr":

@@ -201,6 +201,9 @@ def on_mqtt_disconnect(client, userdata, rc, *args):
         logger.info("MQTT 连接已正常关闭")
 
 
+LAST_SEEN_STATES: Dict[str, Dict[str, Any]] = {}
+
+
 def on_mqtt_message(client, userdata, msg):
     """
     MQTT 接收消息回调：
@@ -249,17 +252,83 @@ def on_mqtt_message(client, userdata, msg):
             topic=topic,
         )
 
-        if row_id:
-            if is_offline_msg:
-                logger.warning(
-                    f"⚠️ 收到设备下线/遗嘱消息 [{device_type}/{device_id}], 已置为 offline (row_id={row_id})"
-                )
-            else:
-                logger.info(
-                    f"收到设备数据入库成功 [{device_type}/{device_id}] type={data_type} row_id={row_id}"
-                )
-        else:
-            logger.warning(f"数据入库返回空 row_id [{topic}]")
+        # -------------------------------------------------------------------
+        # 示教器真实运行日志实时管道：
+        # 1. 突发硬件与控制器报警报文 (type == 'alarm')
+        # 2. 物理急停状态变迁与伺服使能变迁 (type == 'state')
+        # -------------------------------------------------------------------
+        if data_type == "alarm":
+            try:
+                alarm_p = json.loads(raw_payload) if isinstance(raw_payload, str) else raw_payload
+                if isinstance(alarm_p, dict):
+                    alarm_code = str(alarm_p.get("alarm_code", alarm_p.get("errorCode", "ALARM")))
+                    alarm_msg = str(alarm_p.get("alarm_msg", alarm_p.get("content", "控制器硬件报警")))
+                    alarm_lvl = int(alarm_p.get("alarm_level", alarm_p.get("errorLevel", 3)))
+                    log_lvl = "ERROR" if alarm_lvl >= 3 else "WARN"
+                    icon = "error" if alarm_lvl >= 3 else "info"
+                    add_device_run_log(
+                        device_id=device_id,
+                        icon_type=icon,
+                        operator="System",
+                        record_content=f"[{alarm_code}] {alarm_msg}",
+                        log_level=log_lvl,
+                    )
+            except Exception as ex:
+                logger.warning(f"写入真实报警至示教器运行日志异常: {ex}")
+
+        elif data_type == "state":
+            try:
+                state_p = json.loads(raw_payload) if isinstance(raw_payload, str) else raw_payload
+                if isinstance(state_p, dict):
+                    global LAST_SEEN_STATES
+                    prev = LAST_SEEN_STATES.get(device_id)
+                    cur_estop = bool(state_p.get("emergency_stop"))
+                    cur_en = bool(state_p.get("enabled"))
+
+                    if prev is not None:
+                        prev_estop = bool(prev.get("emergency_stop"))
+                        prev_en = bool(prev.get("enabled"))
+                        # 急停变迁
+                        if cur_estop and not prev_estop:
+                            add_device_run_log(
+                                device_id=device_id,
+                                icon_type="error",
+                                operator="System",
+                                record_content="[急停触发] 物理急停回路断开，触发急停安全互锁停机!",
+                                log_level="ERROR",
+                            )
+                        elif not cur_estop and prev_estop:
+                            add_device_run_log(
+                                device_id=device_id,
+                                icon_type="action",
+                                operator="Normal",
+                                record_content="急停开关旋钮复位，安全回路恢复闭合",
+                                log_level="ACTION",
+                            )
+                        # 伺服使能变迁
+                        if cur_en and not prev_en:
+                            add_device_run_log(
+                                device_id=device_id,
+                                icon_type="action",
+                                operator="Normal",
+                                record_content="控制器伺服使能上电 [ServoState=ON, 闭环使能]",
+                                log_level="ACTION",
+                            )
+                        elif not cur_en and prev_en:
+                            add_device_run_log(
+                                device_id=device_id,
+                                icon_type="action",
+                                operator="Normal",
+                                record_content="控制器伺服下使能断电 [ServoState=OFF, 抱闸锁定]",
+                                log_level="ACTION",
+                            )
+
+                    LAST_SEEN_STATES[device_id] = {
+                        "emergency_stop": cur_estop,
+                        "enabled": cur_en,
+                    }
+            except Exception as ex:
+                logger.warning(f"状态变迁写入示教器运行日志异常: {ex}")
 
     except Exception as e:
         logger.error(f"处理 MQTT 消息异常 [{topic}]: {e}", exc_info=True)
@@ -997,6 +1066,41 @@ async def dispatch_device_command(
         params=body.params,
         task_id=body.task_id,
     )
+
+    # 自动记录真实操作员指令至示教器原生运行日志 (device_run_logs)
+    try:
+        operator_name = request.headers.get("X-User-Name", "Admin")
+        p = body.params or {}
+        cmd_desc_map = {
+            "enable": "控制器伺服使能上电 [mot.setGpEn(0,true)]",
+            "servo_on": "控制器伺服使能上电 [mot.setGpEn(0,true)]",
+            "disable": "控制器伺服下使能断电 [mot.setGpEn(0,false)]",
+            "servo_off": "控制器伺服下使能断电 [mot.setGpEn(0,false)]",
+            "reset": "控制器故障组复位 [mot.gpReset(0)]",
+            "fault_reset": "控制器故障组复位 [mot.gpReset(0)]",
+            "home": "机械臂执行点动制动并复位就绪待命",
+            "go_home": "机械臂执行点动制动并复位就绪待命",
+            "stop": "拍下紧急停止停机指令 [mot.setEstop(true)]",
+            "emergency_stop": "拍下紧急停止停机指令 [mot.setEstop(true)]",
+            "set_override": f"设置示教器运行速度倍率: {p.get('value', p.get('override', 50))}%",
+            "set_speed": f"设置示教器运行速度倍率: {p.get('value', p.get('speed', 50))}%",
+            "select_prog": f"示教器载入加工程序: {p.get('prog_name', p.get('program', 'MAIN.PRG'))}",
+            "load_prog": f"示教器载入加工程序: {p.get('prog_name', p.get('program', 'MAIN.PRG'))}",
+            "start_prog": f"启动运行加工程序: {p.get('prog_name', p.get('program', 'MAIN.PRG'))}",
+            "stop_prog": f"停止运行加工程序: {p.get('prog_name', p.get('program', 'MAIN.PRG'))}",
+            "set_do": f"设置数字量输出 DO_{p.get('port', p.get('pin', 0))}={'ON' if p.get('value', p.get('val', 1)) else 'OFF'}",
+            "set_dout": f"设置数字量输出 DO_{p.get('port', p.get('pin', 0))}={'ON' if p.get('value', p.get('val', 1)) else 'OFF'}",
+        }
+        cmd_text = cmd_desc_map.get(body.command, f"操作员下发控制指令: {body.command}")
+        add_device_run_log(
+            device_id=target_id,
+            icon_type="action",
+            operator=operator_name,
+            record_content=cmd_text,
+            log_level="ACTION",
+        )
+    except Exception as e:
+        logger.warning(f"记录控制指令运行日志异常: {e}")
 
     return api_response(
         code=200,
