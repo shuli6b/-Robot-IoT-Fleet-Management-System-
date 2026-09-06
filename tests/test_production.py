@@ -10,6 +10,7 @@ import tempfile
 import time
 import unittest
 import uuid
+import zipfile
 from datetime import datetime, timedelta
 from pathlib import Path
 from contextlib import closing
@@ -32,7 +33,7 @@ from fastapi.testclient import TestClient
 from security import sign_payload,verify_payload,create_session,password_hash,verify_password
 from huashu_protocol import HuashuSocketClient,ControllerError,array_value,bool_value
 from robot_commands import validate_command
-from backup_service import database_snapshot,controller_backup
+from backup_service import database_snapshot,platform_backup
 
 
 class FakeSocket:
@@ -399,10 +400,14 @@ class ProductionTests(unittest.TestCase):
         database_snapshot(source,dest)
         other=sqlite3.connect(str(dest));self.assertEqual(other.execute('SELECT COUNT(*) FROM t').fetchone()[0],1);other.close();conn.close()
 
-    def test_empty_ftp_backup_rejected(self):
-        ftp=SimpleNamespace(connect=lambda *a,**k:None,login=lambda *a:None,mlsd=lambda remote:[],quit=lambda:None)
-        with patch('ftplib.FTP',return_value=ftp):
-            with self.assertRaises(ValueError):controller_backup({'host':'invalid','user':'test','password':'test'},'arm_test')
+    def test_platform_backup_contains_verified_snapshot(self):
+        backup_dir=Path(TEMP.name)/'backups'
+        with patch.dict(os.environ,{'BACKUP_DIR':str(backup_dir)}):
+            payload,manifest=platform_backup(db.DB_PATH)
+        self.assertEqual(manifest['kind'],'platform_database')
+        self.assertTrue(manifest['complete'])
+        with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+            self.assertEqual(set(archive.namelist()),{'robot.db','backup_manifest.json'})
 
     def test_passwords_are_salted(self):
         a=password_hash('test-password-123');b=password_hash('test-password-123')

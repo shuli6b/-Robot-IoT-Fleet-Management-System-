@@ -1076,52 +1076,8 @@ def remove_simulated_device(device_id: str):
 
 
 # ---------------------------------------------------------------------------
-# 设备 FTP 备份凭据管理（后台设置页专用）
+# FTP 备份已停用。备份统一在服务器本地生成。
 # ---------------------------------------------------------------------------
-@app.get("/api/admin/ftp_config")
-def get_device_ftp_config():
-    """读取各设备 FTP 备份凭据（密码字段脱敏）。"""
-    try:
-        raw = get_system_config("device_ftp_config", "{}")
-        cfg = json.loads(raw) if raw else {}
-        safe = {}
-        for dev_id, c in cfg.items():
-            masked = "***" if c.get("password") else ""
-            safe[dev_id] = {"host": c.get("host", ""), "port": c.get("port", 21),
-                            "user": c.get("user", ""), "password_masked": masked,
-                            "has_password": bool(c.get("password"))}
-        return api_response(code=200, message="success", data={"config": safe})
-    except Exception as e:
-        logger.error(f"get_device_ftp_config 异常: {e}")
-        return api_response(code=500, message=f"读取失败: {e}", data=None)
-
-
-@app.post("/api/admin/ftp_config")
-def save_device_ftp_config(body: dict = Body(...)):
-    """保存设备 FTP 备份凭据。body: {device_id, host, port, user, password}"""
-    try:
-        device_id = (body.get("device_id") or "").strip()
-        if not device_id:
-            return api_response(code=400, message="device_id 不能为空", data=None)
-        raw = get_system_config("device_ftp_config", "{}")
-        cfg = json.loads(raw) if raw else {}
-        entry = cfg.get(device_id, {})
-        if body.get("host"):
-            entry["host"] = body["host"].strip()
-        if body.get("port"):
-            entry["port"] = int(body["port"])
-        if body.get("user"):
-            entry["user"] = body["user"].strip()
-        if body.get("password"):
-            entry["password"] = body["password"]
-        cfg[device_id] = entry
-        set_system_config("device_ftp_config", json.dumps(cfg, ensure_ascii=False))
-        return api_response(code=200, message="FTP 凭据已保存", data={"device_id": device_id})
-    except Exception as e:
-        logger.error(f"save_device_ftp_config 异常: {e}")
-        return api_response(code=500, message=f"保存失败: {e}", data=None)
-
-
 @app.get("/api/device/{dev_id}/history")
 def get_device_history_by_id(dev_id: str,page: int=1,page_size: int=50):
     dev=get_device_by_id(dev_id)
@@ -1758,17 +1714,13 @@ def download_program_file_api(device_type: str, device_id: str, prog_name: str):
 
 @app.get("/api/devices/{device_type}/{device_id}/backup")
 async def backup_device_system_api(device_type: str, device_id: str):
-    from backup_service import controller_backup,save_archive
+    from backup_service import platform_backup,save_archive
     from fastapi.responses import Response
     if not allowed_device(device_type,device_id):
         raise HTTPException(404,'未登记的真实设备')
-    configs=json.loads(get_system_config('device_ftp_config','{}'))
-    cfg=configs.get(device_id,{})
-    allowed_hosts=set(os.getenv('CONTROLLER_ALLOWED_HOSTS',os.getenv('ROBOT_IP','192.168.1.169')).split(','))
-    if cfg.get('host') not in allowed_hosts:
-        raise HTTPException(422,'FTP目标未在控制器白名单内，不能猜测目标地址')
     try:
-        payload,manifest=await run_in_threadpool(controller_backup,cfg,device_id)
+        payload,manifest=await run_in_threadpool(platform_backup,database.DB_PATH)
+        manifest=dict(manifest,device_id=device_id)
         name=await run_in_threadpool(save_archive,payload,manifest,'.zip')
     except ValueError as e:
         raise HTTPException(422,str(e))
@@ -1796,7 +1748,7 @@ def get_device_logs_api(
     filter_type: Optional[str] = Query(None, description="图标类型筛选: ALL/action/error/warn/info")
 ):
     """
-    获取设备示教器规范级原生运行日志流水 (1:1 还原华数示教器 HSR-Pad 运行日志)
+    获取平台审计与当前桥接器已接收的控制器事件；当前接口不读取示教器历史运行日志。
     """
     dev = get_device_by_id(device_id)
     if not dev:
@@ -1812,8 +1764,7 @@ def confirm_device_alarms_api(
     request: Request = None
 ):
     """
-    1:1 复刻华数示教器【确认所有Mc报警信息!】操作
-    在设备原生运行日志追加操作流水，并解除当前设备活动报警
+    记录平台已阅操作；不清除控制器报警，也不写入控制器示教器历史。
     """
     dev = get_device_by_id(device_id)
     if not dev:

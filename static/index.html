@@ -938,8 +938,8 @@
                         <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
                             <div>
                                 <h4 class="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                                    <span>数字量输入信号 (Digital Inputs DI 0~33 全通道矩阵)</span>
-                                    <span class="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-[10px] text-emerald-700 dark:text-emerald-400 font-mono">34 CH (0-33)</span>
+                                    <span>数字量输入信号 (Digital Inputs DI 0~63 全通道矩阵)</span>
+                                    <span class="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-[10px] text-emerald-700 dark:text-emerald-400 font-mono">64 CH (0-63)</span>
                                 </h4>
                                 <p class="text-xs text-slate-500 dark:text-slate-400">华数 HSC3 控制器输入端口 (0: 复位, 1: 停止, 2: 启动, 3: 暂停, 30: 充气, 31: 主轴)</p>
                             </div>
@@ -952,8 +952,8 @@
                         <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
                             <div>
                                 <h4 class="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                                    <span>数字量输出控制 (Digital Outputs DO 0~33 全通道矩阵)</span>
-                                    <span class="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/80 text-[10px] text-blue-700 dark:text-blue-400 font-mono">34 CH (0-33)</span>
+                                    <span>数字量输出控制 (Digital Outputs DO 0~63 全通道矩阵)</span>
+                                    <span class="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/80 text-[10px] text-blue-700 dark:text-blue-400 font-mono">64 CH (0-63)</span>
                                 </h4>
                                 <p class="text-xs text-slate-500 dark:text-slate-400">华数 HSC3 控制器输出端口 (0: 复位, 1: 停止, 2: 启动, 3: 暂停, 30: 充气, 31: 主轴)</p>
                             </div>
@@ -970,7 +970,7 @@
                         <div class="space-y-1.5">
                             <div class="font-bold text-white flex items-center gap-2 text-sm">
                                 <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                                <span>平台快照与控制器文件归档</span>
+                                <span>平台数据服务器备份</span>
                             </div>
                             <p class="text-slate-200 font-medium text-xs leading-relaxed">以下只展示通过完整性检查的归档。平台数据库快照不等同控制器完整系统镜像。</p>
                             <p class="text-emerald-400 dark:text-emerald-300 font-mono text-[11px] flex items-center gap-1.5">
@@ -979,8 +979,8 @@
                             </p>
                         </div>
                         <div class="flex flex-col sm:flex-row items-start sm:items-center gap-2 shrink-0">
-                            <button onclick="triggerRemoteBackup()" class="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs shadow-md transition flex items-center gap-1.5" title="下载经完整性校验的控制器文件归档">
-                                <span>📦 备份控制器文件 (ZIP)</span>
+                            <button onclick="triggerRemoteBackup()" class="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs shadow-md transition flex items-center gap-1.5" title="生成并下载服务器平台数据备份">
+                                <span>📦 备份平台数据到服务器 (ZIP)</span>
                             </button>
                         </div>
                     </div>
@@ -1182,7 +1182,7 @@
                         </div>
                         <!-- Table Body / Rows -->
                         <div id="modalLiveLogTerminal" class="w-full h-[450px] overflow-y-auto divide-y divide-slate-900 font-mono text-xs select-text">
-                            <div class="text-slate-500 py-16 text-center text-xs">正在连接华数示教器内核读取原生运行日志...</div>
+                            <div class="text-slate-500 py-16 text-center text-xs">暂无已采集事件；此处显示平台审计和当前桥接器上报的控制器事件，不读取示教器历史原生日志。</div>
                         </div>
                     </div>
                 </div>
@@ -1922,7 +1922,7 @@
                     <div id="setPaneSim" class="hidden space-y-4">
                         <div>
                             <h4 class="font-bold text-sm text-slate-900 dark:text-slate-100">仿真设备与备份管理</h4>
-                            <p class="text-slate-500 dark:text-slate-400 text-[11px] mt-0.5">内部管理入口：仿真设备仅在此处增删，生产监控不接收仿真数据；备份凭据仅用于连接华数控制器 FTP</p>
+                            <p class="text-slate-500 dark:text-slate-400 text-[11px] mt-0.5">内部管理入口：仿真设备仅在此处增删；备份统一生成到部署服务器本地目录，不需要控制器文件服务账号</p>
                         </div>
 
                         <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-3">
@@ -1962,17 +1962,12 @@
                         </div>
 
                         <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-3">
-                            <div class="font-bold text-slate-900 dark:text-slate-100">设备 FTP 备份凭据</div>
-                            <p class="text-slate-500 dark:text-slate-400 text-[11px]">华数控制器备份仅支持 FTP（21 端口）。填写正确的控制器账号密码后，设备备份功能才可用。</p>
+                            <div class="font-bold text-slate-900 dark:text-slate-100">服务器本地备份</div>
+                            <p class="text-slate-500 dark:text-slate-400 text-[11px]">设备详情中的备份按钮会在部署服务器的 <span class="font-mono">/opt/robot-iot/backups/</span> 目录生成并保存 ZIP，同时返回下载。</p>
                             <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                                <input id="ftpDevId" placeholder="设备ID（如 arm_001）" class="px-2.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"/>
-                                <input id="ftpHost" placeholder="FTP 地址" value="192.168.1.169" class="px-2.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"/>
-                                <input id="ftpPort" placeholder="21" value="21" class="px-2.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"/>
-                                <input id="ftpUser" placeholder="用户名" class="px-2.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"/>
-                                <input id="ftpPass" type="password" placeholder="密码" class="px-2.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"/>
+                                <div class="text-slate-500 dark:text-slate-400 text-[11px]">备份仅包含平台数据库快照和完整性清单。</div>
                             </div>
-                            <div id="ftpConfigList" class="text-[11px] text-slate-500 dark:text-slate-400 space-y-1"></div>
-                            <button onclick="saveFtpConfig()" class="w-full py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs transition">保存 FTP 凭据</button>
+                            <p class="text-slate-400 dark:text-slate-500 text-[10px]">归档内容是平台 SQLite 一致性快照和完整性清单，不等同控制器程序、控制器系统文件或示教器历史镜像。</p>
                         </div>
                     </div>
                 </div>
@@ -2954,7 +2949,7 @@
                 if (!backups.length) { container.textContent = '暂无可验证的完整备份归档'; return; }
                 for (const backup of backups) {
                     const row = document.createElement('div');
-                    row.textContent = (backup.kind === 'platform_database' ? '平台数据库快照' : '控制器文件备份') + ' | ' + backup.created_at + ' | ' + backup.filesize + ' bytes';
+                    row.textContent = (backup.kind === 'platform_database' ? '平台数据库快照' : '未知归档类型') + ' | ' + backup.created_at + ' | ' + backup.filesize + ' bytes';
                     container.appendChild(row);
                 }
             } catch(error) { container.textContent = '备份状态未知：' + error.message; }
@@ -3316,6 +3311,10 @@
             if (window.liveLogPollingTimer) {
                 clearInterval(window.liveLogPollingTimer);
                 window.liveLogPollingTimer = null;
+            }
+            if (window.ioPollingTimer) {
+                clearInterval(window.ioPollingTimer);
+                window.ioPollingTimer = null;
             }
             document.getElementById('robot3DModal').classList.add('hidden');
         }
@@ -4167,6 +4166,10 @@
                 clearInterval(window.liveLogPollingTimer);
                 window.liveLogPollingTimer = null;
             }
+            if (window.ioPollingTimer) {
+                clearInterval(window.ioPollingTimer);
+                window.ioPollingTimer = null;
+            }
 
             const tabMap = { '3d': '3D', 'io': 'IO', 'prog': 'Prog', 'alarm': 'Alarm', 'log': 'Log', 'report': 'Report' };
             const tabs = ['3d', 'io', 'prog', 'alarm', 'log', 'report'];
@@ -4203,7 +4206,12 @@
             if (tabKey === '3d') {
                 setTimeout(onRobot3DResize, 50);
             } else if (tabKey === 'io') {
-                loadDeviceIO(type, id);
+                loadDeviceIO(type, id, true);
+                window.ioPollingTimer = setInterval(() => {
+                    if (currentActiveModalTab === 'io' && selectedDevice && selectedDevice.id === id) {
+                        loadDeviceIO(selectedDevice.type, selectedDevice.id, false);
+                    }
+                }, 1000);
             } else if (tabKey === 'prog') {
                 loadDevicePrograms(type, id);
             } else if (tabKey === 'alarm') {
@@ -4226,14 +4234,16 @@
         // -------------------------------------------------------------
         // I/O SIGNAL MONITORING
         // -------------------------------------------------------------
-        async function loadDeviceIO(type, id) {
+        async function loadDeviceIO(type, id, showLoading = true) {
+            if (window.ioRequestPending) return;
+            window.ioRequestPending = true;
             const currentReqId = id;
             const diGrid = document.getElementById('modalDiGrid');
             const doGrid = document.getElementById('modalDoGrid');
-            if (diGrid) {
+            if (showLoading && diGrid) {
                 diGrid.innerHTML = '<div class="col-span-4 py-8 text-center text-slate-400 dark:text-slate-500 text-xs flex flex-col items-center justify-center gap-2"><div class="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div><span>正在读取控制器数字输入寄存器...</span></div>';
             }
-            if (doGrid) {
+            if (showLoading && doGrid) {
                 doGrid.innerHTML = '<div class="col-span-4 py-8 text-center text-slate-400 dark:text-slate-500 text-xs flex flex-col items-center justify-center gap-2"><div class="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div><span>正在读取控制器数字输出寄存器...</span></div>';
             }
 
@@ -4305,6 +4315,8 @@
                 }
             } catch (e) {
                 console.error('loadDeviceIO error:', e);
+            } finally {
+                window.ioRequestPending = false;
             }
         }
 
@@ -4408,7 +4420,7 @@
             if (!selectedDevice) return;
             try {
                 await downloadAuthenticated('/api/devices/'+encodeURIComponent(selectedDevice.type)+'/'+encodeURIComponent(selectedDevice.id)+'/backup');
-                showToast('已获取包含完整性清单的控制器文件备份');
+                showToast('已生成并保存服务器平台数据备份（含完整性校验）');
             } catch(error) { showToast(error.message); }
         }
 
@@ -5383,7 +5395,6 @@
                 populateCmsForm();
             } else if (tab === 'sim') {
                 loadSimulatedDevices();
-                loadFtpConfig();
             }
         }
 
@@ -5445,44 +5456,6 @@
                 const j = await res.json();
                 showToast(j.message || '操作完成', res.ok ? '✅' : '⚠️');
                 loadSimulatedDevices();
-            } catch (e) { showToast('网络错误', '⚠️'); }
-        }
-
-        async function loadFtpConfig() {
-            const box = document.getElementById('ftpConfigList');
-            try {
-                const res = await fetch('/api/admin/ftp_config');
-                const j = await res.json();
-                const cfg = (j.data && j.data.config) || {};
-                const keys = Object.keys(cfg);
-                if (!keys.length) { box.innerHTML = '<div class="text-slate-400">尚未配置任何设备的 FTP 凭据</div>'; return; }
-                box.innerHTML = keys.map(k => {
-                    const c = cfg[k];
-                    return `<div class="flex items-center justify-between py-0.5"><span class="font-mono">${k}</span><span>${c.host || '-'}:${c.port || 21} · ${c.user || '-'} ${c.has_password ? '· 密码已设置' : '· 未设置密码'}</span></div>`;
-                }).join('');
-            } catch (e) { box.innerHTML = '<div class="text-rose-500">读取失败</div>'; }
-        }
-
-        async function saveFtpConfig() {
-            const device_id = document.getElementById('ftpDevId').value.trim();
-            if (!device_id) { showToast('请填写设备 ID', '⚠️'); return; }
-            const payload = {
-                device_id,
-                host: document.getElementById('ftpHost').value.trim(),
-                port: document.getElementById('ftpPort').value.trim() || 21,
-                user: document.getElementById('ftpUser').value.trim(),
-                password: document.getElementById('ftpPass').value
-            };
-            if (!payload.user || !payload.password) { showToast('请填写 FTP 用户名和密码', '⚠️'); return; }
-            try {
-                const res = await fetch('/api/admin/ftp_config', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                const j = await res.json();
-                showToast(j.message || '保存完成', res.ok ? '✅' : '⚠️');
-                document.getElementById('ftpPass').value = '';
-                loadFtpConfig();
             } catch (e) { showToast('网络错误', '⚠️'); }
         }
 
