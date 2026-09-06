@@ -1,0 +1,37 @@
+{
+  "static/index.html": {
+    "initRobot3DScene": "a12e2fc651ee61f0922fe1a59ec09ad18e41ddbd68afa5b2751848311eac8089",
+    "onRobot3DResize": "56cadf01227e1f165d0e8dde56f3b7a2826bf023350bbee56107bc397fce3030",
+    "reset3dCamera": "9aa47423e495d0436b0299a75c6a4f9d81b1ed2f48ef9207535ed706733dbc6e",
+    "toggle3dWireframe": "3764c77f4eb799c0df8eae6c00ad465c91786b0c536971b14ed7816af6f0230f",
+    "createIndustrialMaterial": "89f2608171d1bedf49f588a9e73b58fd4ac517a6cb2f2ca5bc29c15ba0ab6287",
+    "createHuashuStlArm": "3360c7bc923333eb12c79564b0097a88033f03f26c9d08a78663705f053a77fd",
+    "createRokaeStlArm": "949803a87ee8076910c75f79555343153ad9250c9cf7d533cc55b07d84b4230b",
+    "initFleetMasterRenderer": "7cbd2d9cf3201b90cef634858ef4ed5c6a5d5aefce40988a4b697c7d08ee7cc3",
+    "onFleetMasterResize": "6f31bee6c1ae090b5d342560bf95e806f66409da7b0bdeea4d973b2fc163bdad",
+    "createDeviceFleetScene": "5c1a2fa761218076676126a50fe9ac06ea39e2f12936c869ac9dd75be2f3cb8d",
+    "initCard3DViewer": "2c3f6552bff7e89919d4ab826842dc54ca2fb5cad5507c839a5055828877f3d0",
+    "animateFleetMaster": "faceb1d52ecb44850b1cccc60c1b82650ff2d0138c57a9e1ca640e28b33ae1a3",
+    "buildRobot3DModel": "e1149acf33d0fbcaaf6dc6d47b6161eadcdf40f9947ea9b2fd61a3a16474892f",
+    "updateRobot3DKinematics": "0e9b1f710a688a313ba2053fcb795a58fb940731f3125a830e8349fae5a63989",
+    "animateRobot3D": "1ee2f36c305b6cf70c3522e4bcc54e7c784dcc09fca5334299c8b905a8d3e0d8"
+  },
+  "static/index_next.html": {
+    "initRobot3DScene": "a12e2fc651ee61f0922fe1a59ec09ad18e41ddbd68afa5b2751848311eac8089",
+    "onRobot3DResize": "56cadf01227e1f165d0e8dde56f3b7a2826bf023350bbee56107bc397fce3030",
+    "reset3dCamera": "9aa47423e495d0436b0299a75c6a4f9d81b1ed2f48ef9207535ed706733dbc6e",
+    "toggle3dWireframe": "3764c77f4eb799c0df8eae6c00ad465c91786b0c536971b14ed7816af6f0230f",
+    "createIndustrialMaterial": "89f2608171d1bedf49f588a9e73b58fd4ac517a6cb2f2ca5bc29c15ba0ab6287",
+    "createHuashuStlArm": "3360c7bc923333eb12c79564b0097a88033f03f26c9d08a78663705f053a77fd",
+    "createRokaeStlArm": "949803a87ee8076910c75f79555343153ad9250c9cf7d533cc55b07d84b4230b",
+    "initFleetMasterRenderer": "7cbd2d9cf3201b90cef634858ef4ed5c6a5d5aefce40988a4b697c7d08ee7cc3",
+    "onFleetMasterResize": "6f31bee6c1ae090b5d342560bf95e806f66409da7b0bdeea4d973b2fc163bdad",
+    "createDeviceFleetScene": "5c1a2fa761218076676126a50fe9ac06ea39e2f12936c869ac9dd75be2f3cb8d",
+    "initCard3DViewer": "2c3f6552bff7e89919d4ab826842dc54ca2fb5cad5507c839a5055828877f3d0",
+    "animateFleetMaster": "429bbea2d734b81af0238fa2218717059b5f832a931abf7bcb8c0aafaa966cdc",
+    "buildRobot3DModel": "e1149acf33d0fbcaaf6dc6d47b6161eadcdf40f9947ea9b2fd61a3a16474892f",
+    "updateRobot3DKinematics": "0e9b1f710a688a313ba2053fcb795a58fb940731f3125a830e8349fae5a63989",
+    "animateRobot3D": "1ee2f36c305b6cf70c3522e4bcc54e7c784dcc09fca5334299c8b905a8d3e0d8"
+  }
+}
+

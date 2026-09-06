@@ -500,32 +500,16 @@ class VirtualRobot:
         return state_msg, sensor_msg
 
 def fetch_fleet():
-    """
-    从管控平台后台拉取「仿真设备清单」（后台设置页可增删，实时生效）。
-    平台 API 不可用时返回 None，调用方回退到内置兜底清单。
-    """
-    import urllib.request
+    """Read only the explicitly configured active simulation inventory."""
+    import sqlite3
+    from pathlib import Path
+    path=Path(os.environ['DB_PATH']).resolve()
+    conn=sqlite3.connect(path.as_uri()+'?mode=ro',uri=True,timeout=5)
+    conn.row_factory=sqlite3.Row
     try:
-        req = urllib.request.Request(f"{API_BASE}/api/admin/simulated_devices")
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        devs = (data.get("data") or {}).get("devices") or []
-        robots = []
-        for d in devs:
-            dt = d.get("device_type") or "huashu_arm"
-            robots.append(VirtualRobot(
-                dt,
-                d.get("device_id") or "",
-                d.get("device_name") or f"仿真-{dt}",
-                d.get("location") or "仿真演示工位",
-                d.get("vendor") or "仿真演示",
-            ))
-        if robots:
-            logger.info(f"[FLEET] 从平台后台加载 {len(robots)} 台仿真设备")
-        return robots
-    except Exception as e:
-        logger.warning(f"[FLEET] 拉取仿真设备清单失败: {e}")
-        return None
+        return [VirtualRobot(r['device_type'],r['device_id'],r['device_name'],r['location'],r['vendor']) for r in conn.execute('SELECT * FROM devices WHERE is_simulated=1 AND simulation_enabled=1')]
+    finally:
+        conn.close()
 
 
 def build_robot_fleet():
@@ -547,118 +531,83 @@ def build_robot_fleet():
     ]
 
 def main():
-    logger.info("==========================================================")
-    logger.info("  🚀 工业机器人集群遥测与控制模拟服务 (完整状态机版) 已启动")
-    logger.info(f"  - MQTT Broker: {MQTT_HOST}:{MQTT_PORT}")
-    logger.info(f"  - 模拟推流频率: {INTERVAL} 秒/轮")
-    logger.info("==========================================================")
-
-    robots = fetch_fleet() or build_robot_fleet()
-    robot_map = {r.device_id: r for r in robots}
-    last_fleet_refresh = time.time()
-    
-    logger.info(f"已就绪 {len(robots)} 台虚拟工业设备：")
-    for r in robots:
-        logger.info(f"  ● [{r.device_type}] {r.device_id} ({r.device_name}) - 工位: {r.location}")
-
-    client = mqtt.Client(client_id="fleet_mock_master_service")
-    
-    def on_cmd(c, userdata, msg):
+    import threading
+    import uuid
+    import sqlite3
+    from pathlib import Path
+    from security import sign_payload,verify_payload
+    from simulation import validate_simulation_command
+    for key in ('DB_PATH','MQTT_USERNAME','MQTT_PASSWORD','SIMULATION_HMAC_KEY','SIMULATION_COMMAND_KEY'):
+        if not os.getenv(key):raise RuntimeError('Missing simulator configuration: '+key)
+    robots={r.device_id:r for r in fetch_fleet()}
+    lock=threading.RLock()
+    generation=uuid.uuid4().hex
+    ledger=Path(os.getenv('SIMULATION_STATE_DB','simulation_state.db'))
+    with __import__('contextlib').closing(sqlite3.connect(str(ledger))) as conn,conn:
+        conn.execute('CREATE TABLE IF NOT EXISTS tasks(task_id TEXT PRIMARY KEY)')
+    client=mqtt.Client(mqtt.CallbackAPIVersion.VERSION2,client_id='fleet_simulation_service',clean_session=True)
+    client.username_pw_set(os.environ['MQTT_USERNAME'],os.environ['MQTT_PASSWORD'])
+    def emit(robot,kind,body):
+        p=dict(body,source='simulation',is_simulated=True,device_id=robot.device_id,device_type=robot.device_type,
+            timestamp=datetime.now().astimezone().isoformat(timespec='milliseconds'),message_id=uuid.uuid4().hex,connection_id=generation)
+        client.publish(f'simulation/robot/{robot.device_type}/{robot.device_id}/{kind}',json.dumps(sign_payload(p,os.environ['SIMULATION_HMAC_KEY']),ensure_ascii=False),qos=1,retain=kind=='event')
+    def state(robot):
+        st,sensor=robot.update_state()
+        st['operating_state']='running' if robot.is_moving else 'standby'
+        st['error_count']=int(bool(robot.error_code or robot.emergency_stop))
+        st['motor_current_unit']='simulated_A'
+        emit(robot,'state',st);emit(robot,'sensor',sensor)
+    def on_connect(c,u,f,reason,properties):
+        if not reason.is_failure:c.subscribe('simulation/cmd/#',qos=1)
+    def on_message(c,u,msg):
+        if msg.retain or len(msg.payload)>16384:return
         try:
-            payload = json.loads(msg.payload.decode("utf-8"))
-            topic_parts = msg.topic.split("/")
-            
-            # 支持 Topic: cmd/{type}/{id} 或 robot/{type}/{id}/cmd
-            target_id = None
-            if len(topic_parts) >= 3 and topic_parts[0] == "cmd":
-                target_id = topic_parts[2]
-            elif len(topic_parts) >= 4 and topic_parts[0] == "robot" and topic_parts[3] == "cmd":
-                target_id = topic_parts[2]
-
-            cmd_name = payload.get("command")
-            params = payload.get("params", {})
-            task_id = payload.get("task_id", "")
-            
-            if target_id and target_id in robot_map:
-                logger.info(f"[CMD] 收到精准下发指令 -> 设备: {target_id} | 指令: {cmd_name} | 参数: {params}")
-                robot = robot_map[target_id]
-                robot.handle_command(cmd_name, params)
-                # 收到指令后立即推流一次最新状态，使 3D 姿态与控制面板瞬间响应
-                st_data, sn_data = robot.update_state()
-                c.publish(f"robot/{robot.device_type}/{robot.device_id}/state", json.dumps(st_data, ensure_ascii=False), qos=1)
-                c.publish(f"robot/{robot.device_type}/{robot.device_id}/sensor", json.dumps(sn_data, ensure_ascii=False), qos=1)
-                if task_id:
-                    ack_msg = {
-                        "task_id": task_id,
-                        "device_id": target_id,
-                        "command": cmd_name,
-                        "status": "acknowledged",
-                        "code": 0,
-                        "msg": f"指令 [{cmd_name}] 执行成功",
-                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    }
-                    c.publish(f"robot/{robot.device_type}/{robot.device_id}/cmd_ack", json.dumps(ack_msg, ensure_ascii=False), qos=1)
-            else:
-                logger.warning(f"[CMD] 未知目标设备或广播指令 -> Topic: {msg.topic} | Command: {cmd_name}")
+            p=json.loads(msg.payload)
+            if not verify_payload(p,os.environ['SIMULATION_COMMAND_KEY']):return
+            parts=msg.topic.split('/')
+            if len(parts)!=4 or parts[:2]!=['simulation','cmd']:return
+            with lock:
+                robot=robots.get(parts[3])
+                if not robot or robot.device_type!=parts[2] or p.get('device_id')!=robot.device_id or p.get('device_type')!=robot.device_type:return
+                if p.get('connection_id')!=generation or time.time()>p.get('expires_at',0):return
+                command,params=validate_simulation_command(robot.device_type,p.get('command'),p.get('params'))
+                with __import__('contextlib').closing(sqlite3.connect(str(ledger))) as conn,conn:
+                    try:conn.execute('INSERT INTO tasks VALUES(?)',(p['task_id'],))
+                    except sqlite3.IntegrityError:return
+                robot.handle_command(command,params)
+                state(robot)
+                emit(robot,'cmd_ack',{'task_id':p['task_id'],'command':command,'status':'succeeded','message':'模拟状态机已执行；非真机动作'})
         except Exception as e:
-            logger.warning(f"[CMD] 指令处理异常: {e}")
-
-    client.on_message = on_cmd
-
-    # 连接 MQTT Broker 并订阅控制下发主题
-    while running:
-        try:
-            client.connect(MQTT_HOST, MQTT_PORT, keepalive=60)
-            client.subscribe([("cmd/#", 1), ("robot/+/+/cmd", 1)])
-            client.loop_start()
-            logger.info("[MQTT OK] 成功连入 MQTT Broker 并已订阅全部指令主题 [cmd/#, robot/+/+/cmd]！")
-            break
-        except Exception as e:
-            logger.warning(f"MQTT Broker 连接失败 ({e})，3秒后重试...")
-            time.sleep(3)
-
-    round_cnt = 0
+            logger.warning('Simulation command rejected: %s',type(e).__name__)
+    client.on_connect=on_connect;client.on_message=on_message
+    client.reconnect_delay_set(1,30)
+    client.max_queued_messages_set(200)
+    client.connect_async(MQTT_HOST,MQTT_PORT,keepalive=30)
+    client.loop_start()
+    announced=set()
+    last_refresh=0
     try:
         while running:
-            # 每 30 秒从后台设置页同步一次仿真设备清单（新增/删除实时生效）
-            if time.time() - last_fleet_refresh >= 30:
-                new_robots = fetch_fleet()
-                if new_robots is not None:
-                    keep = {}
-                    for nr in new_robots:
-                        keep[nr.device_id] = robot_map.get(nr.device_id, nr)
-                    removed = [rid for rid in robot_map if rid not in keep]
-                    added = [rid for rid in keep if rid not in robot_map]
-                    for rid in removed:
-                        logger.info(f"[FLEET] 移除仿真设备: {rid}")
-                    for rid in added:
-                        logger.info(f"[FLEET] 新增仿真设备: {rid}")
-                    if removed or added:
-                        robots = list(keep.values())
-                        robot_map = keep
-                last_fleet_refresh = time.time()
-
-            round_cnt += 1
-            for r in robots:
-                if not running:
-                    break
-                state_data, sensor_data = r.update_state()
-
-                topic_state = f"robot/{r.device_type}/{r.device_id}/state"
-                topic_sensor = f"robot/{r.device_type}/{r.device_id}/sensor"
-
-                client.publish(topic_state, json.dumps(state_data, ensure_ascii=False), qos=1)
-                client.publish(topic_sensor, json.dumps(sensor_data, ensure_ascii=False), qos=1)
-
-            if round_cnt % 15 == 0:
-                active_moving = sum(1 for r in robots if r.is_moving)
-                logger.info(f"[HEARTBEAT] 第 {round_cnt} 轮推流完成 | 在线: {len(robots)} 台 | 动态运行中: {active_moving} 台 | 待命/站立/充电: {len(robots) - active_moving} 台")
-
+            if not client.is_connected():time.sleep(1);continue
+            with lock:
+                if time.time()-last_refresh>=10:
+                    configured={r.device_id:r for r in fetch_fleet()}
+                    for removed in set(robots)-set(configured):
+                        emit(robots[removed],'state',{'status':'offline'})
+                        announced.discard(removed)
+                    robots={key:robots.get(key,new) for key,new in configured.items()}
+                    last_refresh=time.time()
+                for robot in robots.values():
+                    if robot.device_id not in announced:
+                        emit(robot,'event',{'message':'模拟服务已启动该虚拟设备'})
+                        announced.add(robot.device_id)
+                    state(robot)
             time.sleep(INTERVAL)
     finally:
-        client.loop_stop()
-        client.disconnect()
-        logger.info("模拟服务已安全退出")
+        for robot in robots.values():emit(robot,'state',{'status':'offline'})
+        client.disconnect();client.loop_stop()
 
 if __name__ == "__main__":
+    if os.getenv('ALLOW_SIMULATION', '0') != '1':
+        raise SystemExit('Simulation is disabled in production')
     main()

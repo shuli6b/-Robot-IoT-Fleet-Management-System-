@@ -1,190 +1,49 @@
-# 机器人物联网智能管控平台 (Robot IoT Fleet Management System)
+# 机器人生产监控与受控操作平台
 
-本项目是一套用于工业机器人设备集群监控、工况遥测分析与三维状态展示的管理系统。
-系统支持华数六轴工业机械臂、复合移动机器人 (AMR)、四足仿生巡检机器狗以及巡查无人机等多种工业智能装备的统一接入、状态监测、三维姿态展示与故障统计。
+本平台支持真机采集和显式仿真演示。真机事实只来自已登记、通过签名与时效校验的控制器上报；仿真使用独立账号、密钥和simulation主题，不得混入真机统计或真机命令。
 
----
+## 数据边界
 
-## 主要功能
+- 新遥测：设备登记白名单 + MQTT账号权限 + HMAC签名 + 消息去重 + 30秒时效检查。
+- 历史数据：原始记录保留；旧记录标记为 legacy_unverified，不混入新的生产统计。管理员可通过 /api/admin/legacy/{table} 分页查询。
+- 空值和过期值：返回 null/unknown/stale，界面显示 --，不补造正常值、坐标或工时。
+- 日志：区分 platform_audit 与 controller_event；平台已阅不是控制器复位，不生成示教器模板事件。
+- 总览：总台数、在线台数和在线率包含启用的仿真设备；主界面统一显示，设置保留仿真标记。后台仍区分历史来源。
+- 报表：只统计选定时间范围及对应设备来源的观测。观测覆盖时间不等于通电时间，未采集的OEE、节拍、能耗和维保寿命留空。
+- 程序：平台编辑器保存 platform_draft，不声称已写入控制器；不存在的文件返回404。
 
-1. **多设备接入与状态监控**
-   - 支持通过 MQTT 协议接入不同品类的机器人设备；
-   - 实时采集各设备的运行状态（在线/离线/报警）、工作电流、伺服温度、电池电量、空间坐标与关节角度。
+## 控制边界
 
-2. **三维数字孪生与姿态展示**
-   - 基于 Three.js 实现三维场景渲染；
-   - 机械臂模型根据实时关节角度联动展示，移动机器人根据定位坐标实时更新位置。
+控制请求必须具备有效管理员会话、明确确认、当前控制器连接及新鲜遥测。命令带唯一任务ID、5秒有效期和连接会话ID。禁止原生终端指令透传、离线排队重放及自动重试。
 
-3. **运行日志与报表分析**
-   - 记录设备运行日志与通信报文流水；
-   - 提供每日/每月运行报表，统计设备稼动率、作业节拍、累计运行时长等指标。
+结果状态：delivered仅表示Broker确认；received仅表示边缘端收到；controller_accepted表示控制器接受但尚无完成证明；succeeded仅用于读回验证过的结果；unknown表示结果无法确定。控制器DO读回不等同外围设备动作完成。
 
-4. **故障记录与报警统计**
-   - 实时记录设备报警信息与历史故障；
-   - 提供报警频次统计、近期趋势图表及常见故障分类参考。
+真机远程执行默认由ROBOT_CONTROL_ENABLED=0锁定；仿真命令仅在simulation/cmd命名空间执行，不受真机验收锁影响。真机须完成可信加密接入与现场动作验收后启用。远程点动另行默认关闭，需现场安全验收后才能设置ROBOT_ALLOW_JOG=1；使用官方增量模式，不按等待时间猜测角度。回原点需要经现场确认的安全目标及路径，当前拒绝将其替代为复位。软件网络停机不能替代硬接线急停或安全PLC。
 
-5. **双主题界面支持**
-   - 提供深色监控大屏界面（访问地址：`/`）；
-   - 提供浅色管理后台界面（访问地址：`/next`）。
+## 部署
 
----
+运行服务：robot-iot.service、huashu-bridge.service、robot-mock.service、emqx.service、frpc.service。robot-mock仅根据设置中启用的仿真清单演示，不生成未登记设备，不拥有真机MQTT主题权限。
 
-## 支持设备
+配置及凭据位于 /etc/robot-iot/backend.env 与 /etc/robot-iot/bridge.env，文件权限600。实际设备登记、控制器IP、MQTT账号、独立消息签名密钥均必须显式配置，缺失时拒绝启动。机型入口统一使用 huashu_real_bridge.py 与 huashu_protocol.py。
 
-| 设备类型 | 接入协议 | 监控主要数据 |
-| :--- | :--- | :--- |
-| **六轴工业机械臂** | HSC3 通信 / MQTT | 六轴关节角度、末端坐标 (X, Y, Z, A, B, C)、伺服电机温度、负载电流、使能与急停状态 |
-| **复合移动机器人 (AMR)** | MQTT / ROS | 平面坐标 (X, Y, Yaw)、避障传感器距离、轮速、顶升状态、电池电量 |
-| **四足巡检机器狗** | MQTT | 关节电机状态、姿态角 (Roll, Pitch, Yaw)、步态模式、电池电量 |
-| **巡查无人机** | MAVLink / MQTT | GPS 经纬度与搜星数、飞行高度、电机转速、电池电量 |
+使用 start.sh / stop.sh 管理应用服务。停止这些服务只停止软件，不执行机器人运动或安全停机。update_server.sh只允许干净工作区和fast-forward更新，不重置本地修改。
 
----
+密码采用带独立盐的PBKDF2存储；会话在服务端验证。历史默认弱密码账号首次登录必须更改密码。新账号只能注册为待审核普通用户。
 
-## 技术架构
+Web公网入口应在配置可信TLS证书后使用HTTPS。不得在不可信网络通过HTTP传输登录凭据。MQTT和EMQX控制台不应直接暴露到公网。
 
-### 核心技术栈
+## 备份
 
-- **后端服务**：Python 3.10+ / FastAPI / Uvicorn
-- **消息总线**：MQTT (EMQX 5.x / Mosquitto)
-- **数据存储**：SQLite 3（WAL 模式）
-- **前端技术**：原生 JavaScript / Three.js (WebGL) / Tailwind CSS / ECharts / Chart.js
+backup_service.py --database /opt/robot-iot/robot.db 使用SQLite在线备份接口生成一致性快照并执行完整性检查。文件、校验摘要及来源清单存放在BACKUP_DIR。平台数据库备份不等于控制器完整系统镜像。
 
-### 架构拓扑
+控制器文件备份需要显式FTP配置，递归读取文件并生成SHA-256清单；任何传输失败或空结果都不能标记成功。未执行过真机恢复测试的备份不得宣传为已验证灾备切换。
 
-```mermaid
-graph TB
-    subgraph 数据采集层
-        A1[华数机械臂控制柜] -->|TCP / Socket| B1[huashu_real_bridge.py]
-        A2[AMR / 机器狗 / 无人机] -->|MQTT| B2[设备边缘端]
-        A3[mock_service.py] -->|MQTT 模拟数据| B2
-    end
+## 官方错误码
 
-    subgraph 消息中间件
-        B1 & B2 -->|MQTT 1883| C[EMQX / Mosquitto]
-    end
+resources/huashu_sdk_errors.json来自所提供ErrDef.h，共55项定义、54个码值。该表为32位SDK接口返回码，不是完整64位控制器硬件报警手册；没有原文维修步骤的条目不补造维修建议。
 
-    subgraph 后端服务
-        C -->|订阅主题| D[FastAPI 服务 main.py]
-        D <-->|读写| E[(SQLite 数据库 robot.db)]
-    end
+取消仿真后，已登记真机的有效签名状态可接替该设备；仿真历史及命令来源保持原样。仅点击取消不会生成真实数据。
 
-    subgraph 前端展示
-        D -->|WebSocket / HTTP API| F[前端页面]
-        F --> G1[深色监控看板 /]
-        F --> G2[浅色管理看板 /next]
-    end
-```
+## 回归
 
----
-
-## 项目目录结构
-
-```text
-.
-├── database.py              # 数据库操作层（表结构、数据读写、报表与统计计算）
-├── deploy_new_server.sh     # Linux 服务器自动化部署脚本
-├── huashu_real_bridge.py    # 华数机械臂现场采集推流脚本
-├── launcher.py              # 应用统一启动引导入口
-├── main.py                  # FastAPI 主服务（API 路由、WebSocket 通信、MQTT 监听）
-├── mock_robot.py            # 多设备遥测仿真计算模块
-├── mock_service.py          # 模拟遥测数据生成服务
-├── requirements.txt         # Python 依赖清单
-├── robot-iot.service        # Linux systemd 服务配置文件
-├── robot-mock.service       # 模拟服务 systemd 配置文件
-├── start.sh / stop.sh       # 服务启动与停止脚本
-├── update_server.sh         # 系统更新维护脚本
-├── huashu_bridge/           # 机械臂通信适配模块
-│   ├── huashu_adapter.py    # 通信适配逻辑
-│   ├── huashu_config.json   # 采集参数配置
-│   ├── start_huashu_bridge.bat # Windows 启动脚本
-│   └── start_huashu_bridge.sh  # Linux 启动脚本
-├── huashu_edge_agent/       # 边缘端轻量采集模块
-│   ├── edge_config.json     # 边缘配置
-│   ├── huashu_edge_collector.py # 边缘采集脚本
-│   └── requirements.txt     # 边缘采集依赖
-└── static/                  # 前端静态资源
-    ├── index.html           # 监控大屏主页面（深色主题）
-    ├── index_next.html      # 管理后台页面（浅色主题）
-    ├── js/                  # 前端脚本与渲染库 (Three.js 等)
-    ├── css/                 # 样式文件
-    ├── models/br610/        # 机械臂 3D 模型文件
-    └── assets/              # 图标与图片素材
-```
-
----
-
-## 快速开始
-
-### 1. 本地运行 (Windows / macOS / Linux)
-
-#### 步骤一：安装依赖
-```bash
-pip install -r requirements.txt
-```
-
-#### 步骤二：启动后台主服务
-```bash
-python main.py
-```
-服务默认监听本地 `8000` 端口。
-
-#### 步骤三：启动数据推流（任选一种）
-- **模式 A（本地测试）**：启动模拟器生成设备运行数据
-  ```bash
-  python mock_service.py
-  ```
-- **模式 B（现场接入）**：启动华数机械臂采集推流脚本（需在同一局域网并配置实际 IP）
-  ```bash
-  python huashu_real_bridge.py
-  ```
-
-#### 步骤四：浏览器访问
-- 深色监控看板：`http://localhost:8000`
-- 浅色管理后台：`http://localhost:8000/next`
-
----
-
-### 2. 服务器部署 (Ubuntu 20.04 / 22.04 LTS)
-
-#### 自动安装与配置
-```bash
-chmod +x deploy_new_server.sh
-sudo ./deploy_new_server.sh
-```
-
-#### 启停管理
-```bash
-# 启动服务
-sudo ./start.sh
-
-# 停止服务
-sudo ./stop.sh
-
-# 查看运行状态
-sudo systemctl status robot-iot.service
-```
-
----
-
-## 通信协议与 API 概览
-
-### 1. MQTT 数据主题
-
-- 机械臂状态上报：`robot/huashu_arm/{device_id}/state`
-- AMR 状态上报：`robot/amr/{device_id}/state`
-- 机器狗状态上报：`robot/dog/{device_id}/state`
-- 无人机状态上报：`robot/uav/{device_id}/state`
-- 控制指令下发：`robot/control/{device_id}/command`
-
-### 2. 主要 HTTP 接口
-
-| 请求方式 | 接口地址 | 说明 |
-| :--- | :--- | :--- |
-| `GET` | `/api/devices` | 获取所有设备最新状态列表 |
-| `GET` | `/api/devices/{type}/{id}` | 获取指定设备的详细信息与工况参数 |
-| `GET` | `/api/devices/{type}/{id}/logs` | 获取指定设备的运行与操作日志 |
-| `GET` | `/api/devices/{type}/{id}/report` | 获取设备稼动率与运行状态统计报告 |
-| `GET` | `/api/devices/{type}/{id}/alarms/analytics` | 获取设备历史报警统计与分类数据 |
-| `POST`| `/api/devices/{type}/{id}/control` | 向指定设备下发控制指令（启动、停止、复位等） |
-| `GET` | `/api/devices/{type}/{id}/backup` | 下载设备配置与历史数据备份包 (.zip) |
-| `WS`  | `/ws/telemetry` | WebSocket 实时遥测数据流通道 |
+运行 python -m unittest discover -s tests。所有测试数据库、套接字和命令均为隔离测试对象，不连接实际机器人。tests/3d_mapping_sha256.json锁定原有30个3D场景及姿态映射函数，防止本次修复更改现场调试结果。

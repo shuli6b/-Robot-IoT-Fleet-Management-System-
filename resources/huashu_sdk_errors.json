@@ -1,0 +1,769 @@
+{
+  "title": "华数III型二次开发接口错误码速查",
+  "scope": "32位SDK接口返回码；不等同64位控制器硬件报警码",
+  "source_file": "机器人后台/华数二次开发/二次开发资料/Hsc3ApiDemo/3rdparty/include/ErrDef.h",
+  "source_sha256": "ddeaeca1bda89b7c7cb4d029a7e94632c814fbfb9d2c70d918938fc5cac678e0",
+  "definition_count": 55,
+  "entries": [
+    {
+      "code": "0x00000000",
+      "decimal": 0,
+      "category": "SDK通用状态",
+      "symbols": [
+        "KM_ERR_OK"
+      ],
+      "definitions": [
+        "正常"
+      ],
+      "source_lines": [
+        42
+      ]
+    },
+    {
+      "code": "0x00FFFFFF",
+      "decimal": 16777215,
+      "category": "SDK通用状态",
+      "symbols": [
+        "KM_ERR_BAD"
+      ],
+      "definitions": [
+        "错误（通用）"
+      ],
+      "source_lines": [
+        43
+      ]
+    },
+    {
+      "code": "0x00810001",
+      "decimal": 8454145,
+      "category": "SDK通信接口",
+      "symbols": [
+        "KM_ERR_TIME_OUT"
+      ],
+      "definitions": [
+        "发送消息成功，但超时未返回"
+      ],
+      "source_lines": [
+        45
+      ]
+    },
+    {
+      "code": "0x00810002",
+      "decimal": 8454146,
+      "category": "SDK通信接口",
+      "symbols": [
+        "KM_ERR_INVALID_UUID"
+      ],
+      "definitions": [
+        "无效帧"
+      ],
+      "source_lines": [
+        46
+      ]
+    },
+    {
+      "code": "0x00810011",
+      "decimal": 8454161,
+      "category": "SDK通信接口",
+      "symbols": [
+        "KM_ERR_FAIL_CONN"
+      ],
+      "definitions": [
+        "连接失败"
+      ],
+      "source_lines": [
+        47
+      ]
+    },
+    {
+      "code": "0x00810012",
+      "decimal": 8454162,
+      "category": "SDK通信接口",
+      "symbols": [
+        "KM_ERR_BAD_IP"
+      ],
+      "definitions": [
+        "错误的IP输入"
+      ],
+      "source_lines": [
+        48
+      ]
+    },
+    {
+      "code": "0x00810020",
+      "decimal": 8454176,
+      "category": "SDK通信接口",
+      "symbols": [
+        "KM_ERR_FAIL_SEND_MSG"
+      ],
+      "definitions": [
+        "发送消息失败"
+      ],
+      "source_lines": [
+        49
+      ]
+    },
+    {
+      "code": "0x00810021",
+      "decimal": 8454177,
+      "category": "SDK通信接口",
+      "symbols": [
+        "KM_ERR_FAIL_LOSE_MSG"
+      ],
+      "definitions": [
+        "发送时丢失消息"
+      ],
+      "source_lines": [
+        50
+      ]
+    },
+    {
+      "code": "0x00810030",
+      "decimal": 8454192,
+      "category": "SDK通信接口",
+      "symbols": [
+        "KM_ERR_NET_NOT_READY"
+      ],
+      "definitions": [
+        "网络未连接"
+      ],
+      "source_lines": [
+        51
+      ]
+    },
+    {
+      "code": "0x00810101",
+      "decimal": 8454401,
+      "category": "SDK通信接口",
+      "symbols": [
+        "KM_ERR_FAIL_PROTOCOL"
+      ],
+      "definitions": [
+        "返回消息的帧格式有问题"
+      ],
+      "source_lines": [
+        52
+      ]
+    },
+    {
+      "code": "0x00810201",
+      "decimal": 8454657,
+      "category": "SDK通信接口",
+      "symbols": [
+        "KM_ERR_FAIL_DECODE"
+      ],
+      "definitions": [
+        "返回消息的封装格式有问题"
+      ],
+      "source_lines": [
+        53
+      ]
+    },
+    {
+      "code": "0x00810202",
+      "decimal": 8454658,
+      "category": "SDK通信接口",
+      "symbols": [
+        "KM_ERR_MISMATCH_MSG_CNT"
+      ],
+      "definitions": [
+        "返回消息数量不正确"
+      ],
+      "source_lines": [
+        54
+      ]
+    },
+    {
+      "code": "0x00810301",
+      "decimal": 8454913,
+      "category": "SDK通信接口",
+      "symbols": [
+        "KM_ERR_FAIL_BROADCAST"
+      ],
+      "definitions": [
+        "广播失败"
+      ],
+      "source_lines": [
+        55
+      ]
+    },
+    {
+      "code": "0x00810311",
+      "decimal": 8454929,
+      "category": "SDK通信接口",
+      "symbols": [
+        "KM_ERR_FAIL_BC_CONFIG_NET",
+        "KM_ERR_INVALID_BC_CONFIG_NET"
+      ],
+      "definitions": [
+        "广播配置网络失败",
+        "广播配置网络参数错误"
+      ],
+      "source_lines": [
+        56,
+        57
+      ]
+    },
+    {
+      "code": "0x00840001",
+      "decimal": 8650753,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_APP_TIME_OUT"
+      ],
+      "definitions": [
+        "FTP通信发送超时"
+      ],
+      "source_lines": [
+        60
+      ]
+    },
+    {
+      "code": "0x00840002",
+      "decimal": 8650754,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_APP_REPLY_TIME_OUT"
+      ],
+      "definitions": [
+        "FTP通信接收超时"
+      ],
+      "source_lines": [
+        61
+      ]
+    },
+    {
+      "code": "0x00840031",
+      "decimal": 8650801,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_FILE_SERVE"
+      ],
+      "definitions": [
+        "FTP服务端文件存在错误"
+      ],
+      "source_lines": [
+        62
+      ]
+    },
+    {
+      "code": "0x00840032",
+      "decimal": 8650802,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_FILE_LOCAL"
+      ],
+      "definitions": [
+        "本地文件存在错误"
+      ],
+      "source_lines": [
+        63
+      ]
+    },
+    {
+      "code": "0x00840071",
+      "decimal": 8650865,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_DATA_OVERFLOW"
+      ],
+      "definitions": [
+        "FTP接收数据过量"
+      ],
+      "source_lines": [
+        64
+      ]
+    },
+    {
+      "code": "0x00840072",
+      "decimal": 8650866,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_APP_CONN"
+      ],
+      "definitions": [
+        "连接失败"
+      ],
+      "source_lines": [
+        65
+      ]
+    },
+    {
+      "code": "0x00840073",
+      "decimal": 8650867,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_APP_SEND_ABORT"
+      ],
+      "definitions": [
+        "上传文件中止"
+      ],
+      "source_lines": [
+        66
+      ]
+    },
+    {
+      "code": "0x00840074",
+      "decimal": 8650868,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_APP_WRTE_ABORT"
+      ],
+      "definitions": [
+        "下载文件写入本地中止"
+      ],
+      "source_lines": [
+        67
+      ]
+    },
+    {
+      "code": "0x00840075",
+      "decimal": 8650869,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_APP_PASV"
+      ],
+      "definitions": [
+        "设置PASV模式失败"
+      ],
+      "source_lines": [
+        68
+      ]
+    },
+    {
+      "code": "0x00840076",
+      "decimal": 8650870,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_APP_CHECK_DATA"
+      ],
+      "definitions": [
+        "检查返回值失败"
+      ],
+      "source_lines": [
+        69
+      ]
+    },
+    {
+      "code": "0x00840077",
+      "decimal": 8650871,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_APP_CANNOT_LOGIN"
+      ],
+      "definitions": [
+        "不允许登录"
+      ],
+      "source_lines": [
+        70
+      ]
+    },
+    {
+      "code": "0x00840061",
+      "decimal": 8650849,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_CMD_PASS"
+      ],
+      "definitions": [
+        "PASS命令失败"
+      ],
+      "source_lines": [
+        72
+      ]
+    },
+    {
+      "code": "0x00840062",
+      "decimal": 8650850,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_CMD_USER"
+      ],
+      "definitions": [
+        "USER命令失败"
+      ],
+      "source_lines": [
+        73
+      ]
+    },
+    {
+      "code": "0x00840063",
+      "decimal": 8650851,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_CMD_PWD"
+      ],
+      "definitions": [
+        "PWD命令失败"
+      ],
+      "source_lines": [
+        74
+      ]
+    },
+    {
+      "code": "0x00840064",
+      "decimal": 8650852,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_CMD_CWD"
+      ],
+      "definitions": [
+        "CWD命令失败"
+      ],
+      "source_lines": [
+        75
+      ]
+    },
+    {
+      "code": "0x00840065",
+      "decimal": 8650853,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_CMD_TRANS"
+      ],
+      "definitions": [
+        "TRANS命令失败"
+      ],
+      "source_lines": [
+        76
+      ]
+    },
+    {
+      "code": "0x00840066",
+      "decimal": 8650854,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_CMD_FILE_SIZE"
+      ],
+      "definitions": [
+        "FILE_SIZE命令失败"
+      ],
+      "source_lines": [
+        77
+      ]
+    },
+    {
+      "code": "0x00840067",
+      "decimal": 8650855,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_CMD_DELE"
+      ],
+      "definitions": [
+        "DELE命令失败"
+      ],
+      "source_lines": [
+        78
+      ]
+    },
+    {
+      "code": "0x00840068",
+      "decimal": 8650856,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_CMD_RMD"
+      ],
+      "definitions": [
+        "RMD命令失败"
+      ],
+      "source_lines": [
+        79
+      ]
+    },
+    {
+      "code": "0x00840069",
+      "decimal": 8650857,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_CMD_MKD"
+      ],
+      "definitions": [
+        "MKD命令失败"
+      ],
+      "source_lines": [
+        80
+      ]
+    },
+    {
+      "code": "0x00840050",
+      "decimal": 8650832,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_SOCKET_ADDR"
+      ],
+      "definitions": [
+        "错误的IP输入"
+      ],
+      "source_lines": [
+        82
+      ]
+    },
+    {
+      "code": "0x00840051",
+      "decimal": 8650833,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_SOCKET_INVALID"
+      ],
+      "definitions": [
+        "无效的socket"
+      ],
+      "source_lines": [
+        83
+      ]
+    },
+    {
+      "code": "0x00840052",
+      "decimal": 8650834,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_SOCKET_CONN"
+      ],
+      "definitions": [
+        "socket连接失败"
+      ],
+      "source_lines": [
+        84
+      ]
+    },
+    {
+      "code": "0x00840053",
+      "decimal": 8650835,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_SOCKET_SEND"
+      ],
+      "definitions": [
+        "socket发送失败"
+      ],
+      "source_lines": [
+        85
+      ]
+    },
+    {
+      "code": "0x00840054",
+      "decimal": 8650836,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_SOCKET_RECV"
+      ],
+      "definitions": [
+        "socket接收失败"
+      ],
+      "source_lines": [
+        86
+      ]
+    },
+    {
+      "code": "0x00840055",
+      "decimal": 8650837,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_SOCKET_SET"
+      ],
+      "definitions": [
+        "socket配置失败"
+      ],
+      "source_lines": [
+        87
+      ]
+    },
+    {
+      "code": "0x00840100",
+      "decimal": 8651008,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_FAIL_CONNECT"
+      ],
+      "definitions": [
+        "FTP连接失败"
+      ],
+      "source_lines": [
+        89
+      ]
+    },
+    {
+      "code": "0x00840200",
+      "decimal": 8651264,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_FAIL_LOGIN"
+      ],
+      "definitions": [
+        "FTP登录失败"
+      ],
+      "source_lines": [
+        90
+      ]
+    },
+    {
+      "code": "0x00840300",
+      "decimal": 8651520,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_FAIL_GET"
+      ],
+      "definitions": [
+        "FTP下载文件失败"
+      ],
+      "source_lines": [
+        91
+      ]
+    },
+    {
+      "code": "0x00840400",
+      "decimal": 8651776,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_FAIL_PUT"
+      ],
+      "definitions": [
+        "FTP上传文件失败"
+      ],
+      "source_lines": [
+        92
+      ]
+    },
+    {
+      "code": "0x00840500",
+      "decimal": 8652032,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_FAIL_DEL"
+      ],
+      "definitions": [
+        "FTP删除文件失败"
+      ],
+      "source_lines": [
+        93
+      ]
+    },
+    {
+      "code": "0x00840A00",
+      "decimal": 8653312,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_FAIL_RMD"
+      ],
+      "definitions": [
+        "FTP删除目录失败"
+      ],
+      "source_lines": [
+        94
+      ]
+    },
+    {
+      "code": "0x00840600",
+      "decimal": 8652288,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_FAIL_CH_FOLDER"
+      ],
+      "definitions": [
+        "FTP切换目录失败"
+      ],
+      "source_lines": [
+        95
+      ]
+    },
+    {
+      "code": "0x00840800",
+      "decimal": 8652800,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_FAIL_MK_FOLDER"
+      ],
+      "definitions": [
+        "FTP新建目录失败"
+      ],
+      "source_lines": [
+        96
+      ]
+    },
+    {
+      "code": "0x00840900",
+      "decimal": 8653056,
+      "category": "SDK FTP接口",
+      "symbols": [
+        "KM_ERR_FTP_FAIL_FILE_LIST"
+      ],
+      "definitions": [
+        "FTP获取目录列表信息失败"
+      ],
+      "source_lines": [
+        97
+      ]
+    },
+    {
+      "code": "0x00A00001",
+      "decimal": 10485761,
+      "category": "SDK业务接口",
+      "symbols": [
+        "KM_ERR_INVALID_PARAM"
+      ],
+      "definitions": [
+        "无效参数"
+      ],
+      "source_lines": [
+        99
+      ]
+    },
+    {
+      "code": "0x00A00002",
+      "decimal": 10485762,
+      "category": "SDK业务接口",
+      "symbols": [
+        "KM_ERR_FAIL_CONVERSION"
+      ],
+      "definitions": [
+        "数据转换失败"
+      ],
+      "source_lines": [
+        100
+      ]
+    },
+    {
+      "code": "0x00A00008",
+      "decimal": 10485768,
+      "category": "SDK业务接口",
+      "symbols": [
+        "KM_ERR_INVALID_MESSAGE"
+      ],
+      "definitions": [
+        "返回消息解析失败"
+      ],
+      "source_lines": [
+        101
+      ]
+    },
+    {
+      "code": "0x00A0000C",
+      "decimal": 10485772,
+      "category": "SDK业务接口",
+      "symbols": [
+        "KM_ERR_NO_MESSAGE"
+      ],
+      "definitions": [
+        "未收到消息"
+      ],
+      "source_lines": [
+        102
+      ]
+    },
+    {
+      "code": "0x00A00010",
+      "decimal": 10485776,
+      "category": "SDK业务接口",
+      "symbols": [
+        "KM_ERR_RETURN_FALSE"
+      ],
+      "definitions": [
+        "不期望的返回消息内容"
+      ],
+      "source_lines": [
+        103
+      ]
+    }
+  ]
+}
+

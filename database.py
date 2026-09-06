@@ -12,6 +12,9 @@ import sqlite3
 import logging
 import shutil
 import hashlib
+import re
+import math
+from security import password_hash, verify_password, validate_password, timestamp_age, allowed_device
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any, Tuple
 
@@ -103,6 +106,7 @@ def init_db(db_path: str = DB_PATH) -> bool:
                 ("specs", "TEXT DEFAULT '{}'"),
                 ("notes", "TEXT DEFAULT ''"),
                 ("is_simulated", "INTEGER DEFAULT 0"),
+                ("simulation_enabled", "INTEGER NOT NULL DEFAULT 1"),
             ]:
                 try:
                     conn.execute(f"ALTER TABLE devices ADD COLUMN {col_name} {col_def}")
@@ -264,120 +268,48 @@ def init_db(db_path: str = DB_PATH) -> bool:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_run_logs_dev_seq ON device_run_logs(device_id, seq_no DESC)")
 
-            # 初始化预置种子账户
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM users")
-            if cursor.fetchone()[0] == 0:
-                admin_hash = hashlib.sha256("admin888".encode("utf-8")).hexdigest()
-                user_hash = hashlib.sha256("123456".encode("utf-8")).hexdigest()
-                guest_hash = hashlib.sha256("guest123".encode("utf-8")).hexdigest()
-                cursor.execute(
-                    "INSERT INTO users (username, password_hash, role, real_name) VALUES (?, ?, ?, ?)",
-                    ("admin", admin_hash, "admin", "超级管理员")
-                )
-                cursor.execute(
-                    "INSERT INTO users (username, password_hash, role, real_name) VALUES (?, ?, ?, ?)",
-                    ("user", user_hash, "user", "产线操作员")
-                )
-                cursor.execute(
-                    "INSERT INTO users (username, password_hash, role, real_name) VALUES (?, ?, ?, ?)",
-                    ("guest", guest_hash, "user", "访客观察员")
-                )
-                logger.info("已成功初始化默认用户: admin(管理员), user(操作员), guest(访客)")
+            # Accounts are provisioned explicitly. Never generate sample production data.
+            for table, column, definition in [
+                ("users", "must_change_password", "INTEGER NOT NULL DEFAULT 0"),
+                ("robot_programs", "source", "TEXT NOT NULL DEFAULT 'legacy_unverified'"),
+                ("alarm_knowledge_base", "verified", "INTEGER NOT NULL DEFAULT 0"),
+                ("alarm_knowledge_base", "reference", "TEXT NOT NULL DEFAULT ''"),
+                ("device_data", "source", "TEXT NOT NULL DEFAULT 'legacy_unverified'"),
+                ("device_run_logs", "source", "TEXT NOT NULL DEFAULT 'legacy_unverified'"),
+                ("device_run_logs", "event_id", "TEXT"),
+                ("alarm_resolutions", "source", "TEXT NOT NULL DEFAULT 'legacy_unverified'"),
+            ]:
+                columns = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+                if column not in columns:
+                    conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+            conn.execute("CREATE TABLE IF NOT EXISTS auth_sessions (token_hash TEXT PRIMARY KEY, username TEXT NOT NULL, expires_at INTEGER NOT NULL)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_session_user ON auth_sessions(username)")
+            conn.execute("""CREATE TABLE IF NOT EXISTS command_requests (
+                task_id TEXT PRIMARY KEY, device_id TEXT NOT NULL, device_type TEXT NOT NULL,
+                command TEXT NOT NULL, params TEXT NOT NULL, operator TEXT NOT NULL,
+                state TEXT NOT NULL, message TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL,
+                expires_at REAL NOT NULL, updated_at TEXT NOT NULL, controller_code TEXT,
+                connection_id TEXT, result TEXT)""")
+            command_columns={row[1] for row in conn.execute('PRAGMA table_info(command_requests)')}
+            if 'source' not in command_columns:
+                conn.execute("ALTER TABLE command_requests ADD COLUMN source TEXT NOT NULL DEFAULT 'legacy_unverified'")
+                conn.execute("UPDATE command_requests SET source='simulation' WHERE device_id IN (SELECT device_id FROM devices WHERE is_simulated=1)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_command_device_time ON command_requests(device_id, created_at DESC)")
+            conn.execute("""CREATE TABLE IF NOT EXISTS message_receipts (
+                message_id TEXT PRIMARY KEY, received_at TEXT NOT NULL)""")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_receipt_time ON message_receipts(received_at)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_verified_data_time ON device_data(source,data_type,received_at)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_verified_device_time ON device_data(device_id,device_type,source,data_type,received_at DESC,id DESC)")
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_log_event ON device_run_logs(event_id) WHERE event_id IS NOT NULL")
+            # Existing rows stay intact but are excluded from verified production queries.
+            for row in conn.execute("SELECT username,password_hash FROM users").fetchall():
+                if row['password_hash'] in {hashlib.sha256(p.encode()).hexdigest() for p in ('admin888','123456','guest123')}:
+                    conn.execute("UPDATE users SET must_change_password=1 WHERE username=?", (row['username'],))
+            conn.execute("UPDATE devices SET status='offline' WHERE is_simulated=1")
+            conn.execute("CREATE VIEW IF NOT EXISTS verified_device_data AS SELECT * FROM device_data WHERE source='controller'")
+            from alarm_catalog import install_catalog
+            install_catalog(conn)
 
-            # 初始化机器人说明书标准故障知识库
-            cursor.execute("SELECT COUNT(*) FROM alarm_knowledge_base")
-            if cursor.fetchone()[0] == 0:
-                standard_alarms = [
-                    ("1001", "伺服驱动器通讯超时", "电气通讯", "主控制器与伺服驱动器 EtherCAT/CAN 总线通信丢失", "通信电缆接触不良或外部强电磁干扰", "检查总线屏蔽层接地，重新拔插总线插头，复位控制器伺服状态"),
-                    ("1002", "第 2 轴伺服过流过载", "电机驱动", "2 轴大臂伺服电机瞬间电流超出额定电流 250%", "工件末端超重、机械卡滞或加减速过急", "降低运行速度 Override，核对工件负载重量，手动点动 Jog 检查卡滞"),
-                    ("1003", "关节软限位超程保护", "运动学", "机械臂某轴指令目标角度超出该轴最大物理行程", "程序坐标点示教超出安全包络范围", "切换至手动点动 Jog 模式，反向微调将超限轴退回安全绿区内"),
-                    ("1004", "急停回路断开 (E-STOP)", "安全保护", "安全回路断开，所有轴伺服使能瞬间脱扣下电", "现场拍下急停按钮、安全光幕阻断或急停线松脱", "检查并旋转拔起急停按钮，确认安全防护门锁死，按控制器复位键"),
-                    ("1005", "末端气动回路气压不足", "气动系统", "气源主压力低于 0.45MPa 最低设定阈值", "厂房主空压机停机、管路漏气或过滤器堵塞", "检查气源总阀开度，清理排污水汽过滤器，确保工作气压稳定在 0.6MPa"),
-                    ("1006", "真空吸盘抓取超时", "末端执行器", "抽真空 1.5s 后真空压力开关未检测到负压到位信号", "工件表面不平整漏气、吸盘密封橡胶老化破损", "更换新真空吸盘，调节真空发生器气阀负压触发灵敏度"),
-                    ("2001", "AMR 激光雷达避障制动", "导航避障", "AMR 在规划路径上检测到动态障碍物距离小于 0.6m", "通道内堆放杂物或人员跨越行进区域", "清理行进通道障碍物，系统支持在调度中心下发重新绕障指令"),
-                    ("2002", "AMR 动力电池电量过低", "电源动力", "AMR 电池 SOC 电量低于 15% 临界下限", "连续高强度作业未及时调度至充电桩", "系统将自动挂起搬运任务，触发 auto_charge 引导底盘自主返坞充电"),
-                    ("3001", "机器狗 IMU 姿态倾角过大", "仿生平衡", "四足巡检机器狗横滚角 Roll 或俯仰角 Pitch 超过 35°", "跨越过陡斜坡、地面积油湿滑或受到外部碰撞", "下发 stand 站立待命指令触发自平衡姿态恢复算法，重新校准 IMU"),
-                    ("3002", "机器狗关节电机温升过高", "动力散热", "髋/膝关节电机线圈温度传感器读数超过 75℃", "连续长时间 Trot 步态小跑高负荷爬坡", "下发 sit 蹲伏休眠指令静置散热 5 分钟，开启内置强风冷通道")
-                ]
-                cursor.executemany(
-                    "INSERT INTO alarm_knowledge_base (code, title, category, description, cause, solution) VALUES (?, ?, ?, ?, ?, ?)",
-                    standard_alarms
-                )
-                logger.info("已初始化 10 条机器人说明书标准故障代码知识库")
-
-            # 初始化样例加工程序
-            cursor.execute("SELECT COUNT(*) FROM robot_programs")
-            if cursor.fetchone()[0] == 0:
-                sample_programs = [
-                    ("huashu_arm_01", "huashu_arm", "BR610_AUTO_POLISH.PRG", """; 华数 BR610 自动化汽车轮毂精密抛光工序
-; 编制日期: 2026-08-20  工位: A1 精密装配
-PROGRAM MAIN_POLISH()
-    SPEED 80, ACCEL 70
-    TOOL_FRAME(1), WORK_FRAME(0)
-    
-    ; 1. 安全回原点
-    MOVJ P0[0.0, 0.0, 0.0, 0.0, 0.0, 0.0], V=50%
-    SET_DO(1, 1) ; 开启气动除尘阀
-    
-    ; 2. 逼近待加工曲面
-    MOVL P1[450.2, 120.5, 380.0, 180.0, 0.0, 45.0], V=800mm/s, Z10
-    MOVL P2[480.0, 150.0, 320.0, 180.0, 15.0, 45.0], V=300mm/s, FINE
-    
-    ; 3. 恒力接触抛光轨迹插补 (1000 次循环节拍)
-    SET_DO(2, 1) ; 启动主轴抛光电机 (24000 RPM)
-    WAIT_DI(1, 1, TIMEOUT=3.0) ; 等待主轴转速就绪
-    CIRC P3[520.0, 180.0, 320.0], P4[480.0, 210.0, 320.0], V=150mm/s
-    MOVL P5[450.0, 150.0, 350.0, 180.0, 0.0, 0.0], V=500mm/s
-    
-    ; 4. 完工退刀与信号握手
-    SET_DO(2, 0) ; 关闭主轴
-    MOVJ P0, V=80%
-    SET_DO(3, 1) ; 向 MES 报送工单节拍完工
-    DELAY 0.5
-    SET_DO(3, 0)
-END
-""", 1250, 1),
-                    ("huashu_arm_01", "huashu_arm", "PALLET_LOAD_A1.PRG", """; 华数 BR610 码垛搬运程序
-PROGRAM PALLET_A1()
-    SPEED 90, ACCEL 80
-    MOVJ P_HOME[0, 0, 0, 0, 0, 0], V=80%
-    FOR I = 1 TO 12
-        MOVL P_PICK[350, -200, 150, 180, 0, 90], V=1000mm/s
-        SET_GRIPPER(ACTION="GRIP", FORCE=60)
-        MOVL P_PLACE[500, 200, 100 + I*25, 180, 0, 0], V=1200mm/s
-        SET_GRIPPER(ACTION="RELEASE")
-    ENDFOR
-    MOVJ P_HOME, V=80%
-END
-""", 680, 0),
-                    ("luxshare_amr_01", "luxshare_amr", "AMR_TRANSFER_ROUTE1.PRG", """; 珞石复合 AMR 自动跨区物流转运流程
-MISSION AMR_TRANS_01()
-    NAV_TO(TARGET="ST_A01", SPEED=1.2)
-    WAIT_ARRIVAL()
-    ARM_ACTION(CMD="PICK_TRAY", TRAY_ID="T_88")
-    NAV_TO(TARGET="ST_B03", SPEED=1.0)
-    WAIT_ARRIVAL()
-    ARM_ACTION(CMD="PLACE_TRAY", TRAY_ID="T_88")
-    AUTO_DOCK_CHARGE(MIN_SOC=90)
-END
-""", 540, 1),
-                    ("robot_dog_01", "robot_dog", "DOG_PATROL_SUBSTATION.PRG", """; 四足机器狗 变电站高低压柜红外测温巡检任务
-TASK PATROL_SUBSTATION()
-    GAIT_MODE("TROT", SPEED=1.0)
-    NAV_PATH("WAYPOINT_1_TRANSFORMER_A")
-    START_THERMAL_SCAN(ALERT_TEMP=65.0)
-    NAV_PATH("WAYPOINT_2_CAPACITOR_BAY")
-    START_VOC_SCAN(ALERT_PPM=50)
-    RETURN_TO_DOCK("DOG_DOCK_01")
-END
-""", 620, 1)
-                ]
-                cursor.executemany(
-                    "INSERT INTO robot_programs (device_id, device_type, prog_name, prog_content, file_size, is_active) VALUES (?, ?, ?, ?, ?, ?)",
-                    sample_programs
-                )
-                logger.info("已初始化 4 个典型工业机器人加工程序")
 
         logger.info("数据库表结构与索引初始化成功")
         return True
@@ -389,38 +321,12 @@ END
 
 
 def check_db_integrity(db_path: str = DB_PATH) -> bool:
-    """
-    检查数据库文件完整性。
-    若损坏，自动备份旧文件并重建新数据库。
-    """
-    if not os.path.exists(db_path):
-        return True
-
+    """Never replace a damaged database with an empty one."""
     conn = get_connection(db_path)
     try:
-        cursor = conn.cursor()
-        cursor.execute("PRAGMA integrity_check")
-        result = cursor.fetchone()
-
-        if result and result[0] == "ok":
-            logger.info("数据库完整性检查通过 [OK]")
-            return True
-        else:
-            logger.error(f"数据库损坏，检查结果: {result}")
-    except Exception as e:
-        logger.error(f"执行数据库完整性检查异常: {e}")
+        return conn.execute("PRAGMA quick_check").fetchone()[0] == "ok"
     finally:
         conn.close()
-
-    # 执行损坏恢复与备份
-    try:
-        backup_name = f"{db_path}.corrupted.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        shutil.move(db_path, backup_name)
-        logger.warning(f"损坏的数据库已备份至: {backup_name}，正在初始化全新数据库...")
-        return init_db(db_path)
-    except Exception as e:
-        logger.critical(f"自动修复备份数据库失败: {e}", exc_info=True)
-        return False
 
 
 def upsert_device(
@@ -461,285 +367,89 @@ def upsert_device(
         conn.close()
 
 
-def insert_device_data(
-    device_id: str,
-    device_type: str,
-    data_type: str,
-    raw_payload: str,
-    topic: str,
-    db_path: str = DB_PATH,
-) -> Optional[int]:
-    """
-    持久化存储设备原始上报数据：
-    - 写入前自动确保设备记录存在（防止外键失败）
-    - 返回插入记录的自增 ID，失败返回 None
-    """
+def insert_device_data(device_id, device_type, data_type, raw_payload, topic, db_path=DB_PATH, source='legacy_unverified'):
+    """Only authenticated state telemetry advances liveness; commands never do."""
+    payload = json.loads(raw_payload)
+    if not isinstance(payload, dict):
+        raise ValueError('Payload must be an object')
+    now = datetime.now().isoformat(timespec='seconds')
     conn = get_connection(db_path)
     try:
-        # 解析 payload 中的真实 status（如离线遗嘱消息 "status": "offline"）
-        target_status = "online"
-        try:
-            p = json.loads(raw_payload) if isinstance(raw_payload, str) else raw_payload
-            if isinstance(p, dict) and p.get("status") == "offline":
-                target_status = "offline"
-        except Exception:
-            pass
-
-        # 先确保设备记录存在
-        upsert_device(device_id, device_type, status=target_status, db_path=db_path)
-
-        received_at = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-        sql = """
-            INSERT INTO device_data (device_id, device_type, data_type, raw_payload, topic, received_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """
         with conn:
-            cursor = conn.execute(
-                sql, (device_id, device_type, data_type, raw_payload, topic, received_at)
-            )
-            row_id = cursor.lastrowid
-        return row_id
-    except Exception as e:
-        logger.error(f"insert_device_data 写入异常 [{topic}]: {e}")
-        return None
+            if source in ('controller','simulation'):
+                message_id = payload.get('message_id')
+                if not message_id:
+                    raise ValueError('Missing message identity')
+                existing = conn.execute('SELECT 1 FROM message_receipts WHERE message_id=?', (message_id,)).fetchone()
+                if existing:
+                    return None
+                conn.execute('INSERT INTO message_receipts VALUES(?,?)', (message_id, now))
+            conn.execute("INSERT OR IGNORE INTO devices(device_id,device_type,status) VALUES(?,?,'offline')", (device_id,device_type))
+            cur = conn.execute('INSERT INTO device_data(device_id,device_type,data_type,raw_payload,topic,received_at,source) VALUES(?,?,?,?,?,?,?)',
+                               (device_id,device_type,data_type,raw_payload,topic,now,source))
+            if source in ('controller','simulation') and data_type == 'state':
+                state = 'offline' if payload.get('status') == 'offline' else 'online'
+                conn.execute('UPDATE devices SET status=?,last_report_time=?,updated_at=? WHERE device_id=? AND device_type=?',
+                             (state,now,now,device_id,device_type))
+            return cur.lastrowid
     finally:
         conn.close()
 
 
-def get_all_devices(
-    status: Optional[str] = None,
-    device_type: Optional[str] = None,
-    db_path: str = DB_PATH,
-) -> List[Dict[str, Any]]:
-    """
-    查询所有设备列表，支持按在线状态和设备类型筛选。
-    若设备 last_report_time 在最近 30 秒内有更新，自动保障为 online。
-    """
+def get_all_devices(status=None, device_type=None, db_path=DB_PATH,include_simulated=True):
     conn = get_connection(db_path)
     try:
-        query = "SELECT * FROM devices WHERE 1=1"
-        params: List[Any] = []
-
-        if device_type:
-            query += " AND device_type = ?"
-            params.append(device_type)
-
-        query += " ORDER BY id ASC"
-        cursor = conn.execute(query, params)
-        rows = cursor.fetchall()
-
-        now = datetime.now()
-        devices = []
-        for r in rows:
-            d = dict(r)
-            d["device_type_display"] = get_device_display_name(d["device_type"], db_path=db_path)
-            d["device_name"] = d.get("device_name") or d.get("device_id")
-            d["vendor"] = d.get("vendor") or ""
-            d["is_simulated"] = 1 if d.get("is_simulated") else 0
-            d["location"] = d.get("location") or ("广州番禺智造中心" if d.get("device_type") in ["huashu_arm", "arm"] else "广州南沙创新港")
-            
-            raw_specs = d.get("specs")
-            if raw_specs:
-                try:
-                    d["specs"] = json.loads(raw_specs) if isinstance(raw_specs, str) else raw_specs
-                except Exception:
-                    d["specs"] = {}
-            else:
-                d["specs"] = {}
-
-            # 动态校验在线状态（如果最近 35 秒内有上报且状态未置为 offline，确保显示 online）
-            last_t = d.get("last_report_time")
-            if d.get("status") != "offline" and last_t:
-                try:
-                    clean_t = last_t.replace("T", " ")
-                    report_dt = datetime.strptime(clean_t[:19], "%Y-%m-%d %H:%M:%S")
-                    if (now - report_dt).total_seconds() <= 35:
-                        d["status"] = "online"
-                except Exception:
-                    pass
-
-            # 读取最新状态报文中的真实遥测指标 (优先读取 state 包含 6 轴关节角度、空间坐标、电量与状态)
-            try:
-                cur_data = conn.execute(
-                    "SELECT raw_payload FROM device_data WHERE device_type = ? AND device_id = ? AND data_type = 'state' ORDER BY received_at DESC, id DESC LIMIT 1",
-                    (d["device_type"], d["device_id"]),
-                )
-                row_data = cur_data.fetchone()
-                if not row_data:
-                    cur_data = conn.execute(
-                        "SELECT raw_payload FROM device_data WHERE device_type = ? AND device_id = ? ORDER BY received_at DESC, id DESC LIMIT 1",
-                        (d["device_type"], d["device_id"]),
-                    )
-                    row_data = cur_data.fetchone()
-                if row_data:
-                    try:
-                        parsed_s = json.loads(row_data[0])
-                        if not isinstance(parsed_s, dict):
-                            parsed_s = {}
-                    except Exception:
-                        parsed_s = {}
-
-                    is_arm = d.get("device_type") in ["huashu_arm", "arm"] or parsed_s.get("is_mains_powered")
-                    if is_arm:
-                        d["battery"] = None
-                        d["power_source"] = "AC 380V"
-                        d["is_mains_powered"] = True
-                    else:
-                        d["battery"] = parsed_s.get("battery", 96.0)
-                        d["power_source"] = "Battery"
-                        d["is_mains_powered"] = False
-
-                    d["error_code"] = parsed_s.get("error_code", 0)
-                    d["error_msg"] = parsed_s.get("error_msg", "")
-                    d["enabled"] = parsed_s.get("enabled", True)
-                    d["emergency_stop"] = parsed_s.get("emergency_stop", False)
-                    
-                    # 关键字段下发：提供给前端 3D 缩略图与大屏实时驱动
-                    d["latest_state"] = {
-                        "raw_payload": row_data[0],
-                        "parsed_payload": parsed_s
-                    }
-                    d["joint_angles"] = parsed_s.get("joint_angles", parsed_s.get("arm_sr3_pose", [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]))
-                    pos = parsed_s.get("cartesian_pos", parsed_s.get("position", {}))
-                    if isinstance(pos, dict):
-                        d["cartesian_x"] = pos.get("x")
-                        d["cartesian_y"] = pos.get("y")
-                        d["cartesian_z"] = pos.get("z")
-                    d["cartesian_pos"] = pos
-                else:
-                    is_arm = d.get("device_type") in ["huashu_arm", "arm"]
-                    if is_arm:
-                        d["battery"] = None
-                        d["power_source"] = "AC 380V"
-                        d["is_mains_powered"] = True
-                    else:
-                        d["battery"] = 96.0
-                        d["power_source"] = "Battery"
-                        d["is_mains_powered"] = False
-                    d["joint_angles"] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-                    d["latest_state"] = {
-                        "raw_payload": "{}",
-                        "parsed_payload": {
-                            "joint_angles": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                            "cartesian_pos": {"x": 450.0, "y": 200.0, "z": 350.0}
-                        }
-                    }
-            except Exception as e:
-                is_arm = d.get("device_type") in ["huashu_arm", "arm"]
-                if is_arm:
-                    d["battery"] = None
-                    d["power_source"] = "AC 380V"
-                    d["is_mains_powered"] = True
-                else:
-                    d["battery"] = 96.0
-                    d["power_source"] = "Battery"
-                    d["is_mains_powered"] = False
-                d["joint_angles"] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-                d["latest_state"] = {"parsed_payload": {"joint_angles": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}
-
-            # 累计真实上报次数（替代原硬编码 cycle_count，供前端展示真实运行统计）
-            try:
-                cnt = conn.execute(
-                    "SELECT COUNT(*) FROM device_data WHERE device_id = ?",
-                    (d["device_id"],),
-                ).fetchone()[0]
-                d["real_report_count"] = int(cnt or 0)
-            except Exception:
-                d["real_report_count"] = 0
-
-            if status and d["status"] != status:
-                continue
-
-            devices.append(d)
-        return devices
-    except Exception as e:
-        logger.error(f"get_all_devices 查询异常: {e}")
-        return []
+        rows = conn.execute('SELECT * FROM devices WHERE is_simulated=0 OR simulation_enabled=1 ORDER BY id').fetchall()
     finally:
         conn.close()
+    result = []
+    for row in rows:
+        dev = dict(row)
+        if (dev['is_simulated'] and not include_simulated) or (not dev['is_simulated'] and not allowed_device(dev['device_type'],dev['device_id'])) or (device_type and dev['device_type'] != device_type):
+            continue
+        dev['device_type_display'] = get_device_display_name(dev['device_type'],db_path)
+        dev['device_name'] = dev.get('device_name') or dev['device_id']
+        dev['location'] = dev.get('location') or '未配置'
+        try:
+            dev['specs'] = json.loads(dev.get('specs') or '{}')
+        except ValueError:
+            dev['specs'] = {}
+        latest = get_latest_data(dev['device_type'],dev['device_id'],db_path)
+        p = latest['parsed_payload'] if latest else {}
+        fresh = bool(latest and p.get('state_fresh'))
+        dev['status'] = 'online' if fresh and p.get('status') != 'offline' else 'offline'
+        if status and dev['status'] != status:
+            continue
+        for key in ('battery','enabled','emergency_stop','error_code','error_msg','error_count','joint_angles','cartesian_pos','is_mains_powered','power_source'):
+            dev[key] = p.get(key)
+        pos = p.get('cartesian_pos') or {}
+        for axis in ('x','y','z'):
+            dev['cartesian_'+axis] = pos.get(axis)
+        dev['latest_state'] = {'parsed_payload':p,'raw_payload':latest['raw_payload'] if latest else None}
+        dev['source'] = 'simulation' if dev['is_simulated'] else ('controller' if fresh else 'no_current_data')
+        dev['real_report_count'] = None
+        io_ok=p.get('quality',{}).get('io',{}).get('fresh') and fresh
+        dev['io_summary']=(f"已采样 DI {p.get('di_count',0)}/{p.get('di_total_count','--')}，DO {p.get('do_count',0)}/{p.get('do_total_count','--')}" if io_ok and isinstance(p.get('di'),int) and isinstance(p.get('do'),int) else '无有效I/O上报')
+        result.append(dev)
+    return result
 
 
-def get_device(
-    device_type: str,
-    device_id: str,
-    db_path: str = DB_PATH,
-) -> Optional[Dict[str, Any]]:
-    """
-    查询单个设备详细档案。不存在返回 None。
-    """
-    conn = get_connection(db_path)
+def get_device(device_type, device_id, db_path=DB_PATH):
+    return next((d for d in get_all_devices(device_type=device_type,db_path=db_path) if d['device_id']==device_id),None)
+
+
+def get_device_by_id(dev_id, db_path=DB_PATH):
+    conn=get_connection(db_path)
     try:
-        cursor = conn.execute(
-            "SELECT * FROM devices WHERE device_type = ? AND device_id = ? LIMIT 1",
-            (device_type, device_id),
-        )
-        row = cursor.fetchone()
-        if row:
-            d = dict(row)
-            d["device_type_display"] = get_device_display_name(d["device_type"], db_path=db_path)
-            d["device_name"] = d.get("device_name") or d.get("device_id")
-            d["vendor"] = d.get("vendor") or ""
-            d["location"] = d.get("location") or ("广州番禺智造中心" if d.get("device_type") in ["huashu_arm", "arm"] else "广州南沙创新港")
-            raw_specs = d.get("specs")
-            if raw_specs:
-                try:
-                    d["specs"] = json.loads(raw_specs) if isinstance(raw_specs, str) else raw_specs
-                except Exception:
-                    d["specs"] = {}
-            else:
-                d["specs"] = {}
-            return d
-        return None
-    except Exception as e:
-        logger.error(f"get_device 查询异常 [{device_type}/{device_id}]: {e}")
-        return None
-    finally:
-        conn.close()
-
-
-def get_device_by_id(
-    device_id: str,
-    db_path: str = DB_PATH,
-) -> Optional[Dict[str, Any]]:
-    """
-    根据 device_id 快速查询单个设备（支持无 device_type 参数）。
-    """
-    conn = get_connection(db_path)
-    try:
-        cursor = conn.execute(
-            "SELECT * FROM devices WHERE device_id = ? ORDER BY updated_at DESC LIMIT 1",
-            (device_id,),
-        )
-        row = cursor.fetchone()
-
-        if row:
-            d = dict(row)
-            d["device_type_display"] = get_device_display_name(d["device_type"], db_path=db_path)
-            d["device_name"] = d.get("device_name") or d.get("device_id")
-            d["vendor"] = d.get("vendor") or ""
-            d["is_simulated"] = 1 if d.get("is_simulated") else 0
-            d["location"] = d.get("location") or ("广州番禺智造中心" if d.get("device_type") in ["huashu_arm", "arm"] else "广州南沙创新港")
-            raw_specs = d.get("specs")
-            if raw_specs:
-                try:
-                    d["specs"] = json.loads(raw_specs) if isinstance(raw_specs, str) else raw_specs
-                except Exception:
-                    d["specs"] = {}
-            else:
-                d["specs"] = {}
-            try:
-                cnt = conn.execute(
-                    "SELECT COUNT(*) FROM device_data WHERE device_id = ?",
-                    (d["device_id"],),
-                ).fetchone()[0]
-                d["real_report_count"] = int(cnt or 0)
-            except Exception:
-                d["real_report_count"] = 0
-            return d
-        return None
-    except Exception as e:
-        logger.error(f"get_device_by_id 查询异常 [{device_id}]: {e}")
-        return None
+        rows=conn.execute('SELECT * FROM devices WHERE device_id=?',(dev_id,)).fetchall()
+        if len(rows)!=1:
+            return None
+        d=dict(rows[0])
+        try:
+            d['specs']=json.loads(d.get('specs') or '{}')
+        except ValueError:
+            d['specs']={}
+        return d
     finally:
         conn.close()
 
@@ -792,153 +502,52 @@ def update_device_info(
         conn.close()
 
 
-def get_history_by_dev_id(
-    device_id: str,
-    limit: int = 20,
-    db_path: str = DB_PATH,
-) -> List[Dict[str, Any]]:
-    """
-    根据 device_id 直接查询最近 N 条历史记录（倒序），格式与技术需求书 1.5.2 完全对齐。
-    """
-    conn = get_connection(db_path)
-    try:
-        cursor = conn.execute(
-            """
-            SELECT 
-                id, 
-                device_id AS dev_id, 
-                data_type, 
-                raw_payload AS content, 
-                received_at AS create_time,
-                topic,
-                device_type
-            FROM device_data 
-            WHERE device_id = ? 
-            ORDER BY received_at DESC, id DESC 
-            LIMIT ?
-            """,
-            (device_id, max(1, min(limit, 500))),
-        )
-        rows = cursor.fetchall()
-        return [dict(r) for r in rows]
-    except Exception as e:
-        logger.error(f"get_history_by_dev_id 查询异常 [{device_id}]: {e}")
+def get_history_by_dev_id(device_id,page=1,page_size=20,db_path=DB_PATH):
+    dev=get_device_by_id(device_id,db_path)
+    if not dev:
         return []
-    finally:
-        conn.close()
+    return get_device_history(dev['device_type'],device_id,page=page,page_size=page_size,db_path=db_path)
 
 
-def get_latest_data(
-    device_type: str,
-    device_id: str,
-    db_path: str = DB_PATH,
-) -> Optional[Dict[str, Any]]:
-    """
-    获取指定设备最新一条上报数据。
-    自动合并 state (关节角/空间坐标/状态), sensor (温湿度/振动/电流/电压), io (数字量输入输出) 数据，
-    确保前端无论是实时 3D 数字孪生、工况监控还是 IO 页面都能获得完整且不丢失的真机遥测。
-    """
+def get_latest_data(device_type, device_id, db_path=DB_PATH):
     conn = get_connection(db_path)
+    samples = {}
+    dev=get_device_by_id(device_id,db_path)
+    data_source='simulation' if dev and dev.get('is_simulated') else 'controller'
     try:
-        # 1. 查询最新一条任何类型的数据作为基础元信息
-        cursor = conn.execute(
-            """
-            SELECT * FROM device_data 
-            WHERE device_type = ? AND device_id = ? 
-            ORDER BY received_at DESC, id DESC 
-            LIMIT 1
-            """,
-            (device_type, device_id),
-        )
-        row = cursor.fetchone()
-        if not row:
-            return None
-
-        data = dict(row)
-        
-        # 2. 查询最新的 state (包含关节角与坐标核心物理状态)
-        state_parsed = {}
-        cur_state = conn.execute(
-            """
-            SELECT raw_payload FROM device_data
-            WHERE device_type = ? AND device_id = ? AND data_type = 'state'
-            ORDER BY received_at DESC, id DESC LIMIT 1
-            """,
-            (device_type, device_id),
-        )
-        row_state = cur_state.fetchone()
-        if row_state:
-            try:
-                p = json.loads(row_state[0])
-                if isinstance(p, dict):
-                    state_parsed = p
-            except Exception:
-                pass
-
-        # 3. 查询最新的 sensor 数据
-        sensor_parsed = {}
-        cur_sensor = conn.execute(
-            """
-            SELECT raw_payload FROM device_data
-            WHERE device_type = ? AND device_id = ? AND data_type = 'sensor'
-            ORDER BY received_at DESC, id DESC LIMIT 1
-            """,
-            (device_type, device_id),
-        )
-        row_sensor = cur_sensor.fetchone()
-        if row_sensor:
-            try:
-                p = json.loads(row_sensor[0])
-                if isinstance(p, dict):
-                    sensor_parsed = p
-            except Exception:
-                pass
-
-        # 4. 查询最新的 io 数据
-        io_parsed = {}
-        cur_io = conn.execute(
-            """
-            SELECT raw_payload FROM device_data
-            WHERE device_type = ? AND device_id = ? AND data_type = 'io'
-            ORDER BY received_at DESC, id DESC LIMIT 1
-            """,
-            (device_type, device_id),
-        )
-        row_io = cur_io.fetchone()
-        if row_io:
-            try:
-                p = json.loads(row_io[0])
-                if isinstance(p, dict):
-                    io_parsed = p
-            except Exception:
-                pass
-
-        # 5. 解析主记录 payload
-        try:
-            main_parsed = json.loads(data.get("raw_payload", "{}"))
-            if not isinstance(main_parsed, dict):
-                main_parsed = {"raw": main_parsed}
-        except Exception:
-            main_parsed = {}
-
-        # 6. 深度合并：以 state_parsed 为骨干，补充 sensor 与 io 字段，确保 joint_angles 永不丢失
-        final_parsed = {}
-        final_parsed.update(sensor_parsed)
-        final_parsed.update(io_parsed)
-        final_parsed.update(state_parsed)  # state 拥有最高的关节角与坐标权威
-        final_parsed.update(main_parsed)   # 覆盖最新时间戳等公共字段
-        if "joint_angles" not in final_parsed and "joint_angles" in state_parsed:
-            final_parsed["joint_angles"] = state_parsed["joint_angles"]
-        if "cartesian_pos" not in final_parsed and "cartesian_pos" in state_parsed:
-            final_parsed["cartesian_pos"] = state_parsed["cartesian_pos"]
-
-        data["parsed_payload"] = final_parsed
-        return data
-    except Exception as e:
-        logger.error(f"get_latest_data 查询异常 [{device_type}/{device_id}]: {e}")
-        return None
+        for kind in ('state','sensor','io'):
+            row = conn.execute("SELECT * FROM device_data WHERE device_type=? AND device_id=? AND data_type=? AND source=? ORDER BY received_at DESC,id DESC LIMIT 1",(device_type,device_id,kind,data_source)).fetchone()
+            if row:
+                samples[kind] = dict(row)
     finally:
         conn.close()
+    state = samples.get('state')
+    if not state:
+        return None
+    merged = {}
+    quality = {}
+    threshold = int(os.getenv('OFFLINE_THRESHOLD','30'))
+    for kind in ('sensor','io','state'):
+        row = samples.get(kind)
+        if not row:
+            quality[kind] = {'fresh':False,'received_at':None}
+            continue
+        p = json.loads(row['raw_payload'])
+        fresh = 0 <= timestamp_age(row['received_at']) <= threshold and -5 <= timestamp_age(p.get('timestamp')) <= threshold
+        quality[kind] = {'fresh':fresh,'received_at':row['received_at'],'sampled_at':p.get('timestamp')}
+        if fresh:
+            merged.update({k:v for k,v in p.items() if k not in ('signature','message_id')})
+    state_p = json.loads(state['raw_payload'])
+    merged['state_fresh'] = quality.get('state',{}).get('fresh',False)
+    if not merged['state_fresh']:
+        merged = {'status':'offline','state_fresh':False}
+    elif state_p.get('status') == 'offline':
+        merged = {'status':'offline','state_fresh':True,'timestamp':state_p.get('timestamp')}
+    merged['quality'] = quality
+    merged['source'] = data_source
+    merged['is_simulated'] = data_source=='simulation'
+    state['parsed_payload'] = merged
+    return state
 
 
 def get_device_history(
@@ -965,8 +574,10 @@ def get_device_history(
 
     conn = get_connection(db_path)
     try:
-        query = "SELECT * FROM device_data WHERE device_type = ? AND device_id = ?"
-        params: List[Any] = [device_type, device_id]
+        dev=get_device_by_id(device_id,db_path)
+        source="simulation" if dev and dev.get("is_simulated") else "controller"
+        query = "SELECT * FROM device_data WHERE source=? AND device_type = ? AND device_id = ?"
+        params: List[Any] = [source,device_type, device_id]
 
         if data_type:
             query += " AND data_type = ?"
@@ -1005,8 +616,10 @@ def get_history_count(
     """
     conn = get_connection(db_path)
     try:
-        query = "SELECT COUNT(*) FROM device_data WHERE device_type = ? AND device_id = ?"
-        params: List[Any] = [device_type, device_id]
+        dev=get_device_by_id(device_id,db_path)
+        source="simulation" if dev and dev.get("is_simulated") else "controller"
+        query = "SELECT COUNT(*) FROM device_data WHERE source=? AND device_type = ? AND device_id = ?"
+        params: List[Any] = [source,device_type, device_id]
 
         if data_type:
             query += " AND data_type = ?"
@@ -1051,8 +664,10 @@ def get_global_history(
 
     conn = get_connection(db_path)
     try:
-        query = "SELECT * FROM device_data WHERE 1=1"
-        params: List[Any] = []
+        dev=get_device_by_id(device_id,db_path) if device_id else None
+        source="simulation" if dev and dev.get("is_simulated") else "controller"
+        query = "SELECT * FROM device_data WHERE source IN (?,?)"
+        params: List[Any] = [source,source if device_id else "simulation"]
 
         if device_id:
             query += " AND device_id = ?"
@@ -1092,8 +707,10 @@ def get_global_history_count(
     """
     conn = get_connection(db_path)
     try:
-        query = "SELECT COUNT(*) FROM device_data WHERE 1=1"
-        params: List[Any] = []
+        dev=get_device_by_id(device_id,db_path) if device_id else None
+        source="simulation" if dev and dev.get("is_simulated") else "controller"
+        query = "SELECT COUNT(*) FROM device_data WHERE source IN (?,?)"
+        params: List[Any] = [source,source if device_id else "simulation"]
 
         if device_id:
             query += " AND device_id = ?"
@@ -1118,283 +735,66 @@ def get_global_history_count(
 
 
 
-def mark_offline_devices(
-    threshold_seconds: int = 30,
-    db_path: str = DB_PATH,
-) -> int:
-    """
-    离线扫描逻辑：
-    将 last_report_time 超过阈值秒数或为空且当前为 online 的设备标记为 offline。
-    返回更新的设备数量。
-    """
-    now = datetime.now()
-    threshold_time = (now - timedelta(seconds=threshold_seconds)).strftime("%Y-%m-%dT%H:%M:%S")
-    # 兼容空格分隔的时间格式
-    threshold_time_space = (now - timedelta(seconds=threshold_seconds)).strftime("%Y-%m-%d %H:%M:%S")
-
-    conn = get_connection(db_path)
+def mark_offline_devices(threshold_seconds=30, db_path=DB_PATH):
+    conn=get_connection(db_path)
     try:
         with conn:
-            cursor = conn.execute(
-                """
-                UPDATE devices 
-                SET status = 'offline', updated_at = datetime('now','localtime')
-                WHERE status = 'online' 
-                  AND (last_report_time IS NULL OR last_report_time < ? OR (last_report_time LIKE '% %' AND last_report_time < ?))
-                """,
-                (threshold_time, threshold_time_space),
-            )
-            affected = cursor.rowcount
-        if affected > 0:
-            logger.info(f"离线扫描：已将 {affected} 台超时设备标记为 offline")
-        return affected
-    except Exception as e:
-        logger.error(f"mark_offline_devices 执行异常: {e}")
-        return 0
+            cur=conn.execute("UPDATE devices SET status='offline' WHERE status='online' AND (last_report_time IS NULL OR julianday(last_report_time)<julianday('now','localtime')-?/86400.0)",(threshold_seconds,))
+        return cur.rowcount
     finally:
         conn.close()
 
 
-def get_system_stats(db_path: str = DB_PATH) -> Dict[str, Any]:
-    """
-    获取系统概览统计指标：
-    - total_devices
-    - online_devices
-    - offline_devices
-    - total_records
-    - device_type_stats (各品类设备数量与在线数量)
-    """
-    default_stats: Dict[str, Any] = {
-        "total_devices": 0,
-        "online_devices": 0,
-        "offline_devices": 0,
-        "total_records": 0,
-        "device_type_stats": [],
-    }
-
-    conn = get_connection(db_path)
+def get_system_stats(db_path=DB_PATH):
+    devices=get_all_devices(db_path=db_path)
+    simulations=[d for d in devices if d['is_simulated']]
+    types={}
+    for d in devices:
+        item=types.setdefault(d['device_type'],{'device_type':d['device_type'],'display':d['device_type_display'],'count':0,'online':0})
+        item['count']+=1;item['online']+=int(d['status']=='online')
+    conn=get_connection(db_path)
     try:
-        # 1. 统计设备数量
-        cursor = conn.execute(
-            """
-            SELECT 
-                COUNT(*) as total,
-                SUM(CASE WHEN status = 'online' THEN 1 ELSE 0 END) as online,
-                SUM(CASE WHEN status = 'offline' THEN 1 ELSE 0 END) as offline
-            FROM devices
-            """
-        )
-        row = cursor.fetchone()
-        total_devices = row["total"] or 0
-        online_devices = row["online"] or 0
-        offline_devices = row["offline"] or 0
+        count=conn.execute("SELECT COUNT(*) FROM device_data WHERE source IN ('controller','simulation')").fetchone()[0]
+    finally:conn.close()
+    online=sum(d['status']=='online' for d in devices)
+    return {'total_devices':len(devices),'online_devices':online,'offline_devices':len(devices)-online,
+        'online_rate_pct':round(online/len(devices)*100,1) if devices else 0,
+        'total_records':count,'device_type_stats':list(types.values()),'source':'registered_fleet_total',
+        'real_devices':len(devices)-len(simulations),'simulated_devices':len(simulations),
+        'simulated_online':sum(d['status']=='online' for d in simulations)}
 
-        # 2. 统计总历史记录数
-        cursor = conn.execute("SELECT COUNT(*) FROM device_data")
-        total_records = cursor.fetchone()[0] or 0
 
-        # 3. 按设备类型分类统计
-        cursor = conn.execute(
-            """
-            SELECT 
-                device_type,
-                COUNT(*) as count,
-                SUM(CASE WHEN status = 'online' THEN 1 ELSE 0 END) as online
-            FROM devices
-            GROUP BY device_type
-            """
-        )
-        type_rows = cursor.fetchall()
-
-        device_type_stats = []
-        for tr in type_rows:
-            dt = tr["device_type"]
-            device_type_stats.append(
-                {
-                    "device_type": dt,
-                    "display": get_device_display_name(dt),
-                    "count": tr["count"],
-                    "online": tr["online"] or 0,
-                }
-            )
-
-        return {
-            "total_devices": total_devices,
-            "online_devices": online_devices,
-            "offline_devices": offline_devices,
-            "total_records": total_records,
-            "device_type_stats": device_type_stats,
-        }
-    except Exception as e:
-        logger.error(f"get_system_stats 统计异常: {e}")
-        return default_stats
+def get_operational_analytics(db_path=DB_PATH):
+    devices=get_all_devices(db_path=db_path,include_simulated=False)
+    env={key:None for key in ('co2_ppm','pm25','hcho_mg','voc_mg','noise_db','human_presence','foot_traffic_total')}
+    env['air_quality_level']='未评估'
+    health=[]
+    for d in devices:
+        p=d.get('latest_state',{}).get('parsed_payload',{})
+        for src,dest in [('co2_ppm','co2_ppm'),('pm25','pm25'),('hcho','hcho_mg'),('voc','voc_mg'),('noise_db','noise_db'),('foot_traffic','foot_traffic_total')]:
+            if p.get(src) is not None:
+                env[dest]=p[src]
+        health.append({'device_id':d['device_id'],'device_type':d['device_type'],'display_name':d['device_type_display'],
+            'status':d['status'],'health_score':None,'error_code':p.get('error_code'),'error_count':p.get('error_count'),
+            'running_hours':None,'next_maintenance_hours':None,'maintenance_status':'未接入维保计量'})
+    conn=get_connection(db_path)
+    try:
+        states={r[0]:r[1] for r in conn.execute("SELECT c.state,COUNT(*) FROM command_requests c JOIN devices d ON d.device_id=c.device_id AND d.device_type=c.device_type WHERE c.source='controller' GROUP BY c.state")}
+        alarms=conn.execute("SELECT COUNT(*) FROM verified_device_data WHERE data_type='alarm'").fetchone()[0]
     finally:
         conn.close()
+    finished=states.get('succeeded',0)+states.get('failed',0)
+    return {'utilization_rate_pct':None,'task_completion_rate_pct':round(states.get('succeeded',0)/finished*100,1) if finished else None,
+        'completion_basis':'已终结控制指令的验证成功率，不等同生产任务完成率',
+        'total_cmd_dispatched':sum(states.values()),'total_fault_count':alarms,'commercial_environment':env,'device_health_diagnostics':health}
 
 
-def get_operational_analytics(db_path: str = DB_PATH) -> Dict[str, Any]:
-    """
-    【功能模块 4 & 5】获取运营数据分析、设备利用率(OEE)、任务完成率与商业环境综合指标：
-    - 作业量与任务完成率 (基于真实下发指令与故障记录计算)
-    - 设备利用率分析
-    - 商业环境质量概览 (纯真实数据驱动，未接传感器项为 None)
-    - 预测性维护健康评分与告警汇总
-    """
-    conn = get_connection(db_path)
-    try:
-        # 1. 统计指令任务下发与执行总量
-        cursor = conn.execute("SELECT COUNT(*) FROM device_data WHERE data_type = 'cmd'")
-        total_cmd_dispatched = cursor.fetchone()[0] or 0
-
-        # 2. 统计故障告警频次 (error_code > 0 或 alarm 报文)
-        cursor = conn.execute(
-            """
-            SELECT COUNT(*) FROM device_data 
-            WHERE data_type = 'alarm' OR raw_payload LIKE '%"error_code": 1%' OR raw_payload LIKE '%"error_code":1%'
-            """
-        )
-        total_fault_count = cursor.fetchone()[0] or 0
-
-        # 3. 统计在线设备当前工作态分布以计算综合设备利用率 (OEE Proxy)
-        devices = get_all_devices(db_path=db_path)
-        online_count = sum(1 for d in devices if d["status"] == "online")
-        working_count = 0
-        latest_env: Dict[str, Any] = {
-            "co2_ppm": None,
-            "pm25": None,
-            "hcho_mg": None,
-            "voc_mg": None,
-            "noise_db": None,
-            "human_presence": None,
-            "foot_traffic_total": None,
-            "air_quality_level": "未接入环境传感器",
-        }
-
-        # 抽取各在线设备最新报文
-        device_health_list = []
-        has_env_report = False
-        for d in devices:
-            latest = get_latest_data(d["device_type"], d["device_id"], db_path=db_path)
-            payload = latest.get("parsed_payload", {}) if latest else {}
-            st = payload.get("status", "idle")
-            if st in ["running", "navigating", "patrolling"]:
-                working_count += 1
-            
-            # 提取环境监测参数（若有真实传感器/设备上报）
-            if "co2_ppm" in payload:
-                latest_env["co2_ppm"] = payload["co2_ppm"]
-                has_env_report = True
-            if "pm25" in payload:
-                latest_env["pm25"] = payload["pm25"]
-                has_env_report = True
-            if "hcho" in payload:
-                latest_env["hcho_mg"] = payload["hcho"]
-                has_env_report = True
-            if "voc" in payload:
-                latest_env["voc_mg"] = payload["voc"]
-                has_env_report = True
-            if "noise_db" in payload:
-                latest_env["noise_db"] = payload["noise_db"]
-                has_env_report = True
-            if "human_presence" in payload:
-                latest_env["human_presence"] = payload["human_presence"]
-            if "foot_traffic" in payload:
-                latest_env["foot_traffic_total"] = payload["foot_traffic"]
-
-            # 健康与保养指标评估
-            err_code = payload.get("error_code", 0)
-            running_hours = payload.get("running_hours", None)
-            if running_hours is not None:
-                try:
-                    r_hrs = float(running_hours)
-                    maint_due = max(0.0, 500.0 - (r_hrs % 500))
-                    maint_status = "正常运行" if maint_due >= 50 else "建议润滑保养"
-                except Exception:
-                    maint_due = None
-                    maint_status = "正常运行"
-            else:
-                maint_due = None
-                maint_status = "正常运行"
-
-            health_score = 100 if err_code == 0 else 60
-            if maint_due is not None and maint_due < 50:
-                health_score -= 10
-
-            device_health_list.append({
-                "device_id": d["device_id"],
-                "device_type": d["device_type"],
-                "display_name": d["device_type_display"],
-                "status": d["status"],
-                "health_score": health_score,
-                "error_code": err_code,
-                "running_hours": running_hours,
-                "next_maintenance_hours": round(maint_due, 1) if maint_due is not None else None,
-                "maintenance_status": maint_status,
-            })
-
-        if has_env_report:
-            latest_env["air_quality_level"] = "优良"
-
-        # 利用率计算
-        utilization_rate = round((working_count / online_count * 100), 1) if online_count > 0 else 0.0
-        # 任务达成率真实计算
-        if total_cmd_dispatched > 0:
-            success_cmds = max(0, total_cmd_dispatched - total_fault_count)
-            task_completion_rate = round((success_cmds / total_cmd_dispatched) * 100, 1)
-        else:
-            task_completion_rate = 100.0
-
-        return {
-            "utilization_rate_pct": utilization_rate,
-            "task_completion_rate_pct": task_completion_rate,
-            "total_cmd_dispatched": total_cmd_dispatched,
-            "total_fault_count": total_fault_count,
-            "commercial_environment": latest_env,
-            "device_health_diagnostics": device_health_list,
-        }
-    except Exception as e:
-        logger.error(f"get_operational_analytics 计算异常: {e}")
-        return {
-            "utilization_rate_pct": 0.0,
-            "task_completion_rate_pct": 100.0,
-            "total_cmd_dispatched": 0,
-            "total_fault_count": 0,
-            "commercial_environment": {},
-            "device_health_diagnostics": [],
-        }
-
-
-def get_ai_llm_context(db_path: str = DB_PATH) -> Dict[str, Any]:
-    """
-    【架构要求：云边协同与大模型数据接口】
-    提供给云端/本地大模型的标准化上下文数据结构与诊断 Prompt。
-    """
-    overview = get_system_stats(db_path)
-    analytics = get_operational_analytics(db_path)
-    devices = get_all_devices(db_path=db_path)
-
-    # 构造 Markdown 格式的专家诊断上下文提示词
-    prompt_context = f"""### 智能工业机器人全域管控系统 — 当前边缘状态上下文
-- **系统时间**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-- **设备概况**: 总计 {overview['total_devices']} 台 | 在线 {overview['online_devices']} 台 | 离线 {overview['offline_devices']} 台
-- **综合利用率 (OEE)**: {analytics['utilization_rate_pct']}% | 任务完成率: {analytics['task_completion_rate_pct']}%
-- **商业环境**: CO₂: {analytics['commercial_environment'].get('co2_ppm', '--')} ppm | PM2.5: {analytics['commercial_environment'].get('pm25', '--')} μg/m³ | 噪声: {analytics['commercial_environment'].get('noise_db', '--')} dB | 累计客流: {analytics['commercial_environment'].get('foot_traffic_total', '--')} 人次
-
-#### 接入设备诊断明细:
-"""
-    for diag in analytics.get("device_health_diagnostics", []):
-        prompt_context += f"- **[{diag['display_name']} - {diag['device_id']}]**: 状态={diag['status']} | 健康分={diag['health_score']}分 | 故障码={diag['error_code']} | 累计运行={diag['running_hours']}h | 距离下次保养={diag['next_maintenance_hours']}h ({diag['maintenance_status']})\n"
-
-    return {
-        "system_status": overview,
-        "operational_analytics": analytics,
-        "llm_prompt_context": prompt_context,
-        "recommended_actions": [
-            "华数BR610机械臂运行平稳，保持节拍监控",
-            "珞石SR3复合机器人低电量(≤20%)时自动调度回充",
-            "南沙四足机器狗定期执行楼层环境与客流巡检",
-        ]
-    }
+def get_ai_llm_context(db_path=DB_PATH):
+    overview=get_system_stats(db_path)
+    analytics=get_operational_analytics(db_path)
+    return {'system_status':overview,'operational_analytics':analytics,
+        'llm_prompt_context':json.dumps({'overview':overview,'observations':analytics,'data_policy':'设备总量和在线率包含已登记仿真；诊断遥测仅真机。null=未知；离线不等于正常；禁止补造事实或生成可执行控制命令'},ensure_ascii=False),
+        'recommended_actions':[]}
 
 
 def get_system_config(key: str, default: Optional[str] = None, db_path: str = DB_PATH) -> Optional[str]:
@@ -1738,99 +1138,45 @@ def delete_device(device_id: str, device_type: Optional[str] = None, db_path: st
 # -------------------------------------------------------------
 
 def hash_password(password: str) -> str:
-    """SHA-256 哈希计算"""
-    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+    return password_hash(password)
 
 
-def authenticate_user(username: str, password: str, db_path: str = DB_PATH) -> Tuple[Optional[Dict[str, Any]], str]:
-    """
-    验证用户登录凭证与审核状态
-    返回: (user_info, auth_status)
-    auth_status:
-      - "OK": 认证成功且审核通过
-      - "PENDING_APPROVAL": 密码正确但仍在等待超级管理员审核
-      - "REJECTED": 密码正确但已被管理员拒绝注册
-      - "INVALID_CREDENTIALS": 账号或密码错误
-      - "SYSTEM_ERROR": 数据库系统异常
-    """
+def authenticate_user(username: str, password: str, db_path: str = DB_PATH):
     conn = get_connection(db_path)
     try:
-        pwd_hash = hash_password(password)
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, username, role, real_name, status, created_at, last_login FROM users WHERE username = ? AND password_hash = ?",
-            (username.strip(), pwd_hash),
-        )
-        row = cursor.fetchone()
-        if row:
-            keys = row.keys()
-            user_status = row["status"] if ("status" in keys and row["status"]) else "approved"
-            if user_status == "pending":
-                logger.warning(f"用户登录被拦截(待审核): {username}")
-                return None, "PENDING_APPROVAL"
-            elif user_status == "rejected":
-                logger.warning(f"用户登录被拦截(已被拒绝): {username}")
-                return None, "REJECTED"
-
-            now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            conn.execute(
-                "UPDATE users SET last_login = ? WHERE id = ?",
-                (now_str, row["id"]),
-            )
-            conn.commit()
-            return {
-                "id": row["id"],
-                "username": row["username"],
-                "role": row["role"],
-                "real_name": row["real_name"] or row["username"],
-                "status": user_status,
-                "created_at": row["created_at"],
-                "last_login": now_str,
-            }, "OK"
-        return None, "INVALID_CREDENTIALS"
-    except Exception as e:
-        logger.error(f"authenticate_user 异常: {e}")
-        return None, "SYSTEM_ERROR"
+        row = conn.execute("SELECT * FROM users WHERE username=?", (username.strip(),)).fetchone()
+        if not row or not verify_password(password, row['password_hash']):
+            return None, "INVALID_CREDENTIALS"
+        if row['status'] != 'approved':
+            return None, "PENDING_APPROVAL" if row['status'] == 'pending' else "REJECTED"
+        now = datetime.now().isoformat(timespec='seconds')
+        with conn:
+            conn.execute("UPDATE users SET last_login=? WHERE id=?", (now, row['id']))
+            if not row['password_hash'].startswith('pbkdf2_sha256$'):
+                conn.execute("UPDATE users SET password_hash=? WHERE id=?", (hash_password(password), row['id']))
+        user = {k: row[k] for k in ('id','username','role','real_name','status','created_at','must_change_password')}
+        user['last_login'] = now
+        return user, 'OK'
     finally:
         conn.close()
 
 
-def register_user(username: str, password: str, role: str = "user", real_name: str = "", db_path: str = DB_PATH) -> Tuple[bool, str]:
-    """
-    注册新用户账号
-    - 普通用户 (user): 初始状态置为 pending (需管理员在后台审核通过后方可登录)
-    - 超级管理员 (admin): 直接 approved
-    """
+def register_user(username: str, password: str, role: str = 'user', real_name: str = '', db_path: str = DB_PATH):
     username = username.strip()
-    if not username or len(username) < 3:
-        return False, "用户名长度至少为 3 个字符"
-    if not password or len(password) < 4:
-        return False, "密码长度至少为 4 个字符"
-    if role not in ["admin", "user"]:
-        role = "user"
-
+    if not re.fullmatch(r'[A-Za-z0-9_-]{3,64}', username):
+        return False, '用户名仅支持3至64位字母、数字、下划线及短横线'
+    try:
+        validate_password(password)
+    except ValueError as e:
+        return False, str(e)
     conn = get_connection(db_path)
     try:
-        cursor = conn.cursor()
-        cursor.execute("SELECT id FROM users WHERE username = ?", (username,))
-        if cursor.fetchone():
-            return False, f"用户名 '{username}' 已存在，请更换其他用户名"
-
-        pwd_hash = hash_password(password)
-        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        init_status = "approved" if role == "admin" else "pending"
-        cursor.execute(
-            "INSERT INTO users (username, password_hash, role, real_name, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (username, pwd_hash, role, real_name or username, init_status, now_str),
-        )
-        conn.commit()
-        logger.info(f"新用户注册成功: {username} (角色: {role}, 审核状态: {init_status})")
-        if init_status == "pending":
-            return True, "注册申请已提交！您的账号需经管理员审核通过后方可登录。"
-        return True, "注册成功"
-    except Exception as e:
-        logger.error(f"register_user 异常: {e}")
-        return False, f"注册失败: {str(e)}"
+        with conn:
+            conn.execute("INSERT INTO users(username,password_hash,role,real_name,status) VALUES(?,?,?,?,?)",
+                         (username, hash_password(password), 'user', real_name[:100] or username, 'pending'))
+        return True, '注册申请已提交，等待管理员审核'
+    except sqlite3.IntegrityError:
+        return False, '用户名已存在'
     finally:
         conn.close()
 
@@ -1925,44 +1271,37 @@ def update_user_profile(username: str, real_name: str, db_path: str = DB_PATH) -
         conn.close()
 
 
-def change_user_password(username: str, old_password: str, new_password: str, db_path: str = DB_PATH) -> Tuple[bool, str]:
-    """用户自行修改密码"""
-    if len(new_password) < 4:
-        return False, "新密码长度至少需 4 位"
+def change_user_password(username, old_password, new_password, db_path=DB_PATH):
+    try:
+        validate_password(new_password)
+    except ValueError as e:
+        return False, str(e)
     conn = get_connection(db_path)
     try:
-        cursor = conn.cursor()
-        old_hash = hash_password(old_password)
-        cursor.execute("SELECT id FROM users WHERE username = ? AND password_hash = ?", (username.strip(), old_hash))
-        if not cursor.fetchone():
-            return False, "原密码输入错误，请重新确认"
-        new_hash = hash_password(new_password)
-        cursor.execute("UPDATE users SET password_hash = ? WHERE username = ?", (new_hash, username.strip()))
-        conn.commit()
-        logger.info(f"用户 [{username}] 密码修改成功")
-        return True, "密码修改成功，请牢记新密码"
-    except Exception as e:
-        logger.error(f"change_user_password 异常: {e}")
-        return False, f"修改失败: {str(e)}"
+        row = conn.execute('SELECT password_hash FROM users WHERE username=?', (username,)).fetchone()
+        if not row or not verify_password(old_password, row[0]):
+            return False, '原密码错误'
+        if old_password == new_password:
+            return False, '新密码不能与旧密码相同'
+        with conn:
+            conn.execute('UPDATE users SET password_hash=?,must_change_password=0 WHERE username=?', (hash_password(new_password), username))
+            conn.execute('DELETE FROM auth_sessions WHERE username=?', (username,))
+        return True, '密码已更新，请重新登录'
     finally:
         conn.close()
 
 
-def admin_reset_password(target_username: str, new_password: str, db_path: str = DB_PATH) -> Tuple[bool, str]:
-    """管理员重置用户密码"""
-    if len(new_password) < 4:
-        return False, "重置密码长度至少需 4 位"
+def admin_reset_password(target_username, new_password, db_path=DB_PATH):
+    try:
+        validate_password(new_password)
+    except ValueError as e:
+        return False, str(e)
     conn = get_connection(db_path)
     try:
-        cursor = conn.cursor()
-        new_hash = hash_password(new_password)
-        cursor.execute("UPDATE users SET password_hash = ? WHERE username = ?", (new_hash, target_username.strip()))
-        conn.commit()
-        logger.info(f"管理员已重置用户 [{target_username}] 密码")
-        return True, f"已成功重置用户 [{target_username}] 密码"
-    except Exception as e:
-        logger.error(f"admin_reset_password 异常: {e}")
-        return False, f"重置失败: {str(e)}"
+        with conn:
+            cur = conn.execute('UPDATE users SET password_hash=?,must_change_password=1 WHERE username=?', (hash_password(new_password), target_username))
+            conn.execute('DELETE FROM auth_sessions WHERE username=?', (target_username,))
+        return (True, '密码已重置，用户首次登录须修改') if cur.rowcount else (False, '用户不存在')
     finally:
         conn.close()
 
@@ -1985,36 +1324,22 @@ def update_user_role(target_username: str, new_role: str, db_path: str = DB_PATH
         conn.close()
 
 
-def change_user_username(current_username: str, new_username: str, password: str, db_path: str = DB_PATH) -> Tuple[bool, str]:
-    """
-    修改登录账号名（需要验证当前密码以确保安全）
-    """
-    current_username = current_username.strip()
-    new_username = new_username.strip()
-    if not new_username or len(new_username) < 3:
-        return False, "新用户名长度至少为 3 个字符"
-    if new_username == current_username:
-        return False, "新用户名与原用户名一致，无需修改"
-
+def change_user_username(current_username, new_username, password, db_path=DB_PATH):
+    if current_username == 'admin':
+        return False, '系统主账号不能更名'
+    if not re.fullmatch(r'[A-Za-z0-9_-]{3,64}', new_username):
+        return False, '账号格式不合法'
     conn = get_connection(db_path)
     try:
-        cursor = conn.cursor()
-        pwd_hash = hash_password(password)
-        cursor.execute("SELECT id FROM users WHERE username = ? AND password_hash = ?", (current_username, pwd_hash))
-        if not cursor.fetchone():
-            return False, "当前密码验证失败，无法修改账号名"
-
-        cursor.execute("SELECT id FROM users WHERE username = ?", (new_username,))
-        if cursor.fetchone():
-            return False, f"用户名 '{new_username}' 已被占用，请更换其他名称"
-
-        cursor.execute("UPDATE users SET username = ? WHERE username = ?", (new_username, current_username))
-        conn.commit()
-        logger.info(f"用户账号名修改成功: [{current_username}] -> [{new_username}]")
-        return True, "账号名修改成功"
-    except Exception as e:
-        logger.error(f"change_user_username 异常: {e}")
-        return False, f"修改失败: {str(e)}"
+        row = conn.execute('SELECT password_hash FROM users WHERE username=?', (current_username,)).fetchone()
+        if not row or not verify_password(password, row[0]):
+            return False, '密码验证失败'
+        with conn:
+            conn.execute('UPDATE users SET username=? WHERE username=?', (new_username, current_username))
+            conn.execute('DELETE FROM auth_sessions WHERE username=?', (current_username,))
+        return True, '账号已更新，请重新登录'
+    except sqlite3.IntegrityError:
+        return False, '账号已存在'
     finally:
         conn.close()
 
@@ -2023,81 +1348,34 @@ def change_user_username(current_username: str, new_username: str, password: str
 # 机器人加工程序管理 (Robot Programs Management)
 # =============================================================================
 
-def get_robot_programs(device_id: str, db_path: str = DB_PATH) -> List[Dict[str, Any]]:
-    """获取指定机器人的全部加工程序列表"""
-    conn = get_connection(db_path)
+def get_robot_programs(device_id, db_path=DB_PATH):
+    conn=get_connection(db_path)
     try:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, device_id, device_type, prog_name, file_size, is_active, created_at, updated_at FROM robot_programs WHERE device_id = ? ORDER BY is_active DESC, updated_at DESC",
-            (device_id,)
-        )
-        rows = cursor.fetchall()
-        if not rows:
-            # 若该设备暂无独立程序，查询同品类默认程序
-            cursor.execute(
-                "SELECT id, device_id, device_type, prog_name, file_size, is_active, created_at, updated_at FROM robot_programs ORDER BY is_active DESC, updated_at DESC LIMIT 5"
-            )
-            rows = cursor.fetchall()
-        return [dict(r) for r in rows]
-    except Exception as e:
-        logger.error(f"get_robot_programs 异常: {e}")
-        return []
+        return [dict(r) for r in conn.execute("SELECT id,device_id,device_type,prog_name,file_size,is_active,created_at,updated_at,source FROM robot_programs WHERE device_id=? AND source IN ('platform_draft','controller_file') ORDER BY updated_at DESC",(device_id,))]
     finally:
         conn.close()
 
 
-def get_robot_program_by_name(device_id: str, prog_name: str, db_path: str = DB_PATH) -> Optional[Dict[str, Any]]:
-    """获取指定程序的完整代码内容与元数据"""
-    conn = get_connection(db_path)
+def get_robot_program_by_name(device_id, prog_name, db_path=DB_PATH):
+    conn=get_connection(db_path)
     try:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, device_id, device_type, prog_name, prog_content, file_size, is_active, created_at, updated_at FROM robot_programs WHERE prog_name = ? AND (device_id = ? OR device_id LIKE '%') LIMIT 1",
-            (prog_name, device_id)
-        )
-        row = cursor.fetchone()
-        if row:
-            return dict(row)
-        return None
-    except Exception as e:
-        logger.error(f"get_robot_program_by_name 异常: {e}")
-        return None
+        row=conn.execute("SELECT * FROM robot_programs WHERE device_id=? AND prog_name=? AND source IN ('platform_draft','controller_file')",(device_id,prog_name)).fetchone()
+        return dict(row) if row else None
     finally:
         conn.close()
 
 
-def save_robot_program(
-    device_id: str,
-    device_type: str,
-    prog_name: str,
-    prog_content: str,
-    is_active: int = 0,
-    db_path: str = DB_PATH,
-) -> Tuple[bool, str]:
-    """保存或更新机器人加工程序"""
-    conn = get_connection(db_path)
+def save_robot_program(device_id,device_type,prog_name,prog_content,is_active=0,db_path=DB_PATH):
+    if not re.fullmatch(r'[A-Za-z0-9_-]{1,80}\.[Pp][Rr][Gg]',prog_name) or len(prog_content.encode('utf-8'))>1024*1024:
+        return False,'程序名或大小不合法'
+    conn=get_connection(db_path)
     try:
-        cursor = conn.cursor()
-        file_size = len(prog_content.encode("utf-8"))
-        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        cursor.execute(
-            """
-            INSERT INTO robot_programs (device_id, device_type, prog_name, prog_content, file_size, is_active, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(device_id, prog_name) DO UPDATE SET
-                prog_content = excluded.prog_content,
-                file_size = excluded.file_size,
-                is_active = excluded.is_active,
-                updated_at = excluded.updated_at
-            """,
-            (device_id, device_type, prog_name, prog_content, file_size, is_active, now_str, now_str)
-        )
-        conn.commit()
-        return True, "程序保存成功"
-    except Exception as e:
-        logger.error(f"save_robot_program 异常: {e}")
-        return False, f"保存失败: {str(e)}"
+        with conn:
+            conn.execute("""INSERT INTO robot_programs(device_id,device_type,prog_name,prog_content,file_size,is_active,source)
+                VALUES(?,?,?,?,?,0,'platform_draft') ON CONFLICT(device_id,prog_name) DO UPDATE SET
+                prog_content=excluded.prog_content,file_size=excluded.file_size,is_active=0,source='platform_draft',updated_at=datetime('now','localtime')""",
+                (device_id,device_type,prog_name,prog_content,len(prog_content.encode('utf-8'))))
+        return True,'平台草稿已保存，未写入控制器，也未运行'
     finally:
         conn.close()
 
@@ -2106,46 +1384,40 @@ def save_robot_program(
 # 机器人说明书报警知识库与处理档案 (Alarm Knowledge Base & User Resolutions)
 # =============================================================================
 
-def get_alarm_knowledge_base(keyword: Optional[str] = None, db_path: str = DB_PATH) -> List[Dict[str, Any]]:
-    """检索机器人说明书官方故障代码库"""
-    conn = get_connection(db_path)
+def get_alarm_knowledge_base(keyword=None, db_path=DB_PATH):
+    from alarm_catalog import enrich
+    conn=get_connection(db_path)
     try:
-        cursor = conn.cursor()
-        if keyword:
-            kw = f"%{keyword.strip()}%"
-            cursor.execute(
-                "SELECT id, code, title, category, description, cause, solution, created_at FROM alarm_knowledge_base WHERE code LIKE ? OR title LIKE ? OR description LIKE ? OR solution LIKE ? ORDER BY code ASC",
-                (kw, kw, kw, kw)
-            )
-        else:
-            cursor.execute("SELECT id, code, title, category, description, cause, solution, created_at FROM alarm_knowledge_base ORDER BY code ASC")
-        return [dict(r) for r in cursor.fetchall()]
-    except Exception as e:
-        logger.error(f"get_alarm_knowledge_base 异常: {e}")
-        return []
+        query="SELECT * FROM alarm_knowledge_base WHERE verified=1 AND reference<>''"
+        params=[]
+        if keyword and keyword.strip():
+            term=keyword.strip()
+            candidates=[]
+            for base in (10,16):
+                try:
+                    value=int(term,base)
+                    if 0<=value<=0xffffffff:candidates.append(f'0x{value:08X}')
+                except ValueError:pass
+            query+=' AND (code LIKE ? OR title LIKE ? OR description LIKE ?'
+            params=['%'+term+'%']*3
+            if candidates:
+                query+=' OR code IN ('+','.join('?' for _ in candidates)+')'
+                params.extend(candidates)
+            query+=')'
+        return enrich(conn.execute(query+' ORDER BY code',params).fetchall())
     finally:
         conn.close()
 
 
-def get_alarm_resolutions(device_id: Optional[str] = None, limit: int = 50, db_path: str = DB_PATH) -> List[Dict[str, Any]]:
-    """获取用户手动记录的报警处理历史档案"""
-    conn = get_connection(db_path)
+def get_alarm_resolutions(device_id=None,limit=50,db_path=DB_PATH):
+    conn=get_connection(db_path)
     try:
-        cursor = conn.cursor()
+        query="SELECT * FROM alarm_resolutions WHERE source='operator_note'"
+        params=[]
         if device_id:
-            cursor.execute(
-                "SELECT id, device_id, device_type, alarm_code, alarm_msg, solution, handler, notes, resolved_at, created_at FROM alarm_resolutions WHERE device_id = ? ORDER BY resolved_at DESC LIMIT ?",
-                (device_id, limit)
-            )
-        else:
-            cursor.execute(
-                "SELECT id, device_id, device_type, alarm_code, alarm_msg, solution, handler, notes, resolved_at, created_at FROM alarm_resolutions ORDER BY resolved_at DESC LIMIT ?",
-                (limit,)
-            )
-        return [dict(r) for r in cursor.fetchall()]
-    except Exception as e:
-        logger.error(f"get_alarm_resolutions 异常: {e}")
-        return []
+            query+=' AND device_id=?'
+            params.append(device_id)
+        return [dict(r) for r in conn.execute(query+' ORDER BY created_at DESC,id DESC LIMIT ?',params+[max(1,min(limit,200))])]
     finally:
         conn.close()
 
@@ -2172,8 +1444,8 @@ def add_alarm_resolution(
         res_time = resolved_at or now_str
         cursor.execute(
             """
-            INSERT INTO alarm_resolutions (device_id, device_type, alarm_code, alarm_msg, solution, handler, notes, resolved_at, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO alarm_resolutions (device_id, device_type, alarm_code, alarm_msg, solution, handler, notes, resolved_at, created_at,source)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,'operator_note')
             """,
             (device_id, device_type, alarm_code, alarm_msg, solution, handler, notes, res_time, now_str)
         )
@@ -2187,121 +1459,40 @@ def add_alarm_resolution(
         conn.close()
 
 
-def cleanup_old_alarms(days: int = 7, db_path: str = DB_PATH) -> int:
-    """自动清理保存时间超过 1 周（7天）的历史报警数据"""
-    conn = get_connection(db_path)
-    try:
-        with conn:
-            cursor = conn.execute(
-                "DELETE FROM device_data WHERE data_type = 'alarm' AND received_at < datetime('now', ? || ' days', 'localtime')",
-                (f"-{days}",)
-            )
-            deleted = cursor.rowcount
-            if deleted > 0:
-                logger.info(f"已清理超过 {days} 天的历史报警记录: {deleted} 条")
-            return deleted
-    except Exception as e:
-        logger.error(f"cleanup_old_alarms 异常: {e}")
-        return 0
-    finally:
-        conn.close()
+def cleanup_old_alarms(days=7, db_path=DB_PATH):
+    """Raw controller events are retained; reads must never delete audit evidence."""
+    return 0
 
 
 # =============================================================================
 # 机器人实时 I/O 状态管理 (Device I/O Status)
 # =============================================================================
 
-def get_device_io(device_id: str, db_path: str = DB_PATH) -> Dict[str, Any]:
-    """获取指定设备的 16 路输入 DI 与 16 路输出 DO 实时状态。
-
-    数据来源：真机/仿真设备上报的 `robot/.../io` 实时报文（device_data 表 data_type='io'）。
-    无实时数据时返回 source='no_data'，绝不编造默认点位状态。
-    注：华数 SocketCmd 协议不提供 IO 点位名称，名称列统一为 DI/DO 编号，
-        用户可在 device_io_status 中自定义点位名称（仅作备注，非实时数据）。
-    """
-    conn = get_connection(db_path)
+def get_device_io(device_id, db_path=DB_PATH):
+    dev=get_device_by_id(device_id,db_path)
+    if not dev or dev.get('is_simulated'):
+        return {'device_id':device_id,'di':[],'do':[],'source':'no_data','di_mask':None,'do_mask':None}
+    latest=get_latest_data(dev['device_type'],device_id,db_path)
+    p=latest['parsed_payload'] if latest else {}
+    has_value=any(isinstance(p.get(k),int) and not isinstance(p.get(k),bool) for k in ('di','do'))
+    fresh=p.get('quality',{}).get('io',{}).get('fresh',False) and p.get('state_fresh') and p.get('status')!='offline' and has_value
+    conn=get_connection(db_path)
     try:
-        # 1. 读取最新真实 IO 上报（真机由 huashu_real_bridge 采集 io.getDinGrp/getDoutGrp）
-        real_di: Optional[int] = None
-        real_do: Optional[int] = None
-        real_ts = ""
-        cur = conn.execute(
-            "SELECT raw_payload, received_at FROM device_data "
-            "WHERE device_id = ? AND data_type = 'io' "
-            "ORDER BY received_at DESC, id DESC LIMIT 1",
-            (device_id,),
-        )
-        row = cur.fetchone()
-        if row:
-            try:
-                p = json.loads(row[0])
-                if isinstance(p.get("di"), int):
-                    real_di = p["di"]
-                if isinstance(p.get("do"), int):
-                    real_do = p["do"]
-                real_ts = str(row[1] or "")
-            except Exception:
-                pass
-
-        # 2. 用户自定义点位名称（仅备注用途，非实时状态数据）
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT di_details, do_details FROM device_io_status WHERE device_id = ?",
-            (device_id,),
-        )
-        srow = cursor.fetchone()
-        di_details = json.loads(srow["di_details"] or "{}") if srow else {}
-        do_details = json.loads(srow["do_details"] or "{}") if srow else {}
-
-        # 现场华数真机默认标准点位定义 (与现场示教器 0~33 编号与说明 100% 精确对齐，绝无编造)
-        default_huashu_do = {
-            "do_0": "复位",
-            "do_1": "停止",
-            "do_2": "启动",
-            "do_3": "暂停",
-            "do_30": "充气",
-            "do_31": "主轴",
-        }
-        default_huashu_di = {
-            "di_0": "复位",
-            "di_1": "停止",
-            "di_2": "启动",
-            "di_3": "暂停",
-            "di_30": "充气",
-            "di_31": "主轴",
-        }
-
-        has_real = real_di is not None or real_do is not None
-        di_mask = real_di if real_di is not None else 0
-        do_mask = real_do if real_do is not None else 0
-
-        di_list = []
-        for i in range(34):
-            state = bool((di_mask >> i) & 1) if real_di is not None else None
-            name = di_details.get(f"di_{i}") or default_huashu_di.get(f"di_{i}") or f"DI_{i:02d}"
-            di_list.append({"index": i, "name": name, "state": state})
-
-        do_list = []
-        for i in range(34):
-            state = bool((do_mask >> i) & 1) if real_do is not None else None
-            name = do_details.get(f"do_{i}") or default_huashu_do.get(f"do_{i}") or f"DO_{i:02d}"
-            do_list.append({"index": i, "name": name, "state": state})
-
-        return {
-            "device_id": device_id,
-            "di_mask": di_mask,
-            "do_mask": do_mask,
-            "di": di_list,
-            "do": do_list,
-            "source": "real" if has_real else "no_data",
-            "updated_at": real_ts,
-        }
-    except Exception as e:
-        logger.error(f"get_device_io 异常: {e}")
-        return {"device_id": device_id, "di_mask": 0, "do_mask": 0,
-                "di": [], "do": [], "source": "error", "updated_at": ""}
+        row=conn.execute('SELECT di_details,do_details FROM device_io_status WHERE device_id=?',(device_id,)).fetchone()
     finally:
         conn.close()
+    result={'device_id':device_id,'source':'controller' if fresh else 'no_data','updated_at':p.get('quality',{}).get('io',{}).get('received_at')}
+    for key,idx in [('di',0),('do',1)]:
+        mask=p.get(key) if fresh else None
+        if not isinstance(mask,int) or isinstance(mask,bool):
+            mask=None
+        details=json.loads(row[idx] or '{}') if row else {}
+        count=p.get(key+'_count',0) if fresh and mask is not None else 0
+        result[key+'_mask']=str(mask) if mask is not None else None
+        result[key+'_total_count']=p.get(key+'_total_count') if fresh else None
+        result[key]=[{'index':i,'name':details.get(f'{key}_{i}') or f'{key.upper()}_{i:02d}',
+                      'state':bool(mask & (1<<i)) if mask is not None else None} for i in range(min(int(count),64))]
+    return result
 
 
 def update_device_io(
@@ -2348,42 +1539,9 @@ def update_device_io(
         conn.close()
 
 
-def get_weekly_backups_list(device_id: str, backups_dir: Optional[str] = None) -> List[Dict[str, Any]]:
-    """获取指定设备的每周自动备份归档列表，同时检索 /opt/robot-iot/backups 与本地 backups 目录"""
-    import os
-    import glob
-    
-    dirs_to_check = []
-    if backups_dir:
-        dirs_to_check.append(backups_dir)
-    else:
-        dirs_to_check.extend(["/opt/robot-iot/backups", "backups"])
-    
-    result = []
-    seen_files = set()
-    for b_dir in dirs_to_check:
-        if not os.path.exists(b_dir):
-            continue
-        pattern = os.path.join(b_dir, f"*{device_id}*.zip")
-        files = glob.glob(pattern)
-        for f in sorted(files, key=os.path.getmtime, reverse=True):
-            f_name = os.path.basename(f)
-            if f_name in seen_files:
-                continue
-            seen_files.add(f_name)
-            try:
-                f_size = os.path.getsize(f)
-                mtime = datetime.fromtimestamp(os.path.getmtime(f)).strftime("%Y-%m-%d %H:%M:%S")
-                result.append({
-                    "filename": f_name,
-                    "filepath": f,
-                    "filesize": f_size,
-                    "created_at": mtime,
-                    "type": "weekly_auto"
-                })
-            except Exception:
-                pass
-    return sorted(result, key=lambda x: x["created_at"], reverse=True)
+def get_weekly_backups_list(device_id,backups_dir=None):
+    from backup_service import list_backups
+    return {'backups':list_backups(device_id),'schedule':'由服务器计划任务执行；具体时间以运维配置为准'}
 
 
 
@@ -2415,7 +1573,7 @@ def get_simulated_devices(
     conn = get_connection(db_path)
     try:
         cur = conn.execute(
-            "SELECT * FROM devices WHERE is_simulated = 1 ORDER BY id ASC"
+            "SELECT * FROM devices WHERE is_simulated = 1 AND simulation_enabled=1 ORDER BY id ASC"
         )
         rows = cur.fetchall()
         return [dict(r) for r in rows]
@@ -2426,96 +1584,42 @@ def get_simulated_devices(
         conn.close()
 
 
-def get_command_ack(
-    device_id: str,
-    task_id: str,
-    db_path: str = DB_PATH,
-) -> List[Dict[str, Any]]:
-    """查询设备某条下行指令的执行回执（data_type='cmd_ack' 且 payload 含对应 task_id）。"""
-    conn = get_connection(db_path)
+def get_command_ack(device_id, task_id, db_path=DB_PATH):
+    conn=get_connection(db_path)
     try:
-        cur = conn.execute(
-            "SELECT raw_payload, received_at FROM device_data "
-            "WHERE device_id = ? AND data_type = 'cmd_ack' "
-            "ORDER BY received_at DESC, id DESC LIMIT 20",
-            (device_id,),
-        )
-        result = []
-        for raw, ts in cur.fetchall():
-            try:
-                p = json.loads(raw)
-            except Exception:
-                continue
-            if p.get("task_id") == task_id:
-                p["received_at"] = ts
-                result.append(p)
-        return result
-    except Exception as e:
-        logger.error(f"get_command_ack 查询异常 [{device_id}/{task_id}]: {e}")
-        return []
+        row=conn.execute('SELECT * FROM command_requests WHERE task_id=? AND device_id=?',(task_id,device_id)).fetchone()
+        if not row:
+            return []
+        d=dict(row)
+        if d['state'] in ('sending','delivered','received') and d['expires_at']+15<__import__('time').time():
+            d['state']='unknown'
+            d['message']='未收到最终执行回执，结果未知，禁止自动重试'
+        d['status']=d['state']
+        return [d]
     finally:
         conn.close()
 
 
-def get_cmd_history(
-    device_id: str,
-    limit: int = 20,
-    db_path: str = DB_PATH,
-) -> List[Dict[str, Any]]:
-    """查询设备最近的下行指令与回执记录（cmd 下发 + cmd_ack 回执，按时间倒序）。"""
-    conn = get_connection(db_path)
+def get_cmd_history(device_id,limit=20,db_path=DB_PATH):
+    conn=get_connection(db_path)
     try:
-        cur = conn.execute(
-            "SELECT data_type, raw_payload, received_at FROM device_data "
-            "WHERE device_id = ? AND data_type IN ('cmd', 'cmd_ack') "
-            "ORDER BY received_at DESC, id DESC LIMIT ?",
-            (device_id, max(1, min(limit, 200))),
-        )
-        result = []
-        for data_type, raw, ts in cur.fetchall():
-            try:
-                p = json.loads(raw)
-            except Exception:
-                p = {"raw": raw}
-            p["data_type"] = data_type
-            p["received_at"] = ts
-            result.append(p)
-        return result
-    except Exception as e:
-        logger.error(f"get_cmd_history 查询异常 [{device_id}]: {e}")
-        return []
+        return [dict(r) for r in conn.execute('SELECT * FROM command_requests WHERE device_id=? ORDER BY created_at DESC LIMIT ?',(device_id,max(1,min(limit,200))))]
     finally:
         conn.close()
 
 
-def get_traffic_stats(
-    buckets: int = 13,
-    window_sec: int = 3,
-    data_type: Optional[str] = None,
-    db_path: str = DB_PATH,
-) -> List[int]:
-    """统计最近 buckets 个时间窗内 device_data 的真实写入条数（前端吞吐曲线数据源）。"""
-    conn = get_connection(db_path)
+def get_traffic_stats(buckets=13, window_sec=3, data_type=None, db_path=DB_PATH,end_time=None):
+    now=end_time or datetime.now().replace(microsecond=0)
+    start=now-timedelta(seconds=buckets*window_sec)
+    conn=get_connection(db_path)
     try:
-        now = datetime.now()
-        result = []
-        for i in range(buckets - 1, -1, -1):
-            start = now - timedelta(seconds=(i + 1) * window_sec)
-            end = now - timedelta(seconds=i * window_sec)
-            sql = "SELECT COUNT(*) FROM device_data WHERE received_at >= ? AND received_at < ?"
-            params: List[Any] = [
-                start.strftime("%Y-%m-%dT%H:%M:%S"),
-                end.strftime("%Y-%m-%dT%H:%M:%S"),
-            ]
-            if data_type:
-                sql += " AND data_type = ?"
-                params.append(data_type)
-            cur = conn.execute(sql, params)
-            result.append(int(cur.fetchone()[0]))
+        rows=conn.execute("SELECT received_at FROM device_data WHERE source IN ('controller','simulation') AND data_type=? AND received_at>=? AND received_at<?",(data_type,start.isoformat(),now.isoformat())).fetchall()
+        result=[0]*buckets
+        for r in rows:
+            i=int((datetime.fromisoformat(r[0])-start).total_seconds()//window_sec)
+            if 0<=i<buckets:
+                result[i]+=1
         return result
-    except Exception as e:
-        logger.error(f"get_traffic_stats 查询异常: {e}")
-        return [0] * buckets
     finally:
         conn.close()
 
@@ -2536,213 +1640,48 @@ def format_teach_pendant_time(dt: Optional[datetime] = None) -> str:
     return dt.strftime("%Y-%m-%d %H:%M:%S") + f"'{dt.microsecond // 100000}"
 
 
-def seed_default_run_logs(device_id: str, db_path: str = DB_PATH) -> None:
-    """
-    为新设备或空记录设备初始化华数官方示教器 1:1 真实运行日志流水
-    """
-    conn = get_connection(db_path)
+def seed_default_run_logs(device_id, db_path=DB_PATH):
+    """Retained for compatibility. Empty history remains empty."""
+    return None
+
+
+def add_device_run_log(device_id, icon_type, operator, record_content, log_level='INFO', db_path=DB_PATH, source='platform_audit', event_id=None, event_time=None):
+    import uuid
+    conn=get_connection(db_path)
     try:
-        cur_dev = conn.execute("SELECT device_type FROM devices WHERE device_id = ? LIMIT 1", (device_id,))
-        dev_row = cur_dev.fetchone()
-        dev_type = dev_row["device_type"] if dev_row else "huashu_arm"
-
-        now = datetime.now()
-        base_logs = []
-
-        if dev_type in ("huashu_arm", "arm"):
-            base_logs = [
-                (5000, "action", format_teach_pendant_time(now - timedelta(seconds=5)), "Normal", "ACTION", "确认所有Mc报警信息!"),
-                (4999, "action", format_teach_pendant_time(now - timedelta(seconds=7)), "Normal", "ACTION", "确认所有Mc报警信息!"),
-                (4998, "action", format_teach_pendant_time(now - timedelta(seconds=9)), "Normal", "ACTION", "确认所有Mc报警信息!"),
-                (4995, "action", format_teach_pendant_time(now - timedelta(seconds=12)), "Normal", "ACTION", "确认所有系统信息!"),
-                (4990, "info", format_teach_pendant_time(now - timedelta(seconds=30)), "Normal", "INFO", "HSC3 Ⅲ型控制器网络通讯握手建立 [192.168.1.169:23333]"),
-                (4988, "info", format_teach_pendant_time(now - timedelta(minutes=2)), "Normal", "INFO", "读取六轴绝对位置与零位映射矩阵，正向运动学 (FK) 初始化完成"),
-                (4985, "action", format_teach_pendant_time(now - timedelta(minutes=5)), "Normal", "ACTION", "伺服驱动单元安全待命 [GpId=0, ServoState=READY]"),
-                (4980, "info", format_teach_pendant_time(now - timedelta(minutes=10)), "Normal", "INFO", "示教器与工业物联网云平台数据推流信道建立 (5Hz 遥测流)"),
-                (4975, "action", format_teach_pendant_time(now - timedelta(minutes=12)), "Normal", "ACTION", "示教器操作员 Normal 登录控制面板")
-            ]
-        elif dev_type == "luxshare_amr":
-            base_logs = [
-                (5000, "action", format_teach_pendant_time(now - timedelta(seconds=5)), "Normal", "ACTION", "确认所有底盘导航警报信息!"),
-                (4995, "action", format_teach_pendant_time(now - timedelta(seconds=40)), "Normal", "ACTION", "下发自主搬运工步任务: AGV_LINE_TRANS_01"),
-                (4990, "error", format_teach_pendant_time(now - timedelta(minutes=1)), "Normal", "ERROR", f"[{format_teach_pendant_time(now - timedelta(minutes=1))}] [0x20010010001001] [警告] [雷达] [0] [0] [可恢复] 激光雷达感知前向安全区减速触发,Tips:1.检查通道是否有障碍物 2.清理雷达镜头光学窗口"),
-                (4985, "info", format_teach_pendant_time(now - timedelta(minutes=5)), "Normal", "INFO", "AMR 工业底盘 Nav2 节点建立 5G 工业专网通信, 电池 SOC=92.5%"),
-                (4980, "action", format_teach_pendant_time(now - timedelta(minutes=8)), "Normal", "ACTION", "调度中心连接就绪, 底盘伺服使能闭环")
-            ]
-        elif dev_type == "robot_dog":
-            base_logs = [
-                (5000, "action", format_teach_pendant_time(now - timedelta(seconds=5)), "Normal", "ACTION", "确认所有巡检姿态警报信息!"),
-                (4995, "action", format_teach_pendant_time(now - timedelta(seconds=30)), "Normal", "ACTION", "下发厂区管廊巡检工步: PATROL_ROUTE_B"),
-                (4990, "error", format_teach_pendant_time(now - timedelta(minutes=1)), "Normal", "ERROR", f"[{format_teach_pendant_time(now - timedelta(minutes=1))}] [0x30010000000001] [警告] [姿态] [0] [0] [可恢复] IMU 横滚角倾斜超限预警 (Roll=28.5°),Tips:1.检查路面是否积油湿滑 2.下发自平衡恢复指令"),
-                (4985, "info", format_teach_pendant_time(now - timedelta(minutes=4)), "Normal", "INFO", "四足巡检机器狗 Trot 步态小跑驱动启动, 12轴全闭环使能"),
-                (4980, "action", format_teach_pendant_time(now - timedelta(minutes=7)), "Normal", "ACTION", "操作员下发站立自检指令 StandReady")
-            ]
-        else:
-            base_logs = [
-                (5000, "action", format_teach_pendant_time(now - timedelta(seconds=5)), "Normal", "ACTION", "确认所有协同系统警报信息!"),
-                (4995, "action", format_teach_pendant_time(now - timedelta(seconds=20)), "Normal", "ACTION", "启动空地协同空中巡查工步"),
-                (4990, "info", format_teach_pendant_time(now - timedelta(minutes=2)), "Normal", "INFO", "RTK 厘米级差分定位建立锁定, 星数=24"),
-                (4985, "action", format_teach_pendant_time(now - timedelta(minutes=6)), "Normal", "ACTION", "系统开机自检通过, 遥测信道已握手")
-            ]
-
-        for seq, icon, ltime, op, lvl, content in base_logs:
-            conn.execute(
-                "INSERT INTO device_run_logs (device_id, seq_no, icon_type, log_time, operator, log_level, record_content) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (device_id, seq, icon, ltime, op, lvl, content)
-            )
-        conn.commit()
-        logger.info(f"已为设备 [{device_id}] 初始化 {len(base_logs)} 条示教器标准运行日志")
-    except Exception as e:
-        logger.error(f"seed_default_run_logs 异常: {e}")
+        with conn:
+            conn.execute('BEGIN IMMEDIATE')
+            seq=conn.execute('SELECT COALESCE(MAX(seq_no),0)+1 FROM device_run_logs WHERE device_id=?',(device_id,)).fetchone()[0]
+            cur=conn.execute('INSERT OR IGNORE INTO device_run_logs(device_id,seq_no,icon_type,log_time,operator,log_level,record_content,source,event_id) VALUES(?,?,?,?,?,?,?,?,?)',
+                            (device_id,seq,icon_type,event_time or datetime.now().isoformat(timespec='milliseconds'),operator,log_level,record_content,source,event_id or uuid.uuid4().hex))
+        return seq if cur.rowcount else 0
     finally:
         conn.close()
 
 
-def add_device_run_log(
-    device_id: str,
-    icon_type: str,
-    operator: str,
-    record_content: str,
-    log_level: str = "INFO",
-    db_path: str = DB_PATH
-) -> int:
-    """
-    向设备原生运行日志表追加一条记录（自动递增 seq_no 编号）
-    返回新生成的 seq_no
-    """
-    conn = get_connection(db_path)
+def confirm_all_alarms_log(device_id, operator='unknown', db_path=DB_PATH):
+    seq=add_device_run_log(device_id,'action',operator,'操作员已阅平台报警记录；未清除控制器报警',db_path=db_path)
+    return {'success':bool(seq),'seq_no':seq,'message':'已登记平台已阅，控制器报警状态未改变','cleared_alarms':0}
+
+
+def get_device_logs(device_id, limit=100, level=None, filter_type=None, db_path=DB_PATH):
+    conn=get_connection(db_path)
     try:
-        cur_cnt = conn.execute("SELECT COUNT(*) FROM device_run_logs WHERE device_id = ?", (device_id,))
-        if cur_cnt.fetchone()[0] == 0:
-            conn.close()
-            seed_default_run_logs(device_id, db_path)
-            conn = get_connection(db_path)
-
-        cur = conn.execute("SELECT MAX(seq_no) FROM device_run_logs WHERE device_id = ?", (device_id,))
-        row = cur.fetchone()
-        max_seq = row[0] if (row and row[0] is not None) else 5000
-        new_seq = max_seq + 1
-        ltime = format_teach_pendant_time(datetime.now())
-
-        conn.execute(
-            "INSERT INTO device_run_logs (device_id, seq_no, icon_type, log_time, operator, log_level, record_content) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (device_id, new_seq, icon_type, ltime, operator or "Normal", log_level, record_content)
-        )
-        conn.commit()
-        logger.info(f"设备 [{device_id}] 新增示教器日志 #{new_seq}: {record_content[:40]}")
-        return new_seq
-    except Exception as e:
-        logger.error(f"add_device_run_log 异常: {e}")
-        return 0
-    finally:
-        conn.close()
-
-
-def confirm_all_alarms_log(
-    device_id: str,
-    operator: str = "Normal",
-    db_path: str = DB_PATH
-) -> Dict[str, Any]:
-    """
-    1:1 复刻示教器【确认所有Mc报警信息!】操作
-    - 追加一条 👆 图标操作记录
-    - 记录进报警处置履历库 alarm_resolutions
-    """
-    new_seq = add_device_run_log(
-        device_id=device_id,
-        icon_type="action",
-        operator=operator,
-        record_content="确认所有Mc报警信息!",
-        log_level="ACTION",
-        db_path=db_path
-    )
-
-    conn = get_connection(db_path)
-    cleared_count = 0
-    try:
-        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        dev_cur = conn.execute("SELECT device_type FROM devices WHERE device_id = ?", (device_id,))
-        dev_row = dev_cur.fetchone()
-        dev_type = dev_row[0] if dev_row else "huashu_arm"
-        conn.execute(
-            "INSERT INTO alarm_resolutions (device_id, device_type, alarm_code, alarm_msg, solution, handler, notes, resolved_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (device_id, dev_type, "ACK_ALL", "确认所有Mc报警信息", "示教器操作员现场确认并复位系统报警信息", operator, "示教器原生面板触发确认", now_str)
-        )
-        conn.commit()
-        cleared_count = 1
-        logger.info(f"设备 [{device_id}] 执行'确认所有Mc报警信息!'并记入报警处置台账")
-    except Exception as e:
-        logger.error(f"confirm_all_alarms_log 异常: {e}")
-    finally:
-        conn.close()
-
-    return {
-        "success": True,
-        "seq_no": new_seq,
-        "message": "确认所有Mc报警信息!",
-        "cleared_alarms": cleared_count
-    }
-
-
-def get_device_logs(
-    device_id: str,
-    limit: int = 100,
-    level: Optional[str] = None,
-    filter_type: Optional[str] = None,
-    db_path: str = DB_PATH
-) -> List[Dict[str, Any]]:
-    """
-    获取指定设备的示教器标准运行日志 (HSR-Pad 1:1 格式)
-    字段：图标 | 编号 | 时间 | 用户 | 记录项 (同时提供旧版兼容字段 timestamp/source/message)
-    """
-    conn = get_connection(db_path)
-    try:
-        # 检查是否已存在记录，不存在则自动初始化
-        cur_cnt = conn.execute("SELECT COUNT(*) FROM device_run_logs WHERE device_id = ?", (device_id,))
-        if cur_cnt.fetchone()[0] == 0:
-            conn.close()
-            seed_default_run_logs(device_id, db_path)
-            conn = get_connection(db_path)
-
-        query = "SELECT id, seq_no, icon_type, log_time, operator, log_level, record_content FROM device_run_logs WHERE device_id = ?"
-        params: List[Any] = [device_id]
-
-        if filter_type and filter_type.lower() != "all":
-            query += " AND icon_type = ?"
+        query="SELECT * FROM device_run_logs WHERE device_id=? AND source IN ('platform_audit','controller_event','simulation')"
+        params=[device_id]
+        if filter_type and filter_type.lower()!='all':
+            query+=' AND icon_type=?'
             params.append(filter_type.lower())
-        elif level and level.upper() != "ALL":
-            query += " AND log_level = ?"
+        elif level and level.upper()!='ALL':
+            query+=' AND log_level=?'
             params.append(level.upper())
-
-        query += " ORDER BY seq_no DESC, id DESC LIMIT ?"
-        params.append(max(1, min(limit, 500)))
-
-        cur = conn.execute(query, params)
-        rows = cur.fetchall()
-
-        logs = []
+        rows=conn.execute(query+' ORDER BY id DESC LIMIT ?',params+[min(500,max(1,limit))]).fetchall()
+        result=[]
         for r in rows:
-            icon = r["icon_type"]
-            src_name = "示教器操作" if icon == "action" else ("伺服报警" if icon == "error" else "系统记录")
-            logs.append({
-                "id": f"runlog_{r['id']}",
-                "seq_no": r["seq_no"],
-                "icon_type": r["icon_type"],
-                "log_time": r["log_time"],
-                "operator": r["operator"],
-                "log_level": r["log_level"],
-                "record_content": r["record_content"],
-                # 兼容旧版终端调用
-                "timestamp": r["log_time"],
-                "level": r["log_level"],
-                "source": src_name,
-                "message": r["record_content"]
-            })
-        return logs
-    except Exception as e:
-        logger.error(f"get_device_logs 异常 [{device_id}]: {e}")
-        return []
+            d=dict(r)
+            d.update(timestamp=d['log_time'],level=d['log_level'],message=d['record_content'])
+            result.append(d)
+        return result
     finally:
         conn.close()
 
@@ -2751,436 +1690,17 @@ def get_device_logs(
 # 模块二：每日/每月运行状态报告 (参考 FANUC iCare 极简专业设计)
 # =============================================================================
 
-def get_device_report_data(
-    device_id: str,
-    period: str = "daily",
-    date_str: Optional[str] = None,
-    db_path: str = DB_PATH
-) -> Dict[str, Any]:
-    """
-    生成设备稼动率、节拍分析、能耗与健康度每日/每月专业运行报告。
-    参考发那科 iCare 架构：涵盖工时占比、Cycle Time 节拍波动、电气指标及减速机油脂倒计时。
-    """
-    conn = get_connection(db_path)
-    try:
-        cur_dev = conn.execute("SELECT * FROM devices WHERE device_id = ? LIMIT 1", (device_id,))
-        dev = cur_dev.fetchone()
-        if not dev:
-            return {"error": f"Device {device_id} not found"}
-
-        today = datetime.now()
-        cur_date_str = date_str or today.strftime("%Y-%m-%d")
-
-        if period == "monthly":
-            period_label = today.strftime("%Y年%m月")
-            period_start = today.strftime("%Y-%m-01 00:00:00")
-            scale_factor = 30.0
-        else:
-            period_label = cur_date_str
-            period_start = f"{cur_date_str} 00:00:00"
-            scale_factor = 1.0
-
-        # 1. 查询该设备最新 state 遥测记录（累计工时、节拍循环数等）
-        cur_latest = conn.execute(
-            "SELECT raw_payload, received_at FROM device_data WHERE device_id = ? AND data_type = 'state' ORDER BY received_at DESC, id DESC LIMIT 1",
-            (device_id,)
-        )
-        latest_state_row = cur_latest.fetchone()
-        latest_payload = {}
-        if latest_state_row:
-            try:
-                latest_payload = json.loads(latest_state_row["raw_payload"])
-            except Exception:
-                latest_payload = {}
-
-        # 真实累计运行工时与节拍循环计数（100% 取自设备遥测，无遥测上报时真实为 0.0）
-        acc_running_hours = float(latest_payload.get("running_hours") or 0.0)
-        total_cycles = int(latest_payload.get("cycle_count") or 0)
-
-        # 2. 查询该设备最新 sensor 传感遥测（电机温升、相电流、母线电压等）
-        cur_sensor = conn.execute(
-            "SELECT raw_payload, received_at FROM device_data WHERE device_id = ? AND data_type = 'sensor' ORDER BY received_at DESC, id DESC LIMIT 1",
-            (device_id,)
-        )
-        sensor_row = cur_sensor.fetchone()
-        sensor_payload = {}
-        if sensor_row:
-            try:
-                sensor_payload = json.loads(sensor_row["raw_payload"])
-            except Exception:
-                sensor_payload = {}
-
-        actual_temp = float(sensor_payload.get("temperature", 0.0))
-        # 伺服电机电流优先从 motor_currents 数组取最大/平均相电流，或取 current 字段
-        m_currents = latest_payload.get("motor_currents", [])
-        if m_currents and any(c > 0 for c in m_currents):
-            actual_current = float(max(m_currents))
-        else:
-            actual_current = float(sensor_payload.get("current", 0.0))
-
-        actual_voltage = float(sensor_payload.get("voltage", 380.0 if dev["device_type"] in ("huashu_arm", "arm") else 24.0))
-
-        # 3. 统计在当前统计周期内从开机至今的【真实总通电工时】与各工况占比
-        cur_states = conn.execute(
-            """
-            SELECT MIN(received_at) as first_seen, MAX(received_at) as last_seen, COUNT(*) as state_count
-            FROM device_data 
-            WHERE device_id = ? AND data_type = 'state' AND received_at >= ?
-            """,
-            (device_id, period_start)
-        )
-        row_states = cur_states.fetchone()
-
-        if row_states and row_states["first_seen"] and row_states["last_seen"] and row_states["state_count"] > 0:
-            try:
-                t0 = datetime.fromisoformat(row_states["first_seen"].replace("T", " ")[:19])
-                t1 = datetime.fromisoformat(row_states["last_seen"].replace("T", " ")[:19])
-                actual_powered_hours = round(max(0.1, (t1 - t0).total_seconds() / 3600.0), 1)
-            except Exception:
-                actual_powered_hours = 0.1
-        else:
-            actual_powered_hours = 0.0
-
-        # 真实报警次数与实际故障停机时间
-        cur_alarms = conn.execute(
-            """
-            SELECT COUNT(*) FROM device_data 
-            WHERE (data_type = 'alarm' OR (data_type = 'state' AND raw_payload LIKE '%"error_code":%' AND raw_payload NOT LIKE '%"error_code": 0%' AND raw_payload NOT LIKE '%"error_code":0%'))
-            AND received_at >= ? AND device_id = ?
-            """,
-            (period_start, device_id)
-        )
-        alarm_cnt_row = cur_alarms.fetchone()
-        alarm_count = alarm_cnt_row[0] if alarm_cnt_row else 0
-        sum_downtime_min = alarm_count * 4.3  # 每次实际故障按 MTTR 平均修复用时 4.3 分钟核算
-
-        # 统计实际各个状态的报文条数
-        cur_running = conn.execute(
-            """
-            SELECT COUNT(*) FROM device_data 
-            WHERE device_id = ? AND data_type = 'state' AND received_at >= ? 
-            AND (raw_payload LIKE '%"status": "running"%' OR raw_payload LIKE '%"status":"running"%')
-            """,
-            (device_id, period_start)
-        )
-        cnt_running = cur_running.fetchone()[0]
-
-        cur_error = conn.execute(
-            """
-            SELECT COUNT(*) FROM device_data 
-            WHERE device_id = ? AND data_type = 'state' AND received_at >= ? 
-            AND (raw_payload LIKE '%"status": "error"%' OR raw_payload LIKE '%"emergency_stop": true%' OR raw_payload LIKE '%"emergency_stop":true%')
-            """,
-            (device_id, period_start)
-        )
-        cnt_error = cur_error.fetchone()[0]
-
-        total_samples = max(1, row_states["state_count"] if row_states else 1)
-        ratio_running = cnt_running / total_samples
-        ratio_error = cnt_error / total_samples
-
-        total_hours = actual_powered_hours
-        running_hours = round(total_hours * ratio_running, 1)
-        downtime_hours = round(max(sum_downtime_min / 60.0, total_hours * ratio_error), 1)
-        standby_hours = round(max(0.0, total_hours - running_hours - downtime_hours), 1)
-
-        # 真实稼动率 (OEE % = 生产作业时间 / 总通电开机时间)
-        if total_hours > 0:
-            oee_pct = round((running_hours / total_hours) * 100.0, 1)
-        else:
-            oee_pct = 0.0
-
-        # 4. 生产节拍统计 (Cycle Time = 真实生产时间(秒) / 真实完工循环数)
-        cycles_completed = total_cycles
-        if cycles_completed > 0 and running_hours > 0:
-            avg_cycle_time = round((running_hours * 3600.0) / cycles_completed, 1)
-            min_cycle_time = round(avg_cycle_time * 0.95, 1)
-            max_cycle_time = round(avg_cycle_time * 1.05, 1)
-            cycle_stability = f"±{round((max_cycle_time - min_cycle_time)/2, 1)}s (优良)"
-        else:
-            avg_cycle_time = 0.0
-            min_cycle_time = 0.0
-            max_cycle_time = 0.0
-            cycle_stability = "就绪待命 (未启动加工工序)"
-
-        # 5. 电气健康度、电机负载与能耗核算 (纯真实计算)
-        rated_current = 15.0 if dev["device_type"] in ("huashu_arm", "arm") else 25.0
-        motor_load_avg = round(min(100.0, (actual_current / rated_current) * 100.0), 1)
-        motor_temp_peak = round(actual_temp, 1)
-
-        # 健康评分公式：100分基准 - 故障扣分(每次扣2分) - 高温扣分 - 过载扣分
-        health_score = 100.0 - (alarm_count * 2.0)
-        if motor_temp_peak > 60.0:
-            health_score -= 5.0
-        if motor_load_avg > 75.0:
-            health_score -= 5.0
-        health_score = round(max(60.0, min(100.0, health_score)), 1)
-        health_grade = "优 (Grade A)" if health_score >= 90 else ("良 (Grade B)" if health_score >= 80 else "关注 (Grade C)")
-
-        # 能耗 E = P * Running Hours (kWh)
-        if actual_voltage > 100:
-            kw_power = (actual_voltage * actual_current * 1.732 * 0.85) / 1000.0
-        else:
-            kw_power = (actual_voltage * actual_current) / 1000.0
-        power_kwh = round(max(0.0, kw_power * running_hours), 2)
-        est_cost = round(power_kwh * 0.72, 2)  # 工业用电平均 0.72元/度
-
-        # 6. 维保倒计时 (Preventive Maintenance Countdown 严格依据真实累计运转工时)
-        grease_total_hours = 5000
-        grease_remaining_hours = int(grease_total_hours - (acc_running_hours % grease_total_hours))
-        
-        battery_total_days = 365
-        days_active = int(acc_running_hours / 16.0)
-        battery_remaining_days = max(15, battery_total_days - (days_active % battery_total_days))
-
-        belt_inspection_hours = int(1000 - (acc_running_hours % 1000))
-
-        # 动态真实文字评估
-        if total_hours == 0.0:
-            eval_summary = "设备今日暂无运行数据上报，等待开机接入。"
-        elif running_hours == 0.0:
-            eval_summary = (
-                f"设备今日开机累计 {total_hours}h，当前处于就绪待命 (standby) 状态，未启动自动化加工程序。"
-                f"伺服各轴电机最高温升 {motor_temp_peak}°C，相电流 {actual_current:.2f}A，零报警故障中断。"
-                f"减速机润滑脂寿命剩余 {grease_remaining_hours}h，编码器电池寿命剩余 {battery_remaining_days}天。"
-            )
-        else:
-            eval_summary = (
-                f"设备今日开机累计 {total_hours}h（生产作业 {running_hours}h，综合稼动率 {oee_pct}%），完工循环 {cycles_completed} 次，平均节拍 {avg_cycle_time}s。"
-                f"伺服相电流 {actual_current:.2f}A（平均负载率 {motor_load_avg}%），各轴电机最高温升 {motor_temp_peak}°C，处于额定工况区间。"
-                f"减速机润滑脂剩余 {grease_remaining_hours}h，编码器电池寿命剩余 {battery_remaining_days}天，运行状态良好。"
-            )
-
-        return {
-            "device_id": device_id,
-            "device_name": dev["device_name"] or dev["device_id"],
-            "device_type": dev["device_type"],
-            "location": dev["location"] or "广州智造基地",
-            "period": period,
-            "period_label": period_label,
-            "report_generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "controller_version": "HSC3-V3.2.18-PROD",
-            "operating_hours": {
-                "total_hours": total_hours,
-                "running_hours": running_hours,
-                "standby_hours": standby_hours,
-                "downtime_hours": downtime_hours,
-                "oee_pct": oee_pct,
-            },
-            "production_metrics": {
-                "cycles_completed": cycles_completed,
-                "avg_cycle_time_sec": avg_cycle_time,
-                "min_cycle_time_sec": min_cycle_time,
-                "max_cycle_time_sec": max_cycle_time,
-                "cycle_stability": cycle_stability,
-            },
-            "health_diagnostics": {
-                "health_score": health_score,
-                "health_grade": health_grade,
-                "motor_load_avg_pct": motor_load_avg,
-                "motor_temp_peak_c": motor_temp_peak,
-                "power_consumption_kwh": power_kwh,
-                "energy_cost_rmb": est_cost,
-            },
-            "maintenance_countdown": {
-                "grease_remaining_hours": grease_remaining_hours,
-                "grease_total_hours": grease_total_hours,
-                "battery_remaining_days": battery_remaining_days,
-                "battery_total_days": battery_total_days,
-                "belt_inspection_remaining_hours": belt_inspection_hours,
-            },
-            "evaluation_summary": eval_summary
-        }
-    except Exception as e:
-        logger.error(f"get_device_report_data 异常 [{device_id}]: {e}")
-        return {"error": str(e)}
-    finally:
-        conn.close()
+def get_device_report_data(device_id, period='daily', date_str=None, db_path=DB_PATH):
+    from reporting import device_report
+    return device_report(device_id,period,date_str,db_path)
 
 
 # =============================================================================
 # 模块三：报警统计分析图表 (参考 FANUC ZDT 工业看板 - 纯真实数据驱动)
 # =============================================================================
 
-def get_alarm_analytics_stats(
-    device_id: Optional[str] = None,
-    days: int = 14,
-    db_path: str = DB_PATH
-) -> Dict[str, Any]:
-    """
-    获取近 14 天报警趋势、四大分类占比与易发 TOP5 统计图表。
-    100% 严格基于数据库真实报警记录 (data_type='alarm' 或 故障态) 动态统计，绝不填充任何虚假频次与伪造数据：
-    - 无报警时，总频次为 0，趋势线全为 0，TOP 5 清单为空并提示“当前周期无报警记录 (良好)”。
-    - 真实发生故障时，系统自动归纳故障代码、统计实际发生频次，并匹配官方标准处置指南。
-    """
-    conn = get_connection(db_path)
-    try:
-        today = datetime.now().date()
-        date_list = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(days - 1, -1, -1)]
-        start_date_str = date_list[0] + " 00:00:00"
-
-        # 1. 14 天真实趋势查询
-        trend_map = {d: 0 for d in date_list}
-        query_trend = """
-            SELECT strftime('%Y-%m-%d', received_at) as log_date, COUNT(*) as cnt 
-            FROM device_data 
-            WHERE (data_type = 'alarm' OR (data_type = 'state' AND raw_payload LIKE '%"error_code":%' AND raw_payload NOT LIKE '%"error_code": 0%' AND raw_payload NOT LIKE '%"error_code":0%'))
-            AND received_at >= ?
-        """
-        params = [start_date_str]
-        if device_id:
-            query_trend += " AND device_id = ?"
-            params.append(device_id)
-        query_trend += " GROUP BY log_date"
-
-        cur = conn.execute(query_trend, params)
-        for r in cur.fetchall():
-            if r["log_date"] in trend_map:
-                trend_map[r["log_date"]] = r["cnt"]
-
-        trend_data = [{"date": d, "count": trend_map[d]} for d in date_list]
-        total_alarms = sum(trend_map.values())
-
-        # 2. 真实报警事件明细提取与 TOP 5 聚合
-        query_details = """
-            SELECT raw_payload, received_at 
-            FROM device_data 
-            WHERE (data_type = 'alarm' OR (data_type = 'state' AND raw_payload LIKE '%"error_code":%' AND raw_payload NOT LIKE '%"error_code": 0%' AND raw_payload NOT LIKE '%"error_code":0%'))
-            AND received_at >= ?
-        """
-        details_params = [start_date_str]
-        if device_id:
-            query_details += " AND device_id = ?"
-            details_params.append(device_id)
-
-        cur_details = conn.execute(query_details, details_params)
-        raw_rows = cur_details.fetchall()
-
-        # 加载官方故障知识库以供匹配排障指南
-        kb_list = get_alarm_knowledge_base(db_path=db_path)
-        kb_map = {item["code"]: item for item in kb_list}
-
-        # 统计各个具体故障代码的真实出现次数
-        alarm_counts = {}
-        category_counts = {
-            "伺服驱动类 (Servo/Drive)": 0,
-            "运动超程类 (Motion/Limit)": 0,
-            "外围IO与总线 (IO/Fieldbus)": 0,
-            "系统底层与通信 (System/Comms)": 0
-        }
-
-        for r in raw_rows:
-            try:
-                p = json.loads(r["raw_payload"])
-            except Exception:
-                p = {}
-            code = str(p.get("alarm_code") or p.get("error_code") or p.get("code") or "0x1000")
-            msg = str(p.get("alarm_msg") or p.get("error_msg") or p.get("msg") or "设备运行告警")
-
-            # 优先匹配官方故障知识库
-            matched_kb = kb_map.get(code)
-            if matched_kb:
-                title = matched_kb.get("title", msg)
-                category = matched_kb.get("category", "伺服驱动类")
-                solution = matched_kb.get("solution", "复位伺服后重新启动。")
-            elif code == "1" or p.get("emergency_stop"):
-                title = "急停开关触发 (Emergency Stop Active)"
-                category = "运动超程类"
-                solution = "检查控制柜或示教器上的急停蘑菇头是否被按下，旋起释放后在示教器执行伺服使能复位。"
-            elif code == "-1":
-                title = "控制器通信中断 (HSC3 Socket Lost)"
-                category = "系统底层与通信"
-                solution = "检查工控机与华数控制器 (192.168.1.169:23333) 的以太网物理连接与防火墙。"
-            else:
-                title = msg
-                if "\ufffd" in title or not title.isprintable():
-                    title = f"设备告警 (Code {code})"
-                if "io" in title.lower() or "夹爪" in title or "气压" in title:
-                    category = "外围IO与总线"
-                elif "超程" in title or "限位" in title or "碰撞" in title or "急停" in title:
-                    category = "运动超程类"
-                elif "通讯" in title or "网络" in title or "超时" in title or "心跳" in title or "socket" in title.lower():
-                    category = "系统底层与通信"
-                else:
-                    category = "伺服驱动类"
-                solution = "检查控制线路及机械限位，在示教器执行故障复位。"
-
-            if code not in alarm_counts:
-                alarm_counts[code] = {
-                    "code": code,
-                    "title": title,
-                    "category": category,
-                    "count": 0,
-                    "avg_downtime_min": 3.0,
-                    "solution": solution
-                }
-            alarm_counts[code]["count"] += 1
-
-            if "伺服" in category:
-                category_counts["伺服驱动类 (Servo/Drive)"] += 1
-            elif "运动" in category or "超程" in category:
-                category_counts["运动超程类 (Motion/Limit)"] += 1
-            elif "IO" in category or "总线" in category:
-                category_counts["外围IO与总线 (IO/Fieldbus)"] += 1
-            else:
-                category_counts["系统底层与通信 (System/Comms)"] += 1
-
-        # 3. 按真实频次降序排列取 TOP 5 (若无报警则为空列表)
-        sorted_alarms = sorted(alarm_counts.values(), key=lambda x: x["count"], reverse=True)
-        top_alarms = sorted_alarms[:5]
-
-        # 4. 构建真实分类占比
-        colors = {
-            "伺服驱动类 (Servo/Drive)": "#f43f5e",
-            "运动超程类 (Motion/Limit)": "#f59e0b",
-            "外围IO与总线 (IO/Fieldbus)": "#3b82f6",
-            "系统底层与通信 (System/Comms)": "#10b981",
-        }
-        categories_data = []
-        for cat_name, val in category_counts.items():
-            ratio = round((val / total_alarms * 100.0), 1) if total_alarms > 0 else 0.0
-            categories_data.append({
-                "name": cat_name,
-                "value": val,
-                "ratio": ratio,
-                "color": colors.get(cat_name, "#3b82f6")
-            })
-
-        # 5. 计算真实 MTBF 与 MTTR
-        cur_runtime = conn.execute(
-            """
-            SELECT COUNT(*) FROM device_data 
-            WHERE received_at >= ?
-            """ + (" AND device_id = ?" if device_id else ""),
-            params
-        )
-        total_records = cur_runtime.fetchone()[0]
-        acc_operating_hours = round(max(0.5, total_records / 1800.0), 1)
-
-        if total_alarms > 0:
-            mtbf_hours = round(acc_operating_hours / total_alarms, 1)
-            mttr_minutes = 3.5
-            auto_recovery_rate_pct = round(max(70.0, 100.0 - (total_alarms * 2.5)), 1)
-        else:
-            mtbf_hours = round(max(acc_operating_hours, 500.0), 1)
-            mttr_minutes = 0.0
-            auto_recovery_rate_pct = 100.0
-
-        return {
-            "device_id": device_id or "fleet_overview",
-            "days": days,
-            "total_alarms": total_alarms,
-            "mtbf_hours": mtbf_hours,
-            "mttr_minutes": mttr_minutes,
-            "auto_recovery_rate_pct": auto_recovery_rate_pct,
-            "trend": trend_data,
-            "categories": categories_data,
-            "top_alarms": top_alarms
-        }
-    except Exception as e:
-        logger.error(f"get_alarm_analytics_stats 异常: {e}")
-        return {"trend": [], "categories": [], "top_alarms": []}
-    finally:
-        conn.close()
+def get_alarm_analytics_stats(device_id=None, days=14, db_path=DB_PATH):
+    from reporting import alarm_report
+    return alarm_report(device_id,days,db_path)
 
 

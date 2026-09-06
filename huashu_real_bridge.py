@@ -1,398 +1,195 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-huashu_real_bridge.py - 生产级真实华数六轴工业机械臂采集与指令下发双向服务
-=============================================================================
-功能说明：
-1. 直连局域网中真实华数 Ⅲ 型控制器 (IP: 192.168.1.169:23333)。
-2. 通过原生 HSC3 SocketCmd 协议高频采集物理机械臂 J1~J6 真实绝对关节角度与末端笛卡尔坐标 (5Hz)。
-3. 双向控制通道：订阅 MQTT 指令主题 [cmd/huashu_arm/#, robot/huashu_arm/+/cmd]，将云端/管理后台下发的
-   控制指令（伺服使能、故障复位、速度倍率调节、单轴点动、程序启停、DO输出等）实时下发至控制器执行。
-4. 严格遵循真实物理状态，静止即静止，运动即运动，急停与报警 100% 真实映射。
-=============================================================================
-"""
-
-import os
-import sys
-import time
+"""Verified HSC3 bridge. No simulation, guessed measurements or raw commands."""
+import argparse
+import hashlib
 import json
-import socket
 import logging
+import os
 import queue
-import threading
 import signal
+import sqlite3
+import threading
+import time
+import uuid
 from datetime import datetime
+from pathlib import Path
+from contextlib import closing
+
 import paho.mqtt.client as mqtt
+from huashu_protocol import HuashuSocketClient, ControllerError
+from robot_commands import validate_command
+from security import sign_payload, verify_payload, timestamp_age
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] [HuashuRealBridge] %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-logger = logging.getLogger("HuashuRealBridge")
+logger=logging.getLogger('HuashuRealBridge')
+STOP=threading.Event()
 
-ROBOTS = [
-    {"device_id": "arm_001", "ip": "192.168.1.169", "name": "华数BR610六轴工业机械臂"},
-]
-
-MQTT_HOST = "127.0.0.1"
-MQTT_PORT = 1883
-INTERVAL = 0.2  # 5Hz 高频实时姿态上报
-
-running = True
-
-def handle_exit(signum, frame):
-    global running
-    logger.info("收到退出信号，停止真实机械臂桥接服务...")
-    running = False
-
-signal.signal(signal.SIGINT, handle_exit)
-if hasattr(signal, "SIGTERM"):
-    signal.signal(signal.SIGTERM, handle_exit)
-
-def parse_array_str(s):
-    if not s or s == "null": return []
-    try:
-        clean = s.strip()
-        if clean.startswith("{"): clean = clean[1:]
-        if clean.endswith("}"): clean = clean[:-1]
-        parts = [p.strip() for p in clean.split(",") if p.strip()]
-        return [float(p) for p in parts]
-    except Exception as e:
-        logger.warning(f"解析数组异常: {s} -> {e}")
-        return []
 
 class HuashuRobotCollector(threading.Thread):
     def __init__(self, r_info, mqtt_client):
         super().__init__(daemon=True)
-        self.device_id = r_info["device_id"]
-        self.ip = r_info["ip"]
-        self.name = r_info["name"]
-        self.mqtt = mqtt_client
-        self.seq = 1
-        self.buffer = b""
-        self.cmd_queue = queue.Queue()
+        self.device_id=r_info['device_id']
+        self.mqtt=mqtt_client
+        self.key=os.environ['TELEMETRY_HMAC_KEY']
+        self.command_key=os.environ['COMMAND_HMAC_KEY']
+        self.driver=HuashuSocketClient(r_info['ip'],int(r_info.get('port',23333)),alarm_callback=self.alarm)
+        self.cmd_queue=queue.PriorityQueue(maxsize=32)
+        self.counter=0
+        self.counter_lock=threading.Lock()
+        self.ledger=Path(os.getenv('EDGE_STATE_DIR',str(Path(__file__).parent/'edge_state')))/f'{self.device_id}.db'
+        self.ledger.parent.mkdir(parents=True,exist_ok=True)
+        with closing(sqlite3.connect(str(self.ledger))) as conn, conn:
+            conn.execute('CREATE TABLE IF NOT EXISTS received_tasks(task_id TEXT PRIMARY KEY, received_at REAL NOT NULL)')
 
-    def send_cmd(self, sock, cmd):
-        self.seq += 1
-        curr_seq = self.seq
-        req = f"i:{curr_seq},c:{cmd}@hs@".encode('utf-8')
-        sock.sendall(req)
-        
-        while True:
-            if b"@hs@" in self.buffer:
-                packet, self.buffer = self.buffer.split(b"@hs@", 1)
-                raw_str = packet.decode('utf-8', errors='ignore')
-                # 优先处理控制器主动推送的突发硬件报警 (流水号 -1)
-                if raw_str.startswith("i:-1,") or raw_str.startswith("i:-1:"):
-                    idx = raw_str.find("d:")
-                    if idx != -1:
-                        alarm_content = raw_str[idx+2:]
-                        try:
-                            alarm_obj = json.loads(alarm_content)
-                            alarm_payload = {
-                                "device_id": self.device_id,
-                                "device_type": "huashu_arm",
-                                "alarm_code": str(alarm_obj.get("errorCode", "HW_ALARM")),
-                                "alarm_msg": str(alarm_obj.get("content", "控制器硬件报警")),
-                                "alarm_level": alarm_obj.get("errorLevel", 3),
-                                "timestamp": alarm_obj.get("time", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
-                            }
-                            self.mqtt.publish(f"robot/huashu_arm/{self.device_id}/alarm", json.dumps(alarm_payload, ensure_ascii=False), qos=1)
-                            logger.warning(f"[{self.device_id}] 🚨 控制器主动推送突发硬件报警: {alarm_payload}")
-                        except Exception as ex:
-                            logger.warning(f"解析控制器主动报警异常: {ex}")
-                    continue
+    def emit(self,kind,payload,message_id=None):
+        p=dict(payload,device_id=self.device_id,device_type='huashu_arm',source='controller',
+               timestamp=datetime.now().astimezone().isoformat(timespec='milliseconds'),message_id=message_id or uuid.uuid4().hex)
+        signed=sign_payload(p,self.key)
+        self.mqtt.publish(f'robot/huashu_arm/{self.device_id}/{kind}',json.dumps(signed,ensure_ascii=False,allow_nan=False),qos=1,retain=kind=='state')
 
-                if raw_str.startswith(f"i:{curr_seq},") or raw_str.startswith(f"i:{curr_seq}:"):
-                    idx = raw_str.find("d:")
-                    if idx != -1:
-                        return raw_str[idx+2:]
-                    return ""
-                continue
+    def alarm(self,alarm):
+        if not isinstance(alarm,dict) or 'errorCode' not in alarm or 'time' not in alarm:
+            logger.warning('Rejected malformed controller alarm')
+            return
+        identity=hashlib.sha256((self.device_id+str(alarm['time'])+str(alarm['errorCode'])+str(alarm.get('content'))).encode()).hexdigest()
+        self.emit('alarm',{'alarm_code':str(alarm['errorCode']),'alarm_msg':alarm.get('content',''),
+                   'alarm_level':alarm.get('errorLevel'),'controller_timestamp':alarm['time'],
+                   'controller_raw':alarm},message_id=identity)
 
-            chunk = sock.recv(1024)
-            if not chunk:
-                raise ConnectionResetError("连接断开")
-            self.buffer += chunk
+    def ack(self,item,state,message,code=None):
+        self.emit('cmd_ack',{'task_id':item['task_id'],'command':item['command'],'status':state,
+                    'message':message,'code':code,'connection_id':self.driver.connection_id})
 
-    def execute_command_on_socket(self, sock, cmd_name: str, params: dict):
-        cmd_clean = (cmd_name or "").strip().lower()
-        logger.info(f"[{self.device_id}] ⚡ 执行下发指令: {cmd_clean} | 参数: {params}")
-
-        try:
-            # 1. 直接透传原生 HSC3 指令 (如输入 mot.setVord(50) 或 io.setDoutGrp(0, 1))
-            if "." in cmd_name and "(" in cmd_name:
-                resp = self.send_cmd(sock, cmd_name)
-                logger.info(f"[{self.device_id}] 原始指令执行完成: {cmd_name} -> {resp}")
+    def offer(self,item):
+        if not verify_payload(item,self.command_key):
+            raise ValueError('Invalid command signature')
+        if os.getenv('ROBOT_CONTROL_ENABLED','0')!='1':
+            raise ValueError('Remote actuator control is not commissioned')
+        if item.get('device_id')!=self.device_id or item.get('device_type')!='huashu_arm':
+            raise ValueError('Wrong command target')
+        if not isinstance(item.get('task_id'),str) or len(item['task_id'])>100:
+            raise ValueError('Invalid task identity')
+        if not -5<=timestamp_age(item.get('timestamp'))<=10 or not time.time()<float(item.get('expires_at',0))<=time.time()+15:
+            self.ack(item,'expired','指令已过期，未执行')
+            return
+        command,params=validate_command(item.get('command'),item.get('params'))
+        item=dict(item,command=command,params=params)
+        if not self.driver.is_connected or item.get('connection_id')!=self.driver.connection_id:
+            self.ack(item,'failed','控制器连接已改变或离线，未执行')
+            return
+        with closing(sqlite3.connect(str(self.ledger))) as conn, conn:
+            try:
+                conn.execute('INSERT INTO received_tasks VALUES(?,?)',(item['task_id'],time.time()))
+            except sqlite3.IntegrityError:
                 return
+        with self.counter_lock:
+            self.counter+=1
+            try:
+                self.cmd_queue.put_nowait((0 if command=='stop' else 1,self.counter,item))
+            except queue.Full:
+                self.ack(item,'failed','控制队列已满，未执行')
+                return
+        self.ack(item,'received','边缘端已收到，尚未执行')
 
-            # 2. 伺服使能与急停控制
-            if cmd_clean in ["enable", "servo_on"]:
-                resp = self.send_cmd(sock, "mot.setGpEn(0,true)")
-                logger.info(f"[{self.device_id}] 伺服使能指令响应: {resp}")
-            elif cmd_clean in ["disable", "servo_off"]:
-                resp = self.send_cmd(sock, "mot.setGpEn(0,false)")
-                logger.info(f"[{self.device_id}] 伺服下使能指令响应: {resp}")
-            elif cmd_clean in ["reset", "fault_reset"]:
-                resp = self.send_cmd(sock, "mot.gpReset(0)")
-                logger.info(f"[{self.device_id}] 组复位指令响应: {resp}")
-            elif cmd_clean in ["home", "go_home"]:
-                self.send_cmd(sock, "mot.stopJog(0)")
-                resp = self.send_cmd(sock, "mot.gpReset(0)")
-                logger.info(f"[{self.device_id}] 物理机械臂已执行点动制动并组复位待命: {resp}")
-            elif cmd_clean in ["stop", "emergency_stop"]:
-                self.send_cmd(sock, "mot.stopJog(0)")
-                resp = self.send_cmd(sock, "mot.setEstop(true)")
-                logger.info(f"[{self.device_id}] 急停停机指令响应: {resp}")
-
-            # 3. 运行速度与倍率调节
-            elif cmd_clean in ["set_override", "set_speed"]:
-                override = int(params.get("override", params.get("speed", 50)))
-                override = max(1, min(100, override))
-                resp1 = self.send_cmd(sock, f"mot.setVord({override})")
-                resp2 = self.send_cmd(sock, f"mot.setJogVord({override})")
-                logger.info(f"[{self.device_id}] 运行倍率设为 {override}% -> auto:{resp1}, jog:{resp2}")
-
-            # 4. 单轴点动控制 (JOG)
-            elif cmd_clean in ["jog_joint", "jog"]:
-                axis = int(params.get("axis", 1)) - 1
-                axis = max(0, min(5, axis))
-                direction = 1 if int(params.get("direction", 1)) >= 0 else 0
-                step_deg = float(params.get("step_deg", 5.0))
-                speed = int(params.get("speed", 15))
-                self.send_cmd(sock, f"mot.setJogVord({speed})")
-                
-                # 启动点动
-                resp_start = self.send_cmd(sock, f"mot.startJog(0,{axis},{direction})")
-                logger.info(f"[{self.device_id}] 启动轴 {axis+1} 方向 {direction} 点动 -> {resp_start}")
-                
-                # 依据步长适当保持后停止
-                dur = min(1.0, max(0.1, step_deg * 0.05))
-                time.sleep(dur)
-                resp_stop = self.send_cmd(sock, "mot.stopJog(0)")
-                logger.info(f"[{self.device_id}] 停止轴 {axis+1} 点动 -> {resp_stop}")
-
-            # 5. 自动化程序工步控制 (严格遵循华数官方 HSC3 SocketCmd 规范: vm. 命名空间)
-            elif cmd_clean in ["start_cycle", "start_prog", "run"]:
-                prog_name = params.get("prog_name", params.get("program", params.get("entry", "MAIN.PRG")))
-                resp = self.send_cmd(sock, f'vm.start("{prog_name}")')
-                logger.info(f"[{self.device_id}] 启动自动化程序 {prog_name} -> {resp}")
-            elif cmd_clean in ["pause", "pause_prog"]:
-                prog_name = params.get("prog_name", params.get("program", params.get("entry", "MAIN.PRG")))
-                resp = self.send_cmd(sock, f'vm.pause("{prog_name}")')
-                logger.info(f"[{self.device_id}] 暂停程序运行 {prog_name} -> {resp}")
-            elif cmd_clean in ["resume", "resume_prog"]:
-                prog_name = params.get("prog_name", params.get("program", params.get("entry", "MAIN.PRG")))
-                resp = self.send_cmd(sock, f'vm.start("{prog_name}")')
-                logger.info(f"[{self.device_id}] 继续程序运行 {prog_name} -> {resp}")
-            elif cmd_clean in ["stop_prog"]:
-                prog_name = params.get("prog_name", params.get("program", params.get("entry", "MAIN.PRG")))
-                resp = self.send_cmd(sock, f'vm.stop("{prog_name}")')
-                logger.info(f"[{self.device_id}] 停止程序运行 {prog_name} -> {resp}")
-            elif cmd_clean in ["select_prog", "load_prog"]:
-                prog_name = params.get("prog_name", params.get("program", params.get("entry", "MAIN.PRG")))
-                resp = self.send_cmd(sock, f'vm.load("","{prog_name}")')
-                logger.info(f"[{self.device_id}] 载入加工程序 {prog_name} -> {resp}")
-
-            # 6. 数字量 I/O 输出控制 (直接采用现场 0~33 绝对端口索引)
-            elif cmd_clean in ["set_do", "set_dout"]:
-                port = int(params.get("port", params.get("pin", 0)))
-                val_bool = (int(params.get("value", params.get("val", 1))) > 0)
-                val_str = "true" if val_bool else "false"
-                resp = self.send_cmd(sock, f"io.setDout({port},{val_str})")
-                logger.info(f"[{self.device_id}] 设置 DO_{port}={val_str} -> {resp}")
-
+    def execute_pending(self):
+        try:
+            _,_,item=self.cmd_queue.get_nowait()
+        except queue.Empty:
+            return
+        if time.time()>=item['expires_at']:
+            self.ack(item,'expired','排队期间过期，未执行')
+            return
+        if item.get('connection_id')!=self.driver.connection_id:
+            self.ack(item,'failed','连接会话已变化，未执行')
+            return
+        if item['command']=='stop':
+            while not self.cmd_queue.empty():
+                _,_,cancelled=self.cmd_queue.get_nowait()
+                self.ack(cancelled,'cancelled','被停机请求取消，未执行')
+        try:
+            state,message,code=self.driver.execute(item['command'],item['params'],allow_jog=os.getenv('ROBOT_ALLOW_JOG','0')=='1')
+            self.ack(item,state,message,code)
+        except ControllerError as e:
+            if getattr(self.driver,'last_action_accepted',False):
+                self.ack(item,'unknown','已有控制请求被接受，后续校验失败；结果未知，禁止自动重试',e.code)
             else:
-                logger.warning(f"[{self.device_id}] 暂不支持的业务指令: {cmd_name}")
-
-        except Exception as e:
-            logger.error(f"[{self.device_id}] 执行指令 [{cmd_name}] 异常: {e}")
+                self.ack(item,'failed','控制器明确拒绝指令',e.code)
+        except (ValueError,TypeError) as e:
+            uncertain=getattr(self.driver,'last_action_accepted',False)
+            self.ack(item,'unknown' if uncertain else 'failed','控制请求已被接受但未完成验证' if uncertain else str(e))
+        except Exception:
+            self.ack(item,'unknown','通信中断，执行结果未知；禁止自动重试')
+            raise
 
     def run(self):
-        logger.info(f"启动机械臂采集与控制线程 [{self.device_id}] IP: {self.ip}:23333 ...")
-        while running:
-            sock = None
+        while not STOP.is_set():
             try:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.settimeout(2.0)
-                sock.connect((self.ip, 23333))
-                logger.info(f"✅ 成功连接华数真机 [{self.device_id}] ({self.ip}:23333)")
-
-                while running:
-                    t_start = time.time()
-                    try:
-                        # 0. 优先处理下发的控制指令
-                        while not self.cmd_queue.empty():
-                            cmd_item = self.cmd_queue.get_nowait()
-                            self.execute_command_on_socket(sock, cmd_item.get("command"), cmd_item.get("params", {}))
-
-                        # 1. 关节角 J1~J6
-                        jnt_str = self.send_cmd(sock, "mot.getJntData(0)")
-                        jnt_arr = parse_array_str(jnt_str)
-                        if len(jnt_arr) >= 6:
-                            joint_angles = [round(x, 2) for x in jnt_arr[:6]]
-                        else:
-                            joint_angles = [0.0]*6
-
-                        # 2. 笛卡尔坐标 X, Y, Z, A, B, C
-                        loc_str = self.send_cmd(sock, "mot.getLocData(0)")
-                        loc_arr = parse_array_str(loc_str)
-                        if len(loc_arr) >= 6:
-                            cartesian_pos = {
-                                "x": round(loc_arr[0], 1),
-                                "y": round(loc_arr[1], 1),
-                                "z": round(loc_arr[2], 1),
-                                "a": round(loc_arr[3], 1),
-                                "b": round(loc_arr[4], 1),
-                                "c": round(loc_arr[5], 1)
-                            }
-                        else:
-                            cartesian_pos = {"x": 500.0, "y": 0.0, "z": 400.0, "a": 180.0, "b": 0.0, "c": 0.0}
-
-                        # 3. 状态与急停 (兼容 HSC3 各版本返回 true/false 或 1/0)
-                        en_str = self.send_cmd(sock, "mot.getGpEn(0)")
-                        enabled = (str(en_str).strip().lower() in ["true", "1"])
-                        
-                        estop_str = self.send_cmd(sock, "mot.getEstop()")
-                        estop = (str(estop_str).strip().lower() in ["true", "1"])
-
-                        # 4. 真实伺服电机反馈电流 (mot.getJntEData)
-                        curr_str = self.send_cmd(sock, "mot.getJntEData(0)")
-                        curr_arr = parse_array_str(curr_str)
-                        motor_currents = [round(abs(c), 2) for c in curr_arr[:6]] if len(curr_arr) >= 6 else [0.0]*6
-
-                        # 5. 获取真实 I/O (采集 0..33 全通道：第0组 0..31 + 第1组 32..63)
-                        di_str0 = self.send_cmd(sock, "io.getDinGrp(0)")
-                        di_str1 = self.send_cmd(sock, "io.getDinGrp(1)")
-                        do_str0 = self.send_cmd(sock, "io.getDoutGrp(0)")
-                        do_str1 = self.send_cmd(sock, "io.getDoutGrp(1)")
-                        
-                        def parse_grp_val(s):
-                            if not s: return 0
-                            try:
-                                clean = str(s).strip().strip("{}")
-                                return int(clean) & 0xFFFFFFFF
-                            except Exception:
-                                return 0
-
-                        di_0 = parse_grp_val(di_str0)
-                        di_1 = parse_grp_val(di_str1)
-                        do_0 = parse_grp_val(do_str0)
-                        do_1 = parse_grp_val(do_str1)
-
-                        di_val = (di_0 & 0xFFFFFFFF) | ((di_1 & 0xFFFFFFFF) << 32)
-                        do_val = (do_0 & 0xFFFFFFFF) | ((do_1 & 0xFFFFFFFF) << 32)
-
-                        status = "error" if estop else ("online" if enabled else "standby")
-
-                        # 物理工业机械臂采用三相交流 380V/220V 电网供电，无物理蓄电池，真实标明供电类型
-                        payload_state = {
-                            "device_id": self.device_id,
-                            "device_type": "huashu_arm",
-                            "status": status,
-                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            "joint_angles": joint_angles,
-                            "cartesian_pos": cartesian_pos,
-                            "motor_currents": motor_currents,
-                            "power_source": "AC 380V",
-                            "is_mains_powered": True,
-                            "battery": None,
-                            "enabled": enabled,
-                            "emergency_stop": estop,
-                            "error_code": 1 if estop else 0,
-                            "error_msg": "急停按下" if estop else ("伺服使能中" if enabled else "就绪待命 (静止)"),
-                            "running_hours": 360.5
-                        }
-
-                        # 发布至 MQTT
-                        self.mqtt.publish(f"robot/huashu_arm/{self.device_id}/state", json.dumps(payload_state, ensure_ascii=False))
-                        
-                        payload_io = {
-                            "device_id": self.device_id,
-                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            "di": di_val,
-                            "do": do_val
-                        }
-                        self.mqtt.publish(f"robot/huashu_arm/{self.device_id}/io", json.dumps(payload_io, ensure_ascii=False))
-
-                    except Exception as e:
-                        logger.warning(f"真机 [{self.device_id}] 通信读取异常: {e}")
-                        break
-
-                    sleep_dur = INTERVAL - (time.time() - t_start)
-                    if sleep_dur > 0:
-                        time.sleep(sleep_dur)
-
+                if not self.driver.is_connected:
+                    self.driver.connect()
+                self.execute_pending()
+                state,io=self.driver.telemetry()
+                self.emit('state',state)
+                self.emit('io',io)
+                STOP.wait(float(os.getenv('ROBOT_INTERVAL','0.5')))
             except Exception as e:
-                logger.warning(f"真机 [{self.device_id}] 连接失败 ({self.ip}): {e}，5秒后重试...")
-            finally:
-                if sock:
-                    try: sock.close()
-                    except: pass
-            
-            time.sleep(3.0)
+                logger.warning('[%s] Controller link unavailable: %s',self.device_id,type(e).__name__)
+                self.driver.disconnect()
+                self.emit('state',{'status':'offline','reason':'controller_unavailable'})
+                while not self.cmd_queue.empty():
+                    _,_,item=self.cmd_queue.get_nowait()
+                    self.ack(item,'failed','控制器离线，取消未执行请求')
+                STOP.wait(3)
+        self.driver.disconnect()
+        self.emit('state',{'status':'offline','reason':'bridge_stopped'})
+
 
 def main():
-    logger.info("==================================================")
-    logger.info("   华数真实工业机器人 1:1 物理双向桥接服务启动")
-    logger.info("==================================================")
-    
-    collectors_map = {}
-    mqtt_client = mqtt.Client(client_id="huashu_real_fleet_bridge")
-
-    def on_mqtt_cmd(client, userdata, msg):
+    parser=argparse.ArgumentParser()
+    parser.add_argument('--robot-ip',default=os.getenv('ROBOT_IP','192.168.1.169'))
+    parser.add_argument('--robot-port',type=int,default=int(os.getenv('ROBOT_PORT','23333')))
+    parser.add_argument('--device-id',default=os.getenv('ROBOT_DEVICE_ID','arm_001'))
+    parser.add_argument('--mqtt-host','--cloud-host',dest='mqtt_host',default=os.getenv('MQTT_HOST','127.0.0.1'))
+    parser.add_argument('--mqtt-port','--cloud-port',dest='mqtt_port',type=int,default=int(os.getenv('MQTT_PORT','1883')))
+    parser.add_argument('--device-name',default='')
+    parser.add_argument('--config')
+    args=parser.parse_args()
+    if args.config:
+        raise SystemExit('旧版JSON配置不再作为凭据来源；请设置受保护的服务环境变量和明确设备参数')
+    for key in ('TELEMETRY_HMAC_KEY','COMMAND_HMAC_KEY','MQTT_USERNAME','MQTT_PASSWORD'):
+        if not os.getenv(key):
+            raise SystemExit(f'Missing required setting: {key}')
+    logging.basicConfig(level=logging.INFO,format='%(asctime)s %(levelname)s %(message)s')
+    client=mqtt.Client(mqtt.CallbackAPIVersion.VERSION2,client_id='huashu_verified_'+args.device_id,clean_session=True)
+    client.username_pw_set(os.environ['MQTT_USERNAME'],os.environ['MQTT_PASSWORD'])
+    if os.getenv('MQTT_TLS_CA'):
+        client.tls_set(ca_certs=os.environ['MQTT_TLS_CA'])
+    collector=HuashuRobotCollector({'device_id':args.device_id,'ip':args.robot_ip,'port':args.robot_port},client)
+    def on_connect(c,u,f,reason,properties):
+        if not reason.is_failure:
+            c.subscribe(f'cmd/huashu_arm/{args.device_id}',qos=1)
+    def on_message(c,u,msg):
+        if msg.retain:
+            logger.warning('Rejected retained command')
+            return
         try:
-            payload = json.loads(msg.payload.decode('utf-8'))
-            topic_parts = msg.topic.split('/')
-            target_id = None
-            if len(topic_parts) >= 3 and topic_parts[0] == "cmd":
-                target_id = topic_parts[2]
-            elif len(topic_parts) >= 4 and topic_parts[0] == "robot" and topic_parts[3] == "cmd":
-                target_id = topic_parts[2]
-            
-            if target_id and target_id in collectors_map:
-                logger.info(f"📥 收到下发至真机 [{target_id}] 的控制指令: {payload}")
-                collectors_map[target_id].cmd_queue.put(payload)
-                task_id = payload.get("task_id", "")
-                if task_id:
-                    ack_msg = {
-                        "task_id": task_id,
-                        "device_id": target_id,
-                        "command": payload.get("command"),
-                        "status": "acknowledged",
-                        "code": 0,
-                        "msg": f"真机 [{target_id}] 已成功接收控制指令 [{payload.get('command')}]",
-                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    }
-                    client.publish(f"robot/huashu_arm/{target_id}/cmd_ack", json.dumps(ack_msg, ensure_ascii=False), qos=1)
-            else:
-                logger.info(f"忽略非本地托管设备指令: topic={msg.topic}")
+            if len(msg.payload)>16384:
+                raise ValueError('Oversized command')
+            collector.offer(json.loads(msg.payload.decode('utf-8')))
         except Exception as e:
-            logger.warning(f"解析 MQTT 指令失败: {e}")
+            logger.warning('Rejected command: %s',type(e).__name__)
+    client.on_connect=on_connect
+    client.on_message=on_message
+    client.reconnect_delay_set(1,30)
+    client.max_queued_messages_set(100)
+    client.connect_async(args.mqtt_host,args.mqtt_port,keepalive=30)
+    client.loop_start()
+    signal.signal(signal.SIGTERM,lambda *_:STOP.set())
+    signal.signal(signal.SIGINT,lambda *_:STOP.set())
+    collector.start()
+    while collector.is_alive():
+        collector.join(1)
+    client.disconnect()
+    client.loop_stop()
 
-    mqtt_client.on_message = on_mqtt_cmd
 
-    try:
-        mqtt_client.connect(MQTT_HOST, MQTT_PORT, 60)
-        mqtt_client.subscribe([("cmd/huashu_arm/#", 1), ("robot/huashu_arm/+/cmd", 1)])
-        mqtt_client.loop_start()
-        logger.info(f"MQTT 连接成功并已订阅真机指令主题 [cmd/huashu_arm/#, robot/huashu_arm/+/cmd]")
-    except Exception as e:
-        logger.error(f"MQTT 连接失败: {e}")
-        return
-
-    for r in ROBOTS:
-        c = HuashuRobotCollector(r, mqtt_client)
-        c.start()
-        collectors_map[r["device_id"]] = c
-
-    while running:
-        time.sleep(1.0)
-
-    mqtt_client.loop_stop()
-    mqtt_client.disconnect()
-    logger.info("华数采集桥接已安全退出。")
-
-if __name__ == "__main__":
+if __name__=='__main__':
     main()

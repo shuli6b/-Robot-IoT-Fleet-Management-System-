@@ -11,6 +11,16 @@ from typing import Optional, Dict, Any, Tuple, List
 from pathlib import Path
 import uuid
 import shutil
+import re
+import threading
+from collections import defaultdict, deque
+from logging.handlers import RotatingFileHandler
+from urllib.parse import urlparse
+import database
+from security import create_session, session_user, revoke_sessions, verify_payload, sign_payload, allowed_device, timestamp_age
+from robot_commands import validate_command
+from simulation import visible_device,is_simulated
+from starlette.concurrency import run_in_threadpool
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
@@ -99,7 +109,7 @@ logging.basicConfig(
     level=logging.INFO,
     format=LOG_FORMAT,
     handlers=[
-        logging.FileHandler(LOG_FILE, encoding="utf-8"),
+        RotatingFileHandler(LOG_FILE, maxBytes=10*1024*1024, backupCount=5, encoding="utf-8"),
         logging.StreamHandler(),
     ],
 )
@@ -108,8 +118,8 @@ logger = logging.getLogger("robot_server")
 # 环境变量配置
 MQTT_HOST = os.getenv("MQTT_HOST", "localhost")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
-MQTT_USERNAME = os.getenv("MQTT_USERNAME", "robot_server")
-MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", "robot_server_pass")
+MQTT_USERNAME = os.getenv("MQTT_USERNAME", "")
+MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", "")
 OFFLINE_THRESHOLD_SECONDS = int(os.getenv("OFFLINE_THRESHOLD", "30"))
 
 # 系统运行状态追踪
@@ -125,7 +135,7 @@ def api_response(
     code: int = 200,
     message: str = "success",
     data: Any = None,
-    status_code: int = status.HTTP_200_OK,
+    status_code: Optional[int] = None,
 ) -> JSONResponse:
     """生成符合架构规范的统一 JSON 响应"""
     payload = {
@@ -134,7 +144,7 @@ def api_response(
         "data": data,
         "timestamp": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
-    return JSONResponse(status_code=status_code, content=payload)
+    return JSONResponse(status_code=status_code or (code if 100 <= code <= 599 else 500), content=payload)
 
 
 # ---------------------------------------------------------------------------
@@ -176,7 +186,9 @@ def on_mqtt_connect(client, userdata, flags, rc, *args):
             is_mqtt_connected = True
             logger.info(f"MQTT Broker 连接成功 [{MQTT_HOST}:{MQTT_PORT}]，开始订阅 robot/# ...")
             try:
-                client.subscribe("robot/#", qos=1)
+                for identity in sorted(__import__('security').registered_devices()):
+                    client.subscribe('robot/'+identity+'/#',qos=1)
+                client.subscribe('simulation/robot/#',qos=1)
                 logger.info("已成功订阅主题: robot/#")
             except Exception as e:
                 logger.error(f"MQTT 订阅主题 robot/# 失败: {e}")
@@ -205,133 +217,86 @@ LAST_SEEN_STATES: Dict[str, Dict[str, Any]] = {}
 
 
 def on_mqtt_message(client, userdata, msg):
-    """
-    MQTT 接收消息回调：
-    1. 解析 Topic (device_type, device_id, data_type)
-    2. 解码 Payload (支持 JSON 容错)
-    3. 写入 SQLite (自动 upsert devices 表并写入 device_data 表)
-    """
-    topic = msg.topic
     try:
-        parsed = parse_topic(topic)
-        if not parsed:
+        if msg.topic.startswith('simulation/'):
+            from simulation import ingest
+            ingest(msg.topic,msg.payload)
             return
-
-        device_type = parsed["device_type"]
-        device_id = parsed["device_id"]
-        data_type = parsed["data_type"]
-
-        # 解码 Payload
-        try:
-            raw_payload = msg.payload.decode("utf-8")
-        except Exception:
-            raw_payload = str(msg.payload)
-
-        # 尝试检查 payload 中是否有设备自带的时间戳及离线状态
-        report_time = None
-        is_offline_msg = False
-        try:
-            parsed_json = json.loads(raw_payload)
-            if isinstance(parsed_json, dict):
-                if "timestamp" in parsed_json:
-                    report_time = str(parsed_json["timestamp"])
-                if parsed_json.get("status") == "offline":
-                    is_offline_msg = True
-        except Exception:
-            pass
-
-        if not report_time:
-            report_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-
-        # 数据入库 (若包含离线报文/遗嘱，则自动更新为 offline)
-        row_id = insert_device_data(
-            device_id=device_id,
-            device_type=device_type,
-            data_type=data_type,
-            raw_payload=raw_payload,
-            topic=topic,
-        )
-
-        # -------------------------------------------------------------------
-        # 示教器真实运行日志实时管道：
-        # 1. 突发硬件与控制器报警报文 (type == 'alarm')
-        # 2. 物理急停状态变迁与伺服使能变迁 (type == 'state')
-        # -------------------------------------------------------------------
-        if data_type == "alarm":
+        parsed=parse_topic(msg.topic)
+        if not parsed or parsed['data_type'] not in ('state','sensor','io','alarm','cmd_ack') or len(msg.payload)>65536:
+            return
+        kind=parsed['data_type']
+        device_id=parsed['device_id']
+        device_type=parsed['device_type']
+        if not allowed_device(device_type,device_id):
+            return
+        def invalid_constant(value):
+            raise ValueError('Nonfinite JSON')
+        p=json.loads(msg.payload.decode('utf-8'),parse_constant=invalid_constant)
+        if not verify_payload(p,os.getenv('TELEMETRY_HMAC_KEY','')) or p.get('source')!='controller':
+            return
+        if p.get('device_id')!=device_id or p.get('device_type')!=device_type or not -5<=timestamp_age(p.get('timestamp'))<=30:
+            return
+        if not isinstance(p.get('message_id'),str) or len(p['message_id'])>100:
+            return
+        if kind=='state':
+            if p.get('status') not in ('ready','running','standby','unknown','offline','error'):
+                return
+            for key in ('enabled','emergency_stop'):
+                if p.get(key) is not None and not isinstance(p[key],bool):
+                    return
+            for key in ('joint_angles','motor_currents'):
+                if p.get(key) is not None and (not isinstance(p[key],list) or len(p[key])!=6 or any(isinstance(x,bool) or not isinstance(x,(int,float)) or not math.isfinite(x) for x in p[key])):
+                    return
+        existing=get_device_by_id(device_id)
+        if existing and existing.get('is_simulated'):
+            if existing.get('simulation_enabled') or kind!='state' or not p.get('connection_id') or p.get('status') in ('offline','unknown'):
+                return
+            conn=database.get_connection()
             try:
-                alarm_p = json.loads(raw_payload) if isinstance(raw_payload, str) else raw_payload
-                if isinstance(alarm_p, dict):
-                    alarm_code = str(alarm_p.get("alarm_code", alarm_p.get("errorCode", "ALARM")))
-                    alarm_msg = str(alarm_p.get("alarm_msg", alarm_p.get("content", "控制器硬件报警")))
-                    alarm_lvl = int(alarm_p.get("alarm_level", alarm_p.get("errorLevel", 3)))
-                    log_lvl = "ERROR" if alarm_lvl >= 3 else "WARN"
-                    icon = "error" if alarm_lvl >= 3 else "info"
-                    add_device_run_log(
-                        device_id=device_id,
-                        icon_type=icon,
-                        operator="System",
-                        record_content=f"[{alarm_code}] {alarm_msg}",
-                        log_level=log_lvl,
-                    )
-            except Exception as ex:
-                logger.warning(f"写入真实报警至示教器运行日志异常: {ex}")
-
-        elif data_type == "state":
+                with conn:
+                    conn.execute("UPDATE devices SET is_simulated=0,status='offline',last_report_time=NULL WHERE device_id=? AND device_type=? AND simulation_enabled=0",(device_id,device_type))
+            finally:conn.close()
+            add_device_run_log(device_id,'info','platform','已登记真机的签名状态开始接替已停用仿真；历史数据来源保持不变')
+        row_id=insert_device_data(device_id,device_type,kind,json.dumps(p,ensure_ascii=False,allow_nan=False),msg.topic,source='controller')
+        if row_id is None:
+            return
+        if kind=='alarm':
+            level={0:'INFO',1:'INFO',2:'INFO',3:'WARN',4:'ERROR'}.get(p.get('alarm_level'),'INFO')
+            add_device_run_log(device_id,'error' if level=='ERROR' else 'info','controller',
+                f"[{p.get('alarm_code')}] {p.get('alarm_msg','')} | controller_time={p.get('controller_timestamp')}",
+                log_level=level,source='controller_event',event_id=p['message_id'],event_time=p.get('timestamp'))
+        elif kind=='cmd_ack':
+            result_state=p.get('status')
+            if result_state not in ('received','succeeded','controller_accepted','failed','unknown','expired','cancelled'):
+                return
+            conn=database.get_connection()
             try:
-                state_p = json.loads(raw_payload) if isinstance(raw_payload, str) else raw_payload
-                if isinstance(state_p, dict):
-                    global LAST_SEEN_STATES
-                    prev = LAST_SEEN_STATES.get(device_id)
-                    cur_estop = bool(state_p.get("emergency_stop"))
-                    cur_en = bool(state_p.get("enabled"))
-
-                    if prev is not None:
-                        prev_estop = bool(prev.get("emergency_stop"))
-                        prev_en = bool(prev.get("enabled"))
-                        # 急停变迁
-                        if cur_estop and not prev_estop:
-                            add_device_run_log(
-                                device_id=device_id,
-                                icon_type="error",
-                                operator="System",
-                                record_content="[急停触发] 物理急停回路断开，触发急停安全互锁停机!",
-                                log_level="ERROR",
-                            )
-                        elif not cur_estop and prev_estop:
-                            add_device_run_log(
-                                device_id=device_id,
-                                icon_type="action",
-                                operator="Normal",
-                                record_content="急停开关旋钮复位，安全回路恢复闭合",
-                                log_level="ACTION",
-                            )
-                        # 伺服使能变迁
-                        if cur_en and not prev_en:
-                            add_device_run_log(
-                                device_id=device_id,
-                                icon_type="action",
-                                operator="Normal",
-                                record_content="控制器伺服使能上电 [ServoState=ON, 闭环使能]",
-                                log_level="ACTION",
-                            )
-                        elif not cur_en and prev_en:
-                            add_device_run_log(
-                                device_id=device_id,
-                                icon_type="action",
-                                operator="Normal",
-                                record_content="控制器伺服下使能断电 [ServoState=OFF, 抱闸锁定]",
-                                log_level="ACTION",
-                            )
-
-                    LAST_SEEN_STATES[device_id] = {
-                        "emergency_stop": cur_estop,
-                        "enabled": cur_en,
-                    }
-            except Exception as ex:
-                logger.warning(f"状态变迁写入示教器运行日志异常: {ex}")
-
+                with conn:
+                    row=conn.execute('SELECT * FROM command_requests WHERE task_id=? AND device_id=? AND device_type=?',(p.get('task_id'),device_id,device_type)).fetchone()
+                    if not row or row['command']!=p.get('command'):
+                        return
+                    if row['state'] in ('succeeded','failed','expired','cancelled','controller_accepted'):
+                        return
+                    if result_state=='received' and row['state'] not in ('sending','delivered','received','unknown'):
+                        return
+                    conn.execute('UPDATE command_requests SET state=?,message=?,controller_code=?,result=?,updated_at=? WHERE task_id=?',
+                        (result_state,p.get('message',''),str(p.get('code')) if p.get('code') is not None else None,json.dumps(p,ensure_ascii=False),datetime.now().isoformat(timespec='seconds'),p['task_id']))
+                add_device_run_log(device_id,'action',row['operator'],f"命令 {row['command']} [{row['task_id']}] 结果={result_state}: {p.get('message','')}",event_id=p['message_id'])
+            finally:
+                conn.close()
+        elif kind=='state':
+            identity=(device_type,device_id)
+            previous=LAST_SEEN_STATES.get(identity,{})
+            if p.get('connection_id') and p.get('status')!='offline' and previous.get('connection_id')!=p['connection_id']:
+                add_device_run_log(device_id,'info','platform','平台开始接收当前控制器会话的已验证状态报文；不代表机器人刚开机',source='platform_audit',event_time=p.get('timestamp'))
+            for key in ('enabled','emergency_stop'):
+                old,new=previous.get(key),p.get(key)
+                if isinstance(old,bool) and isinstance(new,bool) and old!=new:
+                    add_device_run_log(device_id,'info','controller',f'控制器反馈状态变更: {key}={new}',event_time=p.get('timestamp'))
+            LAST_SEEN_STATES[identity]=p
     except Exception as e:
-        logger.error(f"处理 MQTT 消息异常 [{topic}]: {e}", exc_info=True)
+        logger.warning('Rejected/unprocessed telemetry (%s)',type(e).__name__)
 
 
 def init_mqtt_client() -> Optional[mqtt.Client]:
@@ -399,8 +364,11 @@ async def check_device_offline_task():
 async def lifespan(app: FastAPI):
     # 1. 服务启动阶段
     logger.info("=== 机器人物联网管理系统服务正在启动 ===")
-    init_db()
-    check_db_integrity()
+    for key in ('TELEMETRY_HMAC_KEY','COMMAND_HMAC_KEY','ROBOT_ALLOWED_DEVICES','MQTT_USERNAME','MQTT_PASSWORD'):
+        if not os.getenv(key):
+            raise RuntimeError('Missing production configuration: '+key)
+    if not init_db() or not check_db_integrity():
+        raise RuntimeError("Database initialization/integrity check failed; refusing to start")
     init_mqtt_client()
     offline_task = asyncio.create_task(check_device_offline_task())
 
@@ -430,14 +398,85 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# 允许跨域
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Same-origin API only. Identity is derived from a server-side session.
+LOGIN_ATTEMPTS = defaultdict(deque)
+RATE_LOCK = threading.Lock()
+
+
+@app.middleware('http')
+async def authenticate_request(request: Request, call_next):
+    path=request.url.path
+    public={'/api/auth/login','/api/auth/register','/api/health','/api/system/site_config'}
+    is_public=(path in public and (path!='/api/system/site_config' or request.method=='GET'))
+    if path.startswith('/api/') and not is_public:
+        token=request.headers.get('Authorization','')
+        token=token[7:] if token.startswith('Bearer ') else ''
+        user=await run_in_threadpool(session_user,token,database.DB_PATH)
+        if not user:
+            return api_response(401,'请重新登录')
+        request.state.user=user
+        parts=path.strip('/').split('/')
+        if len(parts)>=5 and parts[:2]==['api','devices'] and not visible_device(parts[2],parts[3]):
+            return api_response(404,'该设备未登记为真实设备')
+        if user.get('must_change_password') and path not in ('/api/auth/me','/api/auth/password','/api/auth/logout'):
+            return api_response(403,'当前密码不符合生产安全要求，请先修改密码',{'must_change_password':True})
+        personal=path in ('/api/auth/me','/api/auth/profile','/api/auth/password','/api/auth/username','/api/auth/logout')
+        restricted_read=path.startswith('/api/admin/') or path in ('/api/auth/users','/api/ai/config','/api/devices/huashu/config','/api/tunnel/status')
+        writes=request.method not in ('GET','HEAD','OPTIONS')
+        ai_query=path in ('/api/ai/chat','/api/ai/diagnose')
+        if ((writes and not personal and not ai_query) or restricted_read or path.endswith('/backup')) and user['role']!='admin':
+            return api_response(403,'需要管理员权限')
+    if request.method not in ('GET','HEAD','OPTIONS'):
+        origin=request.headers.get('Origin')
+        if origin and urlparse(origin).netloc!=request.headers.get('Host'):
+            return api_response(403,'拒绝跨站请求')
+        try:
+            if int(request.headers.get('Content-Length','0'))>2*1024*1024:
+                return api_response(413,'请求过大')
+        except ValueError:
+            return api_response(400,'无效请求长度')
+    if request.method in ('POST','PUT','PATCH') and ('application/json' in request.headers.get('Content-Type','')):
+        try:
+            body=await request.json()
+            metadata_keys={'username','real_name','device_name','location','vendor','notes','system_title','company_name','di_details','do_details','specs','target_username','new_username'}
+            def unsafe(value):
+                if isinstance(value,str):
+                    return any(c in value for c in ('<','>','\x00')) or len(value)>10000
+                if isinstance(value,dict):
+                    return any(unsafe(k) or unsafe(v) for k,v in value.items())
+                if isinstance(value,list):
+                    return any(unsafe(v) for v in value)
+                return False
+            if isinstance(body,dict):
+                for key,value in body.items():
+                    if (key in metadata_keys or path=='/api/system/site_config') and unsafe(value):
+                        return api_response(422,'资料字段只接受纯文本，不能包含HTML标签')
+        except (ValueError,UnicodeError):
+            return api_response(400,'无效JSON')
+    response=await call_next(request)
+    response.headers['X-Content-Type-Options']='nosniff'
+    response.headers['X-Frame-Options']='DENY'
+    response.headers['Referrer-Policy']='same-origin'
+    return response
+
+
+@app.get('/api/admin/legacy/{table}')
+def archived_legacy(table: str,page: int=Query(1,ge=1),page_size: int=Query(50,ge=1,le=100)):
+    if table not in ('device_data','device_run_logs','robot_programs','alarm_resolutions'):
+        raise HTTPException(404,'无此历史归档')
+    conn=database.get_connection()
+    try:
+        rows=conn.execute(f"SELECT * FROM {table} WHERE source='legacy_unverified' ORDER BY id DESC LIMIT ? OFFSET ?",(page_size,(page-1)*page_size)).fetchall()
+        return api_response(data={'source':'legacy_unverified','notice':'真实性未确认，禁止作为当前设备事实或执行依据','records':[dict(r) for r in rows]})
+    finally:
+        conn.close()
+
+
+@app.post('/api/auth/logout')
+async def logout(request: Request):
+    await run_in_threadpool(revoke_sessions,request.state.user['username'],database.DB_PATH)
+    return api_response(200,'已退出')
+
 
 
 # ---------------------------------------------------------------------------
@@ -494,10 +533,21 @@ class RegisterRequest(BaseModel):
 
 
 @app.post("/api/auth/login")
-async def api_user_login(body: LoginRequest = Body(...)):
+def api_user_login(body: LoginRequest = Body(...)):
     """
     用户登录接口 (支持超级管理员 admin 与普通用户 user，含管理员注册审核校验)
     """
+    with RATE_LOCK:
+        key=body.username.strip().lower()
+        attempts=LOGIN_ATTEMPTS[key]
+        now=time.monotonic()
+        while attempts and attempts[0]<now-300:
+            attempts.popleft()
+        if len(attempts)>=10:
+            return api_response(429,'尝试次数过多，请五分钟后重试')
+        attempts.append(now)
+        if len(LOGIN_ATTEMPTS)>10000:
+            LOGIN_ATTEMPTS.clear()
     user_info, auth_status = authenticate_user(body.username, body.password)
     if auth_status == "PENDING_APPROVAL":
         return api_response(
@@ -521,12 +571,13 @@ async def api_user_login(body: LoginRequest = Body(...)):
             status_code=status.HTTP_401_UNAUTHORIZED
         )
     # 生成简单 Session Token 标识
-    token = f"qtx_token_{user_info['role']}_{int(time.time())}_{user_info['username']}"
+    token = create_session(user_info['username'], database.DB_PATH)
     return api_response(
         code=200,
         message=f"欢迎登录，{user_info['real_name']} ({'超级管理员' if user_info['role'] == 'admin' else '普通操作员'})",
         data={
             "token": token,
+            "must_change_password": bool(user_info.get("must_change_password")),
             "user_id": user_info["id"],
             "username": user_info["username"],
             "role": user_info["role"],
@@ -538,7 +589,7 @@ async def api_user_login(body: LoginRequest = Body(...)):
 
 
 @app.post("/api/auth/register")
-async def api_user_register(body: RegisterRequest = Body(...)):
+def api_user_register(body: RegisterRequest = Body(...)):
     """
     用户快速注册接口（普通用户需管理员在后台审核通过后方可登录）
     """
@@ -552,7 +603,7 @@ async def api_user_register(body: RegisterRequest = Body(...)):
         return api_response(
             code=200,
             message=msg or "账号注册成功！需管理员审核通过后方可登录，请联系管理员审批。",
-            data={"username": body.username, "role": body.role, "status": "pending"}
+            data={"username": body.username, "role": "user", "status": "pending"}
         )
     else:
         return api_response(
@@ -564,23 +615,8 @@ async def api_user_register(body: RegisterRequest = Body(...)):
 
 
 @app.get("/api/auth/me")
-async def api_user_me(request: Request):
-    """获取当前登录用户信息与角色权限"""
-    user_role = request.headers.get("X-User-Role", "guest")
-    user_name = request.headers.get("X-User-Name", "guest")
-    user_info = get_user_by_username(user_name) if user_name != "guest" else None
-    return api_response(
-        code=200,
-        message="success",
-        data={
-            "username": user_name,
-            "role": user_role,
-            "real_name": user_info["real_name"] if user_info else user_name,
-            "created_at": user_info["created_at"] if user_info else "--",
-            "last_login": user_info["last_login"] if user_info else "--",
-            "is_admin": user_role == "admin"
-        }
-    )
+def api_user_me(request: Request):
+    return api_response(data=request.state.user)
 
 
 class UpdateProfileRequest(BaseModel):
@@ -607,52 +643,36 @@ class UpdateRoleRequest(BaseModel):
 
 
 @app.post("/api/auth/profile")
-async def api_update_profile(body: UpdateProfileRequest = Body(...), request: Request = None):
-    """用户修改个人姓名与信息"""
-    success, msg = update_user_profile(body.username, body.real_name)
-    if success:
-        return api_response(code=200, message=msg, data={"username": body.username, "real_name": body.real_name})
-    return api_response(code=400, message=msg, status_code=status.HTTP_400_BAD_REQUEST)
+def api_update_profile(body: UpdateProfileRequest = Body(...), request: Request = None):
+    username=request.state.user['username']
+    success,msg=update_user_profile(username,body.real_name)
+    return api_response(200 if success else 400,msg,{'username':username,'real_name':body.real_name})
 
 
 @app.post("/api/auth/password")
-async def api_change_password(body: ChangePasswordRequest = Body(...)):
-    """用户自行修改密码"""
-    success, msg = change_user_password(body.username, body.old_password, body.new_password)
-    if success:
-        return api_response(code=200, message=msg)
-    return api_response(code=400, message=msg, status_code=status.HTTP_400_BAD_REQUEST)
+def api_change_password(body: ChangePasswordRequest = Body(...), request: Request = None):
+    success,msg=change_user_password(request.state.user['username'],body.old_password,body.new_password)
+    return api_response(200 if success else 400,msg)
 
 
 @app.post("/api/auth/username")
-async def api_change_username(body: ChangeUsernameRequest = Body(...)):
-    """用户自行修改登录账号名"""
-    success, msg = change_user_username(body.current_username, body.new_username, body.password)
-    if success:
-        user_info = get_user_by_username(body.new_username)
-        return api_response(code=200, message=msg, data=user_info)
-    return api_response(code=400, message=msg, status_code=status.HTTP_400_BAD_REQUEST)
+def api_change_username(body: ChangeUsernameRequest = Body(...), request: Request = None):
+    success,msg=change_user_username(request.state.user['username'],body.new_username,body.password)
+    return api_response(200 if success else 400,msg)
 
 
 def is_super_admin(request: Request) -> bool:
-    """判断是否为系统唯一的超级管理员 (admin / root)"""
-    if not request:
-        return False
-    user_name = request.headers.get("X-User-Name", "")
-    user_role = request.headers.get("X-User-Role", "")
-    return user_name == "admin" and user_role == "admin"
+    user=getattr(getattr(request,'state',None),'user',None)
+    return bool(user and user['username']=='admin' and user['role']=='admin')
 
 
 def is_admin(request: Request) -> bool:
-    """判断是否具有管理员角色 (admin)"""
-    if not request:
-        return False
-    user_role = request.headers.get("X-User-Role", "")
-    return user_role == "admin"
+    user=getattr(getattr(request,'state',None),'user',None)
+    return bool(user and user['role']=='admin')
 
 
 @app.get("/api/auth/users")
-async def api_get_all_users(request: Request):
+def api_get_all_users(request: Request):
     """管理员获取所有用户列表 (仅超级管理员)"""
     if not is_super_admin(request):
         return api_response(
@@ -665,7 +685,7 @@ async def api_get_all_users(request: Request):
 
 
 @app.post("/api/auth/admin_reset_pwd")
-async def api_admin_reset_password(body: AdminResetPasswordRequest = Body(...), request: Request = None):
+def api_admin_reset_password(body: AdminResetPasswordRequest = Body(...), request: Request = None):
     """超级管理员重置用户密码 (仅超级管理员)"""
     if not is_super_admin(request):
         return api_response(
@@ -680,7 +700,7 @@ async def api_admin_reset_password(body: AdminResetPasswordRequest = Body(...), 
 
 
 @app.post("/api/auth/update_role")
-async def api_update_role(body: UpdateRoleRequest = Body(...), request: Request = None):
+def api_update_role(body: UpdateRoleRequest = Body(...), request: Request = None):
     """超级管理员修改用户角色权限 (仅超级管理员)"""
     if not is_super_admin(request):
         return api_response(
@@ -706,7 +726,7 @@ class AdminApproveUserRequest(BaseModel):
 
 
 @app.post("/api/auth/approve_user")
-async def api_admin_approve_user(body: AdminApproveUserRequest = Body(...), request: Request = None):
+def api_admin_approve_user(body: AdminApproveUserRequest = Body(...), request: Request = None):
     """超级管理员审核普通用户注册申请 (仅超级管理员)"""
     if not is_super_admin(request):
         return api_response(
@@ -723,39 +743,35 @@ async def api_admin_approve_user(body: AdminApproveUserRequest = Body(...), requ
 
 @app.get("/api/health")
 async def health_check():
-    """
-    4.5 系统健康检查接口
-    用于监控与 systemd watchdog
-    """
-    uptime = int(time.time() - START_TIME)
-    return api_response(
-        code=200,
-        message="healthy",
-        data={
-            "status": "ok",
-            "database": "connected",
-            "mqtt": "connected" if is_mqtt_connected else "disconnected",
-            "uptime_seconds": uptime,
-            "version": "1.0.0",
-        },
-    )
+    def probe():
+        conn=database.get_connection()
+        try:
+            conn.execute('SELECT 1 FROM devices LIMIT 1').fetchone()
+            return True
+        finally:
+            conn.close()
+    try:
+        db_ok=await run_in_threadpool(probe)
+    except Exception:
+        db_ok=False
+    healthy=db_ok and is_mqtt_connected
+    return api_response(200 if healthy else 503,'healthy' if healthy else 'degraded',{
+        'status':'ok' if healthy else 'degraded','database':'connected' if db_ok else 'unavailable',
+        'mqtt':'connected' if is_mqtt_connected else 'disconnected','uptime_seconds':int(time.time()-START_TIME),'version':'3.0.0','control_enabled':os.getenv('ROBOT_CONTROL_ENABLED','0')=='1'})
 
 
 @app.get("/api/system/traffic")
-async def get_traffic_api(buckets: int = Query(13, ge=5, le=60)):
-    """返回最近 N 个时间窗的设备数据真实写入条数（按 state/sensor 分类，无随机造假）。"""
-    try:
-        state = get_traffic_stats(buckets=buckets, window_sec=3, data_type="state")
-        sensor = get_traffic_stats(buckets=buckets, window_sec=3, data_type="sensor")
-        return api_response(code=200, message="success",
-                            data={"buckets": buckets, "state": state, "sensor": sensor})
-    except Exception as e:
-        logger.error(f"get_traffic_api 异常: {e}")
-        return api_response(code=500, message=f"查询失败: {e}", data=None)
+async def get_traffic_api(buckets: int=Query(13,ge=5,le=60)):
+    from datetime import timedelta
+    now=datetime.now().replace(microsecond=0)
+    state=await run_in_threadpool(get_traffic_stats,buckets,3,'state',database.DB_PATH,now)
+    sensor=await run_in_threadpool(get_traffic_stats,buckets,3,'sensor',database.DB_PATH,now)
+    return api_response(data={'buckets':buckets,'window_seconds':3,'period_end':now.isoformat(),
+        'state':state,'sensor':sensor,'labels':[(now-timedelta(seconds=i*3)).strftime('%H:%M:%S') for i in range(buckets-1,-1,-1)]})
 
 
 @app.get("/api/system/overview")
-async def system_overview():
+def system_overview():
     """
     4.4 获取系统全局概览统计
     包含总设备数、在线数、离线数、总历史记录量、分类统计与服务运行时间
@@ -764,11 +780,12 @@ async def system_overview():
     stats["server_time"] = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
     stats["uptime_seconds"] = int(time.time() - START_TIME)
     stats["mqtt_connected"] = is_mqtt_connected
+    stats["control_enabled"] = os.getenv("ROBOT_CONTROL_ENABLED","0") == "1"
     return api_response(code=200, message="success", data=stats)
 
 
 @app.get("/api/devices")
-async def list_devices(
+def list_devices(
     status_filter: Optional[str] = Query(None, alias="status", description="在线状态: online/offline"),
     device_type: Optional[str] = Query(None, description="设备类型筛选"),
 ):
@@ -788,7 +805,7 @@ async def list_devices(
 
 
 @app.get("/api/devices/{device_type}/{device_id}/latest")
-async def get_device_latest(device_type: str, device_id: str):
+def get_device_latest(device_type: str, device_id: str):
     """
     4.2 获取单设备实时详情及最新一条上报数据
     - 若设备不存在，返回 404
@@ -818,37 +835,12 @@ async def get_device_latest(device_type: str, device_id: str):
 
 @app.delete("/api/devices/{device_type}/{device_id}")
 @app.delete("/api/devices/{device_id}")
-async def delete_device_api(request: Request, device_id: str, device_type: Optional[str] = None):
-    """
-    删除设备档案及其所有历史遥测数据 (超级管理员专属权限)
-    """
-    role = request.headers.get("X-User-Role", "admin")
-    if role == "user":
-        return api_response(
-            code=403,
-            message="权限不足：普通用户无权删除设备档案，请使用管理员账号操作",
-            data=None,
-            status_code=status.HTTP_403_FORBIDDEN
-        )
-
-    success = delete_device(device_id=device_id, device_type=device_type)
-    if success:
-        return api_response(
-            code=200,
-            message=f"设备 [{device_id}] 及其关联遥测数据已成功清除",
-            data={"device_id": device_id, "deleted": True}
-        )
-    else:
-        return api_response(
-            code=400,
-            message=f"删除设备 [{device_id}] 失败",
-            data=None,
-            status_code=status.HTTP_400_BAD_REQUEST
-        )
+def delete_device_api(request: Request,device_id: str,device_type: Optional[str]=None):
+    raise HTTPException(409,'生产设备与历史证据不可通过页面删除，请通过运维归档流程停用设备')
 
 
 @app.get("/api/history")
-async def query_global_history(
+def query_global_history(
     device_id: Optional[str] = Query(None, description="设备ID筛选"),
     data_type: Optional[str] = Query(None, description="数据类型筛选: state/sensor/alarm/cmd等"),
     start_time: Optional[str] = Query(None, description="起始时间"),
@@ -891,7 +883,7 @@ async def query_global_history(
 
 
 @app.get("/api/devices/{device_type}/{device_id}/history")
-async def query_device_history(
+def query_device_history(
     device_type: str,
     device_id: str,
     page: int = Query(1, ge=1, description="页码，从1开始"),
@@ -952,171 +944,88 @@ class CommandRequest(BaseModel):
     command: str = Field(..., description="控制指令名称，如 goto, start, stop, reset, patrol, calibrate")
     params: Optional[Dict[str, Any]] = Field(default_factory=dict, description="指令参数键值对，如 {'x': 10.2, 'y': 5.5}")
     task_id: Optional[str] = Field(None, description="任务唯一标识编号，若为空系统自动生成")
+    confirmed: bool = False
 
 
-def publish_command_downlink(
-    device_type: str,
-    device_id: str,
-    command: str,
-    params: Optional[Dict[str, Any]] = None,
-    task_id: Optional[str] = None,
-) -> Tuple[str, str, Dict[str, Any]]:
-    """
-    通过 MQTT 向端侧设备下发任务控制指令 (Topic: cmd/{device_type}/{device_id})。
-
-    返回三态状态机：
-      - "simulated":    目标设备为仿真设备，指令仅进入模拟链路
-      - "queued":       MQTT 未连接，指令仅入库未发送
-      - "delivered":    已发布至 Broker，等待设备 cmd_ack 确认
-      - "acknowledged": 收到设备 cmd_ack 且执行成功
-      - "failed":       收到设备 cmd_ack 但执行失败 / MQTT 发送失败
-    """
-    if not task_id:
-        task_id = f"T{datetime.now().strftime('%Y%m%d%H%M%S')}-{device_id}"
-
-    payload_dict = {
-        "task_id": task_id,
-        "command": command,
-        "params": params or {},
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    }
-    payload_json = json.dumps(payload_dict, ensure_ascii=False)
-    topic = f"cmd/{device_type}/{device_id}"
-
-    # 仿真设备识别
-    is_sim_dev = False
+def publish_command_downlink(device_type,device_id,command,params=None,task_id=None,operator='unknown'):
+    if is_simulated(device_type,device_id):
+        from simulation import dispatch
+        return dispatch(device_type,device_id,command,params,task_id,operator,mqtt_client_instance,is_mqtt_connected)
+    if os.getenv('ROBOT_CONTROL_ENABLED','0')!='1':
+        raise HTTPException(409,'远程执行尚未完成加密接入与现场安全验收，当前只读监控；未发送指令')
+    if not allowed_device(device_type,device_id):
+        raise HTTPException(404,'设备未登记为真实受控设备')
     try:
-        dev_info = get_device_by_id(device_id)
-        if dev_info and dev_info.get("is_simulated"):
-            is_sim_dev = True
-    except Exception as e:
-        logger.error(f"仿真设备判定异常: {e}")
-
-    # 记录到历史数据表
+        command,params=validate_command(command,params or {})
+    except ValueError as e:
+        raise HTTPException(422,str(e))
+    if command=='jog_joint' and os.getenv('ROBOT_ALLOW_JOG','0')!='1':
+        raise HTTPException(409,'远程点动待现场安全验收，当前未启用')
+    latest=get_latest_data(device_type,device_id)
+    p=latest.get('parsed_payload',{}) if latest else {}
+    if not p.get('state_fresh') or p.get('status')=='offline' or not p.get('connection_id'):
+        raise HTTPException(409,'没有当前控制器连接的有效遥测，拒绝下发')
+    if not mqtt_client_instance or not is_mqtt_connected:
+        raise HTTPException(503,'MQTT未连接，未发送，也不会排队重放')
+    key=os.getenv('COMMAND_HMAC_KEY','')
+    if not key:
+        raise HTTPException(503,'控制通道未配置')
+    task_id=task_id or uuid.uuid4().hex
+    if not re.fullmatch(r'[A-Za-z0-9_-]{1,100}',task_id):
+        raise HTTPException(422,'非法task_id')
+    payload={'task_id':task_id,'device_id':device_id,'device_type':device_type,'command':command,'params':params,
+             'timestamp':datetime.now().astimezone().isoformat(timespec='milliseconds'),'expires_at':time.time()+5,
+             'connection_id':p['connection_id']}
+    conn=database.get_connection()
     try:
-        insert_device_data(
-            device_id=device_id,
-            device_type=device_type,
-            data_type="cmd",
-            raw_payload=payload_json,
-            topic=topic,
-        )
-    except Exception as e:
-        logger.error(f"记录下发指令异常: {e}")
-
-    # 发布至 MQTT
-    global mqtt_client_instance, is_mqtt_connected
-    if mqtt_client_instance and is_mqtt_connected:
+        with conn:
+            old=conn.execute('SELECT * FROM command_requests WHERE task_id=?',(task_id,)).fetchone()
+            if old:
+                if old['source']!='controller':raise HTTPException(409,'任务ID属于其他数据来源，不能复用')
+                if (old['device_id'],old['device_type'],old['command'],old['params'],old['operator'])!=(device_id,device_type,command,json.dumps(params,sort_keys=True),operator):
+                    raise HTTPException(409,'task_id已用于不同请求')
+                return old['state'],old['message'],{'task_id':task_id}
+            now=datetime.now().isoformat(timespec='seconds')
+            conn.execute("INSERT INTO command_requests(task_id,device_id,device_type,command,params,operator,state,created_at,expires_at,updated_at,connection_id,source) VALUES(?,?,?,?,?,?,?,?,?,?,?,'controller')",
+                (task_id,device_id,device_type,command,json.dumps(params,sort_keys=True),operator,'sending',now,payload['expires_at'],now,p['connection_id']))
+        add_device_run_log(device_id,'action',operator,f'请求下发命令 {command}，task_id={task_id}；尚未验证执行')
+        state,message='unknown','消息发送确认超时，执行结果未知；禁止自动重试'
         try:
-            info = mqtt_client_instance.publish(topic, payload_json, qos=1)
-            info.wait_for_publish(timeout=2.0)
-            logger.info(f"已向设备下发指令 -> Topic: {topic} | Payload: {payload_json}")
-            if is_sim_dev:
-                return "delivered", "仿真设备指令已送达消息总线，仿真服务已模拟执行", payload_dict
-            return "delivered", "指令已送达消息总线，等待设备执行确认", payload_dict
-        except Exception as e:
-            logger.error(f"MQTT 指令发送失败: {e}")
-            return "failed", f"MQTT 发送失败: {e}", payload_dict
-    else:
-        logger.warning(f"MQTT 未连接，指令已记录入库但未通过网络发送 -> Topic: {topic}")
-        return "queued", "MQTT 未连接，指令仅入库未发送", payload_dict
+            info=mqtt_client_instance.publish(f'cmd/{device_type}/{device_id}',json.dumps(sign_payload(payload,key),ensure_ascii=False),qos=1,retain=False)
+            if info.rc != mqtt.MQTT_ERR_SUCCESS:
+                state,message='failed','消息总线拒绝发送'
+            else:
+                info.wait_for_publish(timeout=2)
+                if info.is_published():
+                    state,message='delivered','Broker已确认收到，等待控制器反馈'
+        except Exception:
+            logger.warning('Command transport result uncertain: %s',task_id)
+        with conn:
+            conn.execute("UPDATE command_requests SET state=?,message=?,updated_at=? WHERE task_id=? AND state='sending'",(state,message,datetime.now().isoformat(timespec='seconds'),task_id))
+        return state,message,payload
+    finally:
+        conn.close()
 
 
 @app.post("/api/device/{dev_id}/cmd")
 @app.post("/api/devices/{device_type}/{device_id}/cmd")
-async def dispatch_device_command(
-    request: Request,
-    dev_id: Optional[str] = None,
-    device_type: Optional[str] = None,
-    device_id: Optional[str] = None,
-    body: CommandRequest = Body(...),
-):
-    """
-    4.6 【功能 F6】向指定端侧设备下发任务控制指令 (管理员专属权限)
-    - 支持 /api/device/{dev_id}/cmd 或 /api/devices/{type}/{id}/cmd 两种路由规范
-    - Topic: cmd/{device_type}/{device_id}
-    - 严格遵循《技术需求书》1.5.1 下行 Topic 与 JSON 格式
-    """
-    role = request.headers.get("X-User-Role", "")
-    if role != "admin":
-        return api_response(
-            code=403,
-            message="权限受限：未授权或当前角色无权下发工业控制指令。请使用管理员账号登录后再操作！",
-            data=None,
-            status_code=status.HTTP_403_FORBIDDEN
-        )
-
-    target_id = device_id or dev_id
-    if not target_id:
-        raise HTTPException(status_code=400, detail="未指定目标设备 ID")
-
-    # 若未指定 device_type，自动从数据库查找
-    target_type = device_type
-    if not target_type:
-        dev_info = get_device_by_id(target_id)
-        if dev_info:
-            target_type = dev_info["device_type"]
-        else:
-            target_type = "unknown"
-
-    state, msg, payload = publish_command_downlink(
-        device_type=target_type,
-        device_id=target_id,
-        command=body.command,
-        params=body.params,
-        task_id=body.task_id,
-    )
-
-    # 自动记录真实操作员指令至示教器原生运行日志 (device_run_logs)
-    try:
-        operator_name = request.headers.get("X-User-Name", "Admin")
-        p = body.params or {}
-        cmd_desc_map = {
-            "enable": "控制器伺服使能上电 [mot.setGpEn(0,true)]",
-            "servo_on": "控制器伺服使能上电 [mot.setGpEn(0,true)]",
-            "disable": "控制器伺服下使能断电 [mot.setGpEn(0,false)]",
-            "servo_off": "控制器伺服下使能断电 [mot.setGpEn(0,false)]",
-            "reset": "控制器故障组复位 [mot.gpReset(0)]",
-            "fault_reset": "控制器故障组复位 [mot.gpReset(0)]",
-            "home": "机械臂执行点动制动并复位就绪待命",
-            "go_home": "机械臂执行点动制动并复位就绪待命",
-            "stop": "拍下紧急停止停机指令 [mot.setEstop(true)]",
-            "emergency_stop": "拍下紧急停止停机指令 [mot.setEstop(true)]",
-            "set_override": f"设置示教器运行速度倍率: {p.get('value', p.get('override', 50))}%",
-            "set_speed": f"设置示教器运行速度倍率: {p.get('value', p.get('speed', 50))}%",
-            "select_prog": f"示教器载入加工程序: {p.get('prog_name', p.get('program', 'MAIN.PRG'))}",
-            "load_prog": f"示教器载入加工程序: {p.get('prog_name', p.get('program', 'MAIN.PRG'))}",
-            "start_prog": f"启动运行加工程序: {p.get('prog_name', p.get('program', 'MAIN.PRG'))}",
-            "stop_prog": f"停止运行加工程序: {p.get('prog_name', p.get('program', 'MAIN.PRG'))}",
-            "set_do": f"设置数字量输出 DO_{p.get('port', p.get('pin', 0))}={'ON' if p.get('value', p.get('val', 1)) else 'OFF'}",
-            "set_dout": f"设置数字量输出 DO_{p.get('port', p.get('pin', 0))}={'ON' if p.get('value', p.get('val', 1)) else 'OFF'}",
-        }
-        cmd_text = cmd_desc_map.get(body.command, f"操作员下发控制指令: {body.command}")
-        add_device_run_log(
-            device_id=target_id,
-            icon_type="action",
-            operator=operator_name,
-            record_content=cmd_text,
-            log_level="ACTION",
-        )
-    except Exception as e:
-        logger.warning(f"记录控制指令运行日志异常: {e}")
-
-    return api_response(
-        code=200,
-        message=msg,
-        data={
-            "device_id": target_id,
-            "device_type": target_type,
-            "topic": f"cmd/{target_type}/{target_id}",
-            "deliver_state": state,
-            "task": payload,
-        },
-    )
+async def dispatch_device_command(request: Request,dev_id: Optional[str]=None,device_type: Optional[str]=None,device_id: Optional[str]=None,body: CommandRequest=Body(...)):
+    if not is_admin(request):
+        raise HTTPException(403,'需要管理员权限')
+    if not body.confirmed:
+        raise HTTPException(409,'请明确确认目标设备和参数后下发')
+    target=device_id or dev_id
+    dev=get_device_by_id(target)
+    if not dev:
+        raise HTTPException(404,'设备不存在')
+    if device_type and device_type!=dev['device_type']:
+        raise HTTPException(409,'设备类型不匹配')
+    state,message,payload=await run_in_threadpool(publish_command_downlink,dev['device_type'],target,body.command,body.params,body.task_id,request.state.user['username'])
+    return api_response(202,message,{'device_id':target,'device_type':dev['device_type'],'deliver_state':state,'task':payload})
 
 
 @app.get("/api/device/{dev_id}/cmd/{task_id}")
-async def query_command_result(dev_id: str, task_id: str):
+def query_command_result(dev_id: str, task_id: str):
     """查询单条下行指令的执行结果（基于 cmd_ack 回执）。"""
     rows = get_command_ack(dev_id, task_id)
     return api_response(code=200, message="success", data={"device_id": dev_id,
@@ -1125,7 +1034,7 @@ async def query_command_result(dev_id: str, task_id: str):
 
 
 @app.get("/api/device/{dev_id}/cmd_history")
-async def query_command_history(dev_id: str, limit: int = Query(20, ge=1, le=200)):
+def query_command_history(dev_id: str, limit: int = Query(20, ge=1, le=200)):
     """查询设备最近的下行指令与回执记录。"""
     from database import get_cmd_history
     rows = get_cmd_history(dev_id, limit=limit)
@@ -1136,7 +1045,7 @@ async def query_command_history(dev_id: str, limit: int = Query(20, ge=1, le=200
 # 仿真设备管理（后台设置页专用，前端大屏不展示该标记）
 # ---------------------------------------------------------------------------
 @app.get("/api/admin/simulated_devices")
-async def list_simulated_devices():
+def list_simulated_devices():
     """列出所有标记为仿真的设备。"""
     try:
         devs = get_simulated_devices()
@@ -1147,47 +1056,30 @@ async def list_simulated_devices():
 
 
 @app.post("/api/admin/simulated_devices")
-async def add_simulated_device(body: dict = Body(...)):
-    """
-    将设备标记为仿真（不存在则自动建档）。
-    body: {device_id, device_type, device_name?, location?, vendor?}
-    """
-    device_id = (body.get("device_id") or "").strip()
-    device_type = (body.get("device_type") or "huashu_arm").strip()
-    if not device_id:
-        return api_response(code=400, message="device_id 不能为空", data=None)
-
-    dev = get_device_by_id(device_id)
-    if not dev:
-        upsert_device(device_id=device_id, device_type=device_type,
-                      status="online", last_report_time=None)
-    if body.get("device_name") or body.get("location") or body.get("vendor"):
-        update_device_info(
-            device_id=device_id,
-            device_name=body.get("device_name"),
-            location=body.get("location"),
-            vendor=body.get("vendor"),
-        )
-    ok = set_device_simulated(device_id, True)
-    return api_response(code=200 if ok else 500,
-                        message="已标记为仿真设备" if ok else "标记失败",
-                        data={"device_id": device_id, "is_simulated": 1})
+def add_simulated_device(body: dict=Body(...)):
+    from simulation import configure_device
+    try:
+        result=configure_device(body)
+    except ValueError as e:
+        raise HTTPException(409,str(e))
+    return api_response(200,'仿真设备已启用，最多30秒后开始演示上报',result)
 
 
 @app.delete("/api/admin/simulated_devices/{device_id}")
-async def remove_simulated_device(device_id: str):
-    """取消设备的仿真标记（恢复为真实设备属性）。"""
-    ok = set_device_simulated(device_id, False)
-    return api_response(code=200 if ok else 500,
-                        message="已取消仿真标记" if ok else "取消失败",
-                        data={"device_id": device_id, "is_simulated": 0})
+def remove_simulated_device(device_id: str):
+    from simulation import configure_device
+    dev=get_device_by_id(device_id)
+    if not dev or not dev['is_simulated']:
+        raise HTTPException(404,'仿真设备不存在')
+    result=configure_device({'device_id':device_id,'device_type':dev['device_type']},enabled=False)
+    return api_response(200,'仿真设备已停用，历史保留，不转换为真机',result)
 
 
 # ---------------------------------------------------------------------------
 # 设备 FTP 备份凭据管理（后台设置页专用）
 # ---------------------------------------------------------------------------
 @app.get("/api/admin/ftp_config")
-async def get_device_ftp_config():
+def get_device_ftp_config():
     """读取各设备 FTP 备份凭据（密码字段脱敏）。"""
     try:
         raw = get_system_config("device_ftp_config", "{}")
@@ -1205,7 +1097,7 @@ async def get_device_ftp_config():
 
 
 @app.post("/api/admin/ftp_config")
-async def save_device_ftp_config(body: dict = Body(...)):
+def save_device_ftp_config(body: dict = Body(...)):
     """保存设备 FTP 备份凭据。body: {device_id, host, port, user, password}"""
     try:
         device_id = (body.get("device_id") or "").strip()
@@ -1231,20 +1123,15 @@ async def save_device_ftp_config(body: dict = Body(...)):
 
 
 @app.get("/api/device/{dev_id}/history")
-async def get_device_history_by_id(
-    dev_id: str,
-    limit: int = Query(20, ge=1, le=500, description="返回条数限制"),
-):
-    """
-    4.7 【技术需求书 1.5.2 兼容路由】根据设备 ID 查询历史数据
-    返回该设备最近 N 条数据，按时间倒序
-    """
-    records = get_history_by_dev_id(dev_id, limit=limit)
-    return records
+def get_device_history_by_id(dev_id: str,page: int=1,page_size: int=50):
+    dev=get_device_by_id(dev_id)
+    if not dev or not visible_device(dev['device_type'],dev_id):
+        raise HTTPException(404,'未登记的真实设备')
+    return api_response(data=get_history_by_dev_id(dev_id,page=max(1,page),page_size=max(1,min(page_size,200))))
 
 
 @app.get("/api/analytics/operational")
-async def get_operational_metrics():
+def get_operational_metrics():
     """
     4.8 【功能模块 4 & 5】获取运营数据分析、综合设备利用率(OEE)、商业环境与健康管理
     包含作业量统计、设备利用率、任务完成率、CO2/PM2.5/VOC环境数据、预测性维护诊断
@@ -1271,6 +1158,12 @@ async def call_llm_api(
     - 标准 OpenAI 协议 (DeepSeek / GPT / 通义 / 智谱 / 硅基流动 / Ollama 等)
     """
     clean_url = (base_url or "").strip().rstrip("/")
+    parsed_url=urlparse(clean_url)
+    allowed_hosts=set(os.getenv('LLM_ALLOWED_HOSTS','api.deepseek.com,api.openai.com,generativelanguage.googleapis.com,dashscope.aliyuncs.com,api.siliconflow.cn').split(','))
+    if parsed_url.hostname not in allowed_hosts or parsed_url.username or parsed_url.password or (parsed_url.scheme!='https' and not (parsed_url.hostname in ('localhost','127.0.0.1') and os.getenv('ALLOW_LOCAL_LLM')=='1')):
+        return False,'模型服务地址未列入运维白名单或未使用TLS',{}
+    if parsed_url.query or parsed_url.fragment:
+        return False,'模型基础地址不得包含查询参数或片段',{} 
     is_gemini_native = ("googleapis.com" in clean_url and "generateContent" in clean_url) or ("googleapis.com" in clean_url and "/openai" not in clean_url)
     
     start_t = time.time()
@@ -1293,8 +1186,6 @@ async def call_llm_api(
         
         if api_key:
             headers["X-goog-api-key"] = api_key.strip()
-            if "?key=" not in clean_url and "&key=" not in clean_url:
-                clean_url = f"{clean_url}?key={api_key.strip()}"
         
         gemini_contents = []
         if system_prompt:
@@ -1342,7 +1233,7 @@ async def call_llm_api(
         }
 
     try:
-        async with httpx.AsyncClient(timeout=timeout, verify=False, trust_env=True) as client:
+        async with httpx.AsyncClient(timeout=timeout, verify=True, trust_env=False) as client:
             resp = await client.post(clean_url, headers=headers, json=payload)
             latency_ms = int((time.time() - start_t) * 1000)
 
@@ -1377,7 +1268,7 @@ async def call_llm_api(
 
 
 @app.get("/api/ai/context")
-async def get_ai_context():
+def get_ai_context():
     """
     4.9 【云边协同与大模型接口】
     提供给云端/本地大模型的标准化上下文数据结构与诊断 Prompt。
@@ -1398,7 +1289,7 @@ class LLMConfigModel(BaseModel):
 
 
 @app.get("/api/ai/config")
-async def get_ai_configuration():
+def get_ai_configuration():
     """获取当前大模型接入配置与预设厂商列表"""
     cfg = get_llm_config()
     raw_key = cfg.get("api_key", "")
@@ -1406,7 +1297,8 @@ async def get_ai_configuration():
     if raw_key:
         masked_key = raw_key[:3] + "****" + raw_key[-4:] if len(raw_key) > 8 else "****"
 
-    safe_cfg = {**cfg, "api_key_masked": masked_key, "has_api_key": bool(raw_key)}
+    safe_cfg = {k:v for k,v in cfg.items() if k != "api_key"}
+    safe_cfg.update(api_key_masked=masked_key, has_api_key=bool(raw_key))
     return api_response(
         code=200,
         message="success",
@@ -1418,7 +1310,7 @@ async def get_ai_configuration():
 
 
 @app.post("/api/ai/config")
-async def update_ai_configuration(body: LLMConfigModel = Body(...), request: Request = None):
+def update_ai_configuration(body: LLMConfigModel = Body(...), request: Request = None):
     """保存或更新大模型 API 接入配置 (仅超级管理员)"""
     if not request or not is_super_admin(request):
         return api_response(
@@ -1430,6 +1322,8 @@ async def update_ai_configuration(body: LLMConfigModel = Body(...), request: Req
     update_data = {k: v for k, v in body.dict().items() if v is not None}
     
     # 若前端传空字符串且原本有 key，则保留原 key
+    if update_data.get('base_url','').rstrip('/') != current.get('base_url','').rstrip('/') and not update_data.get('api_key'):
+        raise HTTPException(422,'更换模型服务地址必须提供新服务密钥，禁止自动沿用旧密钥')
     if not update_data.get("api_key") and current.get("api_key"):
         update_data["api_key"] = current["api_key"]
 
@@ -1514,38 +1408,29 @@ class DeviceUpdateRequest(BaseModel):
 
 
 @app.post("/api/devices/{device_id}/update")
-async def api_update_device(device_id: str, body: DeviceUpdateRequest = Body(...), request: Request = None):
-    """修改单台设备自定义名称、厂商角标、位置、归属品类、规格参数与备注"""
-    if not request or not is_admin(request):
-        return api_response(
-            code=403,
-            message="权限不足：仅管理员拥有修改设备名称与规格参数的权限",
-            status_code=status.HTTP_403_FORBIDDEN
-        )
-    success = update_device_info(
-        device_id=device_id,
-        device_type=body.device_type,
-        device_name=body.device_name,
-        location=body.location,
-        vendor=body.vendor,
-        specs=body.specs,
-        notes=body.notes
-    )
-    if success:
-        dev = get_device_by_id(device_id)
-        return api_response(code=200, message=f"设备 [{device_id}] 信息与规格已成功更新", data=dev)
-    return api_response(code=500, message="更新设备信息失败", status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+def api_update_device(device_id: str,body: DeviceUpdateRequest=Body(...),request: Request=None):
+    if not is_admin(request):
+        raise HTTPException(403,'需要管理员权限')
+    dev=get_device_by_id(device_id)
+    if not dev:
+        raise HTTPException(404,'设备不存在')
+    if getattr(body,'device_type',None) and body.device_type!=dev['device_type']:
+        raise HTTPException(409,'设备身份不能通过编辑资料改变')
+    values=body.model_dump(exclude_none=True)
+    values.pop('device_type',None)
+    ok=update_device_info(device_id,**values)
+    return api_response(200 if ok else 400,'平台设备资料已更新，未改变物理设备',get_device_by_id(device_id))
 
 
 @app.get("/api/system/site_config")
-async def api_get_site_config():
+def api_get_site_config():
     """获取全站品牌与图文自定义配置 (公开读取)"""
     cfg = get_site_config()
     return api_response(code=200, message="success", data=cfg)
 
 
 @app.post("/api/system/site_config")
-async def api_save_site_config(body: SiteConfigModel = Body(...), request: Request = None):
+def api_save_site_config(body: SiteConfigModel = Body(...), request: Request = None):
     """保存全站品牌与图文自定义配置 (仅限超级管理员)"""
     if not request or not is_super_admin(request):
         return api_response(
@@ -1565,40 +1450,27 @@ async def api_save_site_config(body: SiteConfigModel = Body(...), request: Reque
 
 
 @app.post("/api/system/upload_asset")
-async def api_upload_asset(file: UploadFile = File(...), request: Request = None):
-    """上传自定义图片素材 (支持 jpg, png, jpeg, webp, svg，仅限超级管理员)"""
-    if not request or not is_super_admin(request):
-        return api_response(
-            code=403,
-            message="权限不足：仅系统默认超级管理员 (admin) 拥有上传图片素材特权",
-            status_code=status.HTTP_403_FORBIDDEN
-        )
-    
-    if not file or not file.filename:
-        return api_response(code=400, message="未选择上传文件", status_code=status.HTTP_400_BAD_REQUEST)
-    
-    ext = os.path.splitext(file.filename)[1].lower()
-    if ext not in [".jpg", ".jpeg", ".png", ".webp", ".svg"]:
-        return api_response(code=400, message="仅支持上传 JPG、PNG、WEBP 或 SVG 格式图片", status_code=status.HTTP_400_BAD_REQUEST)
-    
-    assets_dir = str(ASSETS_DIR)
-    os.makedirs(assets_dir, exist_ok=True)
-    
-    clean_name = f"custom_{int(time.time())}_{uuid.uuid4().hex[:6]}{ext}"
-    target_path = os.path.join(assets_dir, clean_name)
-    
-    try:
-        with open(target_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-        rel_url = f"/static/assets/{clean_name}"
-        return api_response(
-            code=200,
-            message="图片上传成功",
-            data={"url": rel_url, "filename": clean_name}
-        )
-    except Exception as e:
-        logger.error(f"图片上传失败: {e}")
-        return api_response(code=500, message=f"图片上传失败: {e}", status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+async def api_upload_asset(file: UploadFile=File(...),request: Request=None):
+    if not is_super_admin(request):
+        raise HTTPException(403,'需要系统管理员权限')
+    content=await file.read(2*1024*1024+1)
+    if len(content)>2*1024*1024:
+        raise HTTPException(413,'图片不能超过2MB')
+    suffix=None
+    if content.startswith(b'\x89PNG\r\n\x1a\n'):
+        suffix='.png'
+    elif content.startswith(b'\xff\xd8\xff'):
+        suffix='.jpg'
+    elif content.startswith((b'GIF87a',b'GIF89a')):
+        suffix='.gif'
+    elif content.startswith(b'RIFF') and content[8:12]==b'WEBP':
+        suffix='.webp'
+    if suffix is None:
+        raise HTTPException(422,'仅允许PNG/JPEG/GIF/WebP图片，不接受SVG或HTML')
+    ASSETS_DIR.mkdir(parents=True,exist_ok=True)
+    name=uuid.uuid4().hex+suffix
+    await run_in_threadpool((ASSETS_DIR/name).write_bytes,content)
+    return api_response(data={'url':'/static/assets/'+name,'filename':name})
 
 
 class LLMTestRequest(BaseModel):
@@ -1612,6 +1484,8 @@ class LLMTestRequest(BaseModel):
 async def test_ai_connection(body: LLMTestRequest = Body(...)):
     """测试大模型 API 连通性"""
     cfg = get_llm_config()
+    if body.base_url and body.base_url.rstrip('/') != cfg.get('base_url','').rstrip('/') and not body.api_key:
+        raise HTTPException(422,'测试不同服务地址时必须显式提供该服务密钥，禁止转发已保存密钥')
     provider = body.provider or cfg.get("provider", "deepseek")
     base_url = body.base_url or cfg.get("base_url", "https://api.deepseek.com/v1")
     api_key = body.api_key if (body.api_key is not None and body.api_key != "") else cfg.get("api_key", "")
@@ -1657,47 +1531,24 @@ async def test_ai_connection(body: LLMTestRequest = Body(...)):
 
 
 @app.post("/api/ai/models")
-async def fetch_provider_models(body: LLMTestRequest = Body(...)):
-    """
-    动态从大模型服务商 /v1/models 接口拉取当前账号可用的最新模型列表
-    """
-    cfg = get_llm_config()
-    provider = body.provider or cfg.get("provider", "deepseek")
-    base_url = (body.base_url or cfg.get("base_url", "")).strip().rstrip("/")
-    api_key = body.api_key if (body.api_key is not None and body.api_key != "") else cfg.get("api_key", "")
-
-    if not base_url:
-        preset = LLM_PROVIDER_PRESETS.get(provider, {})
-        base_url = preset.get("base_url", "https://api.deepseek.com/v1")
-
-    # 构建 models 发现地址
-    clean_url = base_url
-    if clean_url.endswith("/chat/completions"):
-        clean_url = clean_url.replace("/chat/completions", "/models")
-    elif clean_url.endswith("/v1"):
-        clean_url = f"{clean_url}/models"
-    elif not clean_url.endswith("/models"):
-        clean_url = f"{clean_url}/models"
-
-    headers = {}
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key.strip()}"
-
-    try:
-        async with httpx.AsyncClient(timeout=8.0, verify=False) as client:
-            resp = await client.get(clean_url, headers=headers)
-            if resp.status_code == 200:
-                data = resp.json()
-                models_list = []
-                if isinstance(data, dict) and "data" in data and isinstance(data["data"], list):
-                    models_list = [m.get("id") for m in data["data"] if isinstance(m, dict) and m.get("id")]
-                elif isinstance(data, list):
-                    models_list = [m.get("id") if isinstance(m, dict) else str(m) for m in data]
-                return api_response(code=200, message="成功获取可用模型列表", data={"models": sorted(models_list)})
-    except Exception as e:
-        logger.warning(f"动态拉取模型列表失败 ({clean_url}): {e}")
-
-    return api_response(code=200, message="未获取到在线模型列表，可直接手动输入任意模型名称", data={"models": []})
+async def fetch_provider_models(body: LLMTestRequest=Body(...)):
+    cfg=get_llm_config()
+    base=(body.base_url or cfg.get('base_url','')).rstrip('/')
+    if body.base_url and base!=cfg.get('base_url','').rstrip('/') and not body.api_key:
+        raise HTTPException(422,'不同服务地址必须显式提供密钥')
+    parsed=urlparse(base)
+    allowed=set(os.getenv('LLM_ALLOWED_HOSTS','api.deepseek.com,api.openai.com,generativelanguage.googleapis.com,dashscope.aliyuncs.com,api.siliconflow.cn').split(','))
+    if parsed.scheme!='https' or parsed.hostname not in allowed or parsed.username or parsed.query or parsed.fragment:
+        raise HTTPException(422,'服务地址未通过安全校验')
+    key=body.api_key or cfg.get('api_key','')
+    url=base.removesuffix('/chat/completions')+'/models'
+    async with httpx.AsyncClient(timeout=8,verify=True,trust_env=False) as client:
+        response=await client.get(url,headers={'Authorization':'Bearer '+key},follow_redirects=False)
+    if response.status_code!=200:
+        raise HTTPException(502,'服务商未返回有效模型列表')
+    data=response.json()
+    models=[x['id'] for x in data.get('data',[]) if isinstance(x,dict) and isinstance(x.get('id'),str)]
+    return api_response(data={'models':sorted(models)})
 
 
 class ChatMessage(BaseModel):
@@ -1713,115 +1564,26 @@ class ChatRequest(BaseModel):
 
 @app.post("/api/ai/chat")
 @app.post("/api/ai/diagnose")
-async def ai_chat_and_diagnose(body: ChatRequest = Body(...)):
-    """
-    4.10 【AI 智能运维中枢 - 连续多轮对话与全域研判接口】
-    - 支持与 Google Gemini / DeepSeek / GPT / 本地大模型进行自由、不设限的连续多轮对话
-    - 实时注入全场机械臂、AMR、四足机器狗遥测与商业环境数据作为上下文
-    - 若未配置云端大模型，自动无缝降级至边缘规则引擎
-    """
-    context_data = get_ai_llm_context()
-    prompt_context = context_data["llm_prompt_context"]
-    diagnostics = context_data["operational_analytics"]["device_health_diagnostics"]
-    env = context_data["operational_analytics"]["commercial_environment"]
-
-    llm_cfg = get_llm_config()
-    faults = [d for d in diagnostics if d.get("error_code", 0) != 0]
-
-    # 构建对话历史序列
-    dialog_turns = [m.dict() for m in body.messages] if body.messages else []
-    if not dialog_turns:
-        user_q = body.query or "请综合诊断当前全域机器人的健康状况、工序瓶颈与环境指标，并给出针对性建议"
-        dialog_turns = [{"role": "user", "content": user_q}]
-
-    last_user_query = dialog_turns[-1]["content"] if dialog_turns else "诊断全域设备"
-
-    # 1. 尝试调用配置的第三方大模型 (Google / DeepSeek / GPT / Ollama)
-    if llm_cfg.get("enabled") and (llm_cfg.get("api_key") or llm_cfg.get("provider") == "ollama"):
-        custom_role = llm_cfg.get("custom_prompt", "").strip()
-        system_prompt = f"""你是机器人管理系统中的 AI Copilot 助手。
-系统已为你实时接入了现场各机器人的最新遥测数据、I/O矩阵、OEE以及商业环境传感器指标：
-
-{prompt_context}
-
-【交互指南】：
-1. 你可以自由地与用户对话，如果用户问你是谁或者你是什么模型，请大方地承认你的大模型身份，并同时说明你现在已经接入了工厂物联网系统，可以帮助他们分析设备数据。
-2. 结合上方现场全域真实遥测数据进行针对性分析，解答用户关于华数机械臂、珞石AMR、四足机器狗、环境质量（CO2/PM2.5）或维保周期的任何问题。
-3. 请使用清晰优美的 Markdown 格式输出。
-{f'【补充人设要求】：{custom_role}' if custom_role else ''}"""
-
-        success, llm_reply, meta = await call_llm_api(
-            base_url=llm_cfg.get("base_url", "https://api.deepseek.com/v1"),
-            api_key=llm_cfg.get("api_key", ""),
-            model=llm_cfg.get("model", "deepseek-chat"),
-            system_prompt=system_prompt,
-            messages=dialog_turns,
-            temperature=llm_cfg.get("temperature", 0.5),
-            max_tokens=llm_cfg.get("max_tokens", 2048),
-            timeout=30.0,
-        )
-
-        if success:
-            return api_response(
-                code=200,
-                message="大模型响应成功",
-                data={
-                    "reply": llm_reply,
-                    "ai_diagnosis_summary": llm_reply,
-                    "query": last_user_query,
-                    "target_device": body.device_id or "全域设备",
-                    "health_level": "优良" if not faults else "存在预警",
-                    "active_faults_count": len(faults),
-                    "raw_context": prompt_context,
-                    "mode": "cloud_llm",
-                    "provider": llm_cfg.get("provider"),
-                    "model": llm_cfg.get("model"),
-                    "latency_ms": meta.get("latency_ms", 0),
-                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                },
-            )
-        else:
-            logger.warning(f"第三方大模型调用失败，降级至边缘规则引擎: {llm_reply}")
-
-    # 2. 边缘规则引擎降级兜底
-    recs = []
-    if faults:
-        for f in faults:
-            recs.append(f"⚠️ 设备 [{f['display_name']} ({f['device_id']})] 检测到故障码 {f['error_code']}，建议立即检查伺服驱动与急停回路。")
-    else:
-        recs.append("✅ 当前全场机器人电控与执行机构均处于正常健康工作区间。")
-
-    for diag in diagnostics:
-        if diag.get("next_maintenance_hours", 500) < 100:
-            recs.append(f"⏳ 预测性维护提醒：设备 [{diag['display_name']} ({diag['device_id']})] 距下次润滑保养仅剩 {diag['next_maintenance_hours']}h，建议提前安排工单。")
-
-    if env.get("co2_ppm", 0) > 800:
-        recs.append(f"🌬️ 现场 CO₂ 浓度偏高 ({env['co2_ppm']} ppm)，建议开启厂房或商场新风换气系统。")
-    if env.get("pm25", 0) > 35:
-        recs.append(f"🌫️ PM2.5 颗粒物偏高 ({env['pm25']} μg/m³)，建议移动机器人加装空气过滤组件。")
-
-    summary_text = "【💡 边缘规则引擎建议】:\n" + "\n".join(f"{i+1}. {r}" for i, r in enumerate(recs))
-    if not llm_cfg.get("enabled"):
-        summary_text += "\n\n*(提示：当前运行在内置边缘规则模式。点击上方「⚙️ 大模型配置」填入 Gemini / DeepSeek / OpenAI API Key，即可开启深度大模型自由连续对话！)*"
-
-    return api_response(
-        code=200,
-        message="边缘规则引擎响应完成",
-        data={
-            "reply": summary_text,
-            "ai_diagnosis_summary": summary_text,
-            "query": last_user_query,
-            "target_device": body.device_id or "全域设备",
-            "health_level": "优良" if not faults else "存在预警",
-            "active_faults_count": len(faults),
-            "raw_context": prompt_context,
-            "mode": "edge_rule_engine",
-            "provider": "edge_builtin",
-            "model": "edge-rule-v1",
-            "latency_ms": 5,
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        },
-    )
+async def ai_chat_and_diagnose(body: ChatRequest=Body(...)):
+    context=await run_in_threadpool(get_ai_llm_context)
+    cfg=await run_in_threadpool(get_llm_config)
+    dialog=[{'role':m.role,'content':m.content[:10000]} for m in body.messages[-20:] if m.role in ('user','assistant')]
+    if not dialog:
+        dialog=[{'role':'user','content':body.query or '汇总已验证观测及缺失数据'}]
+    if cfg.get('enabled') and (cfg.get('api_key') or cfg.get('provider')=='ollama'):
+        ok,reply,meta=await call_llm_api(base_url=cfg.get('base_url',''),api_key=cfg.get('api_key',''),model=cfg.get('model',''),
+            system_prompt='你是运维分析助手。以下是服务端已验证观测，null表示未知。不得补造测量值、官方故障解释或执行记录。不得生成执行命令。分析建议与事实分开说明。\n'+context['llm_prompt_context'],
+            messages=dialog)
+        if ok:
+            return api_response(data={'reply':'【模型分析，非控制器原始记录】\n'+reply,'mode':'cloud_llm_analysis','raw_context':context['llm_prompt_context'],'latency_ms':meta.get('latency_ms')})
+    observations=context['operational_analytics']['device_health_diagnostics']
+    lines=['【已验证遥测摘要；未作健康预测】']
+    for d in observations:
+        lines.append(f"{d['device_id']}: 连接状态={d['status']}，控制器报警数量={d.get('error_count') if d.get('error_count') is not None else '未知'}")
+    if not observations:
+        lines.append('当前没有已登记真实设备的可用观测。')
+    lines.append('缺失数据不表示正常；未测量的工时、寿命和环境指标不作推算。')
+    return api_response(data={'reply':'\n'.join(lines),'mode':'verified_observation_summary','raw_context':context['llm_prompt_context']})
 
 
 class ParseCommandRequest(BaseModel):
@@ -1831,151 +1593,28 @@ class ParseCommandRequest(BaseModel):
 
 
 @app.post("/api/ai/parse_command")
-async def ai_parse_command(body: ParseCommandRequest = Body(...)):
-    """
-    AI 智能自然语言指令解析：将运维人员口语化指令一键转换为标准的 MQTT 控制指令与 JSON 参数
-    """
-    nl = body.natural_language.strip()
-    dev_type = body.device_type
-    dev_id = body.device_id or "device"
-
-    llm_cfg = get_llm_config()
-
-    if llm_cfg.get("enabled") and (llm_cfg.get("api_key") or llm_cfg.get("provider") == "ollama"):
-        system_prompt = f"""你是一个工业物联网 SCADA 系统的命令编译器。你的任务是将用户的自然语言指令解析为设备可执行的 MQTT 指令。
-当前控制目标：{dev_type} ({dev_id})
-
-各设备支持的标准指令集与参数规范如下：
-1. 华数机械臂 (huashu_arm):
-- start_cycle (启动生产工步节拍, 参数: {{"program": "MAIN_LINE_A.PRG", "speed": 80, "cycle_limit": 1000}})
-- pause (暂停运动, 参数: {{}})
-- resume (继续运动, 参数: {{}})
-- stop (紧急停止制动, 参数: {{"reason": "manual_stop"}})
-- reset (伺服与系统复位, 参数: {{}})
-- enable (伺服上使能, 参数: {{"axis_mask": 63}})
-- disable (伺服下使能, 参数: {{"axis_mask": 63}})
-- home (机械臂回原点, 参数: {{"speed": 20}})
-- jog_joint (关节空间点动, 参数: {{"axis": 1, "direction": 1, "speed": 10, "step_deg": 5.0}})
-- jog_cartesian (笛卡尔空间点动, 参数: {{"coord": "base", "direction": "+Z", "step_mm": 10.0, "speed": 30}})
-- set_override (调节全局速率百分比, 参数: {{"override": 80}})
-- set_do (数字量输出, 参数: {{"port": 1, "value": 1}})
-- set_gripper (末端夹爪控制, 参数: {{"action": "grip", "force": 50, "speed": 80}})
-- select_prog (载入程序, 参数: {{"prog_name": "MAIN.PRG"}})
-
-2. 珞石复合 AMR (luxshare_amr):
-- pick_and_place (定点取放料, 参数: {{"source_station": "ST_A01", "target_station": "ST_B03", "tray_id": "T_88"}})
-- nav_to_point (导航至目标点, 参数: {{"target_point": "BAY_04", "x": 12.5, "y": 34.8, "theta": 90.0}})
-- auto_charge (自动回充, 参数: {{"charger_id": "CHG_BAY_01", "min_battery": 95}})
-- pause_nav (暂停导航, 参数: {{}})
-- resume_nav (继续导航, 参数: {{}})
-- set_speed_limit (巡航限速, 参数: {{"max_linear_speed": 1.2, "max_angular_speed": 0.8}})
-- arm_grip (协作臂抓取, 参数: {{"gripper_state": "close", "force_limit": 35}})
-- cancel_task (取消任务, 参数: {{"task_id": "AUTO_DISPATCH"}})
-- stop (急停, 参数: {{"reason": "estop_button"}})
-
-3. 四足机器狗 (robot_dog):
-- patrol (自主巡检, 参数: {{"route": "LOBBY_FLOOR_1", "sensors": ["co2", "voc", "thermal_imaging"]}})
-- stand (站立待命, 参数: {{"height": 0.55}})
-- sit (蹲伏休眠, 参数: {{}})
-- walk_to (前往目标点, 参数: {{"x": 25.0, "y": 18.3, "gait": "trot", "speed": 1.5}})
-- start_thermal_scan (红外热成像扫描, 参数: {{"alert_temp_celsius": 65.0, "recording": true}})
-- uav_collab_scan (空地协同扫描, 参数: {{"uav_id": "uav_001", "sync_telemetry": true}})
-- auto_dock_charge (自动返坞充电, 参数: {{"dock_id": "DOG_DOCK_01"}})
-- emergency_stop (脱扣急停, 参数: {{}})
-
-请必须且仅返回如下严格的 JSON 字符串（不要附带任何 markdown 标记或解释文字）：
-{{"command": "指令名", "params": {{...}}, "explanation": "解析依据与简短说明"}}"""
-
-        success, llm_reply, _ = await call_llm_api(
-            base_url=llm_cfg.get("base_url", "https://api.deepseek.com/v1"),
-            api_key=llm_cfg.get("api_key", ""),
-            model=llm_cfg.get("model", "deepseek-chat"),
-            system_prompt=system_prompt,
-            user_prompt=f"请解析该指令：{nl}",
-            temperature=0.1,
-            max_tokens=500,
-            timeout=15.0,
-        )
-        if success:
-            try:
-                clean_json = llm_reply.strip()
-                if clean_json.startswith("```json"):
-                    clean_json = clean_json[7:]
-                if clean_json.startswith("```"):
-                    clean_json = clean_json[3:]
-                if clean_json.endswith("```"):
-                    clean_json = clean_json[:-3]
-                parsed = json.loads(clean_json.strip())
-                return api_response(code=200, message="AI 智能解析成功", data=parsed)
-            except Exception:
-                pass
-
-    # 规则引擎兜底
-    cmd = "start_cycle"
-    params = {}
-    explanation = "基于工业规则引擎智能模式匹配"
-
-    if dev_type == "huashu_arm":
-        if any(k in nl for k in ["停", "刹车", "急停", "制动", "stop"]):
-            cmd, params, explanation = "stop", {"reason": "manual_estop"}, "解析为紧急制动停机指令"
-        elif any(k in nl for k in ["复位", "reset", "清除报警"]):
-            cmd, params, explanation = "reset", {}, "解析为伺服驱动与故障复位指令"
-        elif any(k in nl for k in ["上电", "上使能", "使能", "enable"]):
-            cmd, params, explanation = "enable", {"axis_mask": 63}, "解析为伺服电机全轴上使能指令"
-        elif any(k in nl for k in ["下电", "去使能", "disable"]):
-            cmd, params, explanation = "disable", {"axis_mask": 63}, "解析为伺服电机全轴下使能指令"
-        elif any(k in nl for k in ["回零", "原点", "归位", "home"]):
-            cmd, params, explanation = "home", {"speed": 20}, "解析为机械臂安全回零原点指令"
-        elif any(k in nl for k in ["暂停", "pause"]):
-            cmd, params, explanation = "pause", {}, "解析为暂停当前运动工步指令"
-        elif any(k in nl for k in ["继续", "恢复", "resume"]):
-            cmd, params, explanation = "resume", {}, "解析为继续运行暂停工步指令"
-        elif any(k in nl for k in ["夹爪", "气爪", "抓", "gripper"]):
-            cmd, params, explanation = "set_gripper", {"action": "grip", "force": 50, "speed": 80}, "解析为末端夹爪动作控制指令"
-        elif any(k in nl for k in ["倍率", "速度", "override"]):
-            cmd, params, explanation = "set_override", {"override": 80}, "解析为调节全局运行速率百分比指令"
-        elif any(k in nl for k in ["程序", "加载", "select"]):
-            cmd, params, explanation = "select_prog", {"prog_name": "MAIN_LINE_A.PRG"}, "解析为载入加工程序指令"
-        else:
-            cmd, params, explanation = "start_cycle", {"program": "MAIN_LINE_A.PRG", "speed": 80, "cycle_limit": 1000}, "解析为启动自动化生产工步节拍指令"
-    elif dev_type == "luxshare_amr":
-        if any(k in nl for k in ["停", "急停", "stop"]):
-            cmd, params, explanation = "stop", {"reason": "manual_estop"}, "解析为复合机器人急停指令"
-        elif any(k in nl for k in ["充", "电桩", "charge"]):
-            cmd, params, explanation = "auto_charge", {"charger_id": "CHG_BAY_01", "min_battery": 95}, "解析为自动寻找充电桩回充指令"
-        elif any(k in nl for k in ["取", "放", "料", "pick"]):
-            cmd, params, explanation = "pick_and_place", {"source_station": "ST_A01", "target_station": "ST_B03", "tray_id": "T_88"}, "解析为定点取放料调度任务指令"
-        elif any(k in nl for k in ["抓", "夹", "grip"]):
-            cmd, params, explanation = "arm_grip", {"gripper_state": "close", "force_limit": 35}, "解析为协作臂末端抓取指令"
-        elif any(k in nl for k in ["导航", "前往", "工位", "goto", "nav"]):
-            cmd, params, explanation = "nav_to_point", {"target_point": "BAY_04", "x": 12.5, "y": 34.8, "theta": 90.0}, "解析为移动底盘导航至目标站点指令"
-        else:
-            cmd, params, explanation = "pick_and_place", {"source_station": "ST_A01", "target_station": "ST_B03"}, "解析为定点物料转运指令"
-    elif dev_type == "robot_dog":
-        if any(k in nl for k in ["停", "脱扣", "急停", "stop"]):
-            cmd, params, explanation = "emergency_stop", {}, "解析为四足电机紧急脱扣停机指令"
-        elif any(k in nl for k in ["站", "起立", "stand"]):
-            cmd, params, explanation = "stand", {"height": 0.55}, "解析为四足站立待命姿态指令"
-        elif any(k in nl for k in ["蹲", "休眠", "sit", "趴"]):
-            cmd, params, explanation = "sit", {}, "解析为四足蹲伏休眠姿态指令"
-        elif any(k in nl for k in ["测温", "红外", "热成像", "thermal"]):
-            cmd, params, explanation = "start_thermal_scan", {"alert_temp_celsius": 65.0, "recording": True}, "解析为开启双光谱红外热成像测温指令"
-        elif any(k in nl for k in ["无人机", "空地", "搜救", "uav"]):
-            cmd, params, explanation = "uav_collab_scan", {"uav_id": "uav_001", "sync_telemetry": True}, "解析为无人机空地协同搜救扫描指令"
-        elif any(k in nl for k in ["充", "dock", "charge"]):
-            cmd, params, explanation = "auto_dock_charge", {"dock_id": "DOG_DOCK_01"}, "解析为返回专用充电坞站指令"
-        else:
-            cmd, params, explanation = "patrol", {"route": "LOBBY_FLOOR_1", "sensors": ["co2", "voc", "thermal_imaging"]}, "解析为园区/管廊自主巡检指令"
-
-    return api_response(
-        code=200,
-        message="规则引擎解析成功",
-        data={
-            "command": cmd,
-            "params": params,
-            "explanation": explanation,
-        },
-    )
+def ai_parse_command(body: ParseCommandRequest=Body(...)):
+    if body.device_type!='huashu_arm':
+        raise HTTPException(409,'该品类尚无已验证的真实控制适配器')
+    text=body.natural_language.strip().lower()
+    commands={'去使能':'disable','下使能':'disable','下电':'disable','disable':'disable',
+              '上使能':'enable','上电':'enable','enable':'enable','暂停':'pause','pause':'pause',
+              '急停':'stop','紧急停止':'stop','stop':'stop','复位':'reset','reset':'reset'}
+    command=commands.get(text)
+    params={}
+    speed=re.fullmatch(r'(?:速度|倍率)(?:设为|设置为|调为|=|至)?\s*(\d+)\s*%?',text)
+    if speed:
+        command='set_override'
+        params={'override':int(speed[1])}
+    if command in ('pause',):
+        raise HTTPException(422,'请在控制面板明确指定程序名后暂停')
+    if not command:
+        raise HTTPException(422,'指令不明确或未支持，请使用明确命令与参数；不会猜测启动动作')
+    try:
+        command,params=validate_command(command,params)
+    except ValueError as e:
+        raise HTTPException(422,str(e))
+    return api_response(data={'command':command,'params':params,'explanation':'明确规则匹配，尚未执行；请核对目标及参数'})
 
 
 
@@ -1993,56 +1632,14 @@ class HuashuBridgeConfigModel(BaseModel):
 
 
 @app.get("/api/devices/huashu/config")
-async def get_huashu_config_api():
-    """获取当前华数机械臂的硬件连接与采集配置"""
-    cfg = get_huashu_bridge_config()
-    return api_response(code=200, message="success", data=cfg)
+def get_huashu_config_api():
+    return api_response(data={'robot_ip':os.getenv('ROBOT_IP','192.168.1.169'),'robot_port':int(os.getenv('ROBOT_PORT','23333')),
+        'device_id':os.getenv('ROBOT_DEVICE_ID','arm_001'),'source':'service_configuration','editable':False})
 
 
 @app.post("/api/devices/huashu/config")
-async def save_huashu_config_api(body: HuashuBridgeConfigModel = Body(...)):
-    """保存华数机械臂硬件连接配置并自动同步到本地网关配置文件"""
-    update_data = {k: v for k, v in body.dict().items() if v is not None}
-    success = save_huashu_bridge_config(update_data)
-
-    # 尝试同步更新 huashu_bridge/huashu_config.json
-    try:
-        config_files = ["huashu_bridge/huashu_config.json", "huashu_config.json"]
-        for cf in config_files:
-            if os.path.exists(cf):
-                with open(cf, "r", encoding="utf-8") as f:
-                    file_cfg = json.load(f)
-                
-                robots = file_cfg.get("robots", [])
-                device_id = update_data.get("device_id", "arm_001")
-                
-                # Check if robot exists
-                robot_found = False
-                for r in robots:
-                    if r.get("device_id") == device_id:
-                        r["ip"] = update_data.get("robot_ip", r.get("ip"))
-                        r["port"] = int(update_data.get("robot_port", r.get("port", 23234)))
-                        robot_found = True
-                        break
-                
-                if not robot_found:
-                    robots.append({
-                        "device_id": device_id,
-                        "device_name": update_data.get("device_name", "华数BR610六轴工业机械臂"),
-                        "ip": update_data.get("robot_ip", "10.10.56.214"),
-                        "port": int(update_data.get("robot_port", 23234)),
-                        "group_id": update_data.get("group_id", 0),
-                        "axis_count": 6
-                    })
-                
-                file_cfg["robots"] = robots
-                file_cfg.setdefault("collection", {})["interval_sec"] = float(update_data.get("interval_sec", 1.0))
-                with open(cf, "w", encoding="utf-8") as f:
-                    json.dump(file_cfg, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        logger.warning(f"同步写入 huashu_config.json 异常: {e}")
-
-    return api_response(code=200, message="华数机械臂硬件连接配置已成功保存！", data=get_huashu_bridge_config())
+def save_huashu_config_api(body: HuashuBridgeConfigModel=Body(...)):
+    raise HTTPException(409,'生产连接配置由受保护的服务配置管理；页面未修改当前控制器连接')
 
 
 class HuashuTestRequest(BaseModel):
@@ -2052,70 +1649,13 @@ class HuashuTestRequest(BaseModel):
 
 
 @app.post("/api/devices/huashu/test")
-async def test_huashu_connection_api(body: HuashuTestRequest = Body(...)):
-    """
-    在线测试与华数Ⅲ型控制器的 TCP Socket 通信链路
-    """
-    target_ip = body.robot_ip.strip()
-    target_port = body.robot_port
-    timeout = body.timeout_sec
-
-    start_t = time.time()
-    loop = asyncio.get_event_loop()
-
-    def do_socket_test():
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(timeout)
-        try:
-            s.connect((target_ip, target_port))
-            # 发送微量握手探针
-            s.close()
-            return True, None
-        except Exception as e:
-            return False, str(e)
-
-    try:
-        ok, err = await loop.run_in_executor(None, do_socket_test)
-        latency_ms = int((time.time() - start_t) * 1000)
-        if ok:
-            return api_response(
-                code=200,
-                message="华数控制器通信链路握手成功！",
-                data={
-                    "connected": True,
-                    "target_ip": target_ip,
-                    "target_port": target_port,
-                    "latency_ms": latency_ms
-                }
-            )
-        else:
-            return api_response(
-                code=500,
-                message=f"无法建立与华数控制器的物理连接: {err}",
-                data={
-                    "connected": False,
-                    "target_ip": target_ip,
-                    "target_port": target_port,
-                    "error": err,
-                    "latency_ms": latency_ms
-                }
-            )
-    except Exception as e:
-        latency_ms = int((time.time() - start_t) * 1000)
-        return api_response(
-            code=500,
-            message=f"测试过程发生异常: {e}",
-            data={"connected": False, "error": str(e), "latency_ms": latency_ms}
-        )
-
-
-# ---------------------------------------------------------------------------
-# 8. 内网穿透与远程公网访问控制路由 (Public Remote Access & Intranet Tunnel)
-# ---------------------------------------------------------------------------
-try:
-    import tunnel_manager
-except Exception:
-    tunnel_manager = None
+def test_huashu_connection_api(body: HuashuTestRequest=Body(...)):
+    if body.robot_ip not in set(os.getenv('CONTROLLER_ALLOWED_HOSTS',os.getenv('ROBOT_IP','192.168.1.169')).split(',')) or body.robot_port!=23333:
+        raise HTTPException(422,'只允许测试已登记控制器的SocketCmd端口')
+    latest=get_latest_data('huashu_arm',os.getenv('ROBOT_DEVICE_ID','arm_001'))
+    p=latest.get('parsed_payload',{}) if latest else {}
+    connected=bool(p.get('state_fresh') and p.get('connection_id') and p.get('status')!='offline')
+    return api_response(200 if connected else 503,'依据桥接器最新协议遥测判断，未创建额外控制连接',{'connected':connected,'source':'verified_bridge_telemetry'})
 
 
 class TunnelStartRequest(BaseModel):
@@ -2126,34 +1666,18 @@ class TunnelStartRequest(BaseModel):
 
 
 @app.get("/api/tunnel/status")
-async def get_tunnel_status_api():
-    """获取当前公网穿透状态与实时访问地址"""
-    if tunnel_manager and hasattr(tunnel_manager, 'get_tunnel_status'):
-        return api_response(code=200, message="success", data=tunnel_manager.get_tunnel_status())
-    return api_response(code=200, message="success", data={"active": False, "url": "", "engine": "none"})
+def get_tunnel_status_api():
+    return api_response(data={'active':None,'url':get_system_config('remote_public_url',''),'engine':'externally_managed','status':'由系统服务管理，本接口不声称已验证其运行状态'})
 
 
 @app.post("/api/tunnel/start")
-async def start_tunnel_api(body: TunnelStartRequest = Body(...)):
-    """一键启动公网远程穿透并生成分享地址"""
-    if tunnel_manager and hasattr(tunnel_manager, 'start_tunnel'):
-        res = await tunnel_manager.start_tunnel(
-            engine=body.engine,
-            port=body.port,
-            token=body.token or "",
-            custom_url=body.custom_url or "",
-        )
-        return api_response(code=200, message="穿透启动指令已执行", data=res)
-    return api_response(code=200, message="当前运行环境已具备独立服务地址，无需额外穿透", data={"url": "http://127.0.0.1:8000"})
+def start_tunnel_api(body: TunnelStartRequest=Body(...)):
+    raise HTTPException(409,'生产穿透由系统服务统一管理，页面不能启动额外通道')
 
 
 @app.post("/api/tunnel/stop")
-async def stop_tunnel_api():
-    """一键关闭公网远程穿透"""
-    if tunnel_manager and hasattr(tunnel_manager, 'stop_tunnel'):
-        res = await tunnel_manager.stop_tunnel()
-        return api_response(code=200, message="公网穿透已安全关闭", data=res)
-    return api_response(code=200, message="穿透状态正常", data={"stopped": True})
+def stop_tunnel_api():
+    raise HTTPException(409,'生产穿透由系统服务统一管理，未执行停止')
 
 
 # ---------------------------------------------------------------------------
@@ -2161,7 +1685,7 @@ async def stop_tunnel_api():
 # ---------------------------------------------------------------------------
 
 @app.get("/api/devices/{device_type}/{device_id}/io")
-async def get_device_io_api(device_type: str, device_id: str):
+def get_device_io_api(device_type: str, device_id: str):
     """获取指定机器人 16 路输入 DI 与 16 路输出 DO 实时状态"""
     data = get_device_io(device_id)
     return api_response(code=200, message="success", data=data)
@@ -2175,25 +1699,23 @@ class DeviceIOUpdateRequest(BaseModel):
 
 
 @app.post("/api/devices/{device_type}/{device_id}/io")
-async def update_device_io_api(device_type: str, device_id: str, body: DeviceIOUpdateRequest = Body(...)):
-    """更新机器人 I/O 状态并同步发布控制"""
-    cur_io = get_device_io(device_id)
-    di_mask = body.di_mask if body.di_mask is not None else cur_io.get("di_mask", 0)
-    do_mask = body.do_mask if body.do_mask is not None else cur_io.get("do_mask", 0)
-    
-    update_device_io(device_id, device_type, di_mask, do_mask, body.di_details, body.do_details)
-    return api_response(code=200, message="I/O 状态更新成功", data=get_device_io(device_id))
+def update_device_io_api(device_type: str,device_id: str,body: DeviceIOUpdateRequest=Body(...)):
+    if body.di_mask is not None or body.do_mask is not None:
+        raise HTTPException(409,'此接口只编辑点位备注；实际DO控制必须经已确认的控制命令接口')
+    cur=get_device_io(device_id)
+    ok=update_device_io(device_id,device_type,0,0,body.di_details,body.do_details)
+    return api_response(200 if ok else 500,'仅更新平台点位备注，物理I/O未改变',get_device_io(device_id))
 
 
 @app.get("/api/devices/{device_type}/{device_id}/programs")
-async def get_device_programs_api(device_type: str, device_id: str):
+def get_device_programs_api(device_type: str, device_id: str):
     """获取指定机器人的全部加工程序列表"""
     programs = get_robot_programs(device_id)
     return api_response(code=200, message="success", data=programs)
 
 
 @app.get("/api/devices/{device_type}/{device_id}/programs/{prog_name}")
-async def get_program_detail_api(device_type: str, device_id: str, prog_name: str):
+def get_program_detail_api(device_type: str, device_id: str, prog_name: str):
     """获取指定加工程序的代码内容"""
     prog = get_robot_program_by_name(device_id, prog_name)
     if not prog:
@@ -2208,7 +1730,7 @@ class SaveProgramRequest(BaseModel):
 
 
 @app.post("/api/devices/{device_type}/{device_id}/programs")
-async def save_device_program_api(device_type: str, device_id: str, body: SaveProgramRequest = Body(...)):
+def save_device_program_api(device_type: str, device_id: str, body: SaveProgramRequest = Body(...)):
     """保存或在线编辑机器人加工程序"""
     ok, msg = save_robot_program(
         device_id=device_id,
@@ -2223,106 +1745,42 @@ async def save_device_program_api(device_type: str, device_id: str, body: SavePr
 
 
 @app.get("/api/devices/{device_type}/{device_id}/programs/{prog_name}/download")
-async def download_program_file_api(device_type: str, device_id: str, prog_name: str):
-    """下载单个机器人加工程序文件到本地电脑 (.PRG 文件)"""
+def download_program_file_api(device_type: str, device_id: str, prog_name: str):
     from fastapi.responses import Response
-    prog = get_robot_program_by_name(device_id, prog_name)
-    if not prog:
-        content = f"; {device_id} - {prog_name}\nPROGRAM MAIN()\n    SPEED 80\n    MOVJ P0, V=50%\nEND\n"
-    else:
-        content = prog.get("prog_content", "")
-    
-    filename = prog_name if prog_name.endswith(".PRG") or prog_name.endswith(".prg") else f"{prog_name}.PRG"
-    headers = {
-        "Content-Disposition": f"attachment; filename=\"{filename}\"",
-        "Content-Type": "text/plain; charset=utf-8"
-    }
-    return Response(content=content.encode("utf-8"), media_type="text/plain", headers=headers)
+    prog=get_robot_program_by_name(device_id,prog_name)
+    if not prog or prog['device_type']!=device_type:
+        raise HTTPException(404,'该设备没有此程序文件')
+    if not re.fullmatch(r'[A-Za-z0-9_-]{1,80}\.[Pp][Rr][Gg]',prog_name):
+        raise HTTPException(422,'非法文件名')
+    return Response(prog['prog_content'].encode('utf-8'),media_type='text/plain',headers={
+        'Content-Disposition':f'attachment; filename="{prog_name}"','X-Data-Source':prog['source']})
 
 
 @app.get("/api/devices/{device_type}/{device_id}/backup")
 async def backup_device_system_api(device_type: str, device_id: str):
-    """
-    通过华数控制器 FTP 服务下载真实系统备份包（zip）。
-    FTP 凭据须先在后台设置页配置（system_config: device_ftp_config），
-    未配置时返回明确提示，绝不使用硬编码凭据。
-    """
-    import io
-    import zipfile
-    import ftplib
+    from backup_service import controller_backup,save_archive
     from fastapi.responses import Response
-
-    dev = get_device_by_id(device_id)
-    if not dev:
-        return {"error": "Device not found"}
-
-    # 读取设备 FTP 凭据配置（后台设置页可修改）
+    if not allowed_device(device_type,device_id):
+        raise HTTPException(404,'未登记的真实设备')
+    configs=json.loads(get_system_config('device_ftp_config','{}'))
+    cfg=configs.get(device_id,{})
+    allowed_hosts=set(os.getenv('CONTROLLER_ALLOWED_HOSTS',os.getenv('ROBOT_IP','192.168.1.169')).split(','))
+    if cfg.get('host') not in allowed_hosts:
+        raise HTTPException(422,'FTP目标未在控制器白名单内，不能猜测目标地址')
     try:
-        raw_cfg = get_system_config("device_ftp_config", "{}")
-        ftp_cfg_all = json.loads(raw_cfg) if raw_cfg else {}
+        payload,manifest=await run_in_threadpool(controller_backup,cfg,device_id)
+        name=await run_in_threadpool(save_archive,payload,manifest,'.zip')
+    except ValueError as e:
+        raise HTTPException(422,str(e))
     except Exception:
-        ftp_cfg_all = {}
-    ftp_cfg = ftp_cfg_all.get(device_id, {})
-
-    ip = ftp_cfg.get("host") or dev.get("ip_address") or "192.168.1.169"
-    user = ftp_cfg.get("user", "")
-    password = ftp_cfg.get("password", "")
-
-    if not user:
-        return api_response(
-            code=400,
-            message="该设备未配置 FTP 备份凭据，请先在后台「设置 - 设备备份」中填写华数控制器的 FTP 账号密码",
-            data={"device_id": device_id, "ftp_host": ip},
-        )
-
-    zip_buffer = io.BytesIO()
-    try:
-        ftp = ftplib.FTP()
-        ftp.connect(ip, int(ftp_cfg.get("port", 21)), timeout=8)
-        ftp.login(user, password)
-        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-            items = []
-            ftp.retrlines('NLST', items.append)
-            for item in items:
-                if item in (".", ".."):
-                    continue
-                file_buf = io.BytesIO()
-                try:
-                    ftp.retrbinary(f"RETR {item}", file_buf.write)
-                    zf.writestr(item, file_buf.getvalue())
-                except Exception:
-                    pass
-        ftp.quit()
-    except ftplib.error_perm as e:
-        return api_response(code=502, message=f"FTP 认证失败（请核对后台配置的账号密码）: {e}", data=None)
-    except Exception as e:
-        return api_response(code=502, message=f"连接华数控制器 FTP 失败: {e}", data=None)
-
-    timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-    zip_bytes = zip_buffer.getvalue()
-    filename = f"robot_real_backup_{device_id}_{timestamp_str}.zip"
-
-    # 同步在服务器历史归档目录保存一份备份文件
-    for archive_dir in ["/opt/robot-iot/backups", "backups"]:
-        try:
-            os.makedirs(archive_dir, exist_ok=True)
-            archive_path = os.path.join(archive_dir, filename)
-            with open(archive_path, "wb") as f_arch:
-                f_arch.write(zip_bytes)
-            logger.info(f"备份已同步保存至服务器归档目录: {archive_path}")
-            break
-        except Exception as e_arch:
-            logger.warning(f"写入服务器归档目录 {archive_dir} 异常: {e_arch}")
-
-    headers = {
-        "Content-Disposition": f"attachment; filename={filename}"
-    }
-    return Response(content=zip_bytes, media_type="application/zip", headers=headers)
+        logger.exception('Controller backup failed')
+        raise HTTPException(502,'控制器备份失败或不完整，未生成成功归档')
+    return Response(payload,media_type='application/zip',headers={'Content-Disposition':f'attachment; filename="{name}"'})
 
 
 
 @app.get("/api/devices/{device_type}/{device_id}/backups/weekly")
-async def get_weekly_backups_api(device_type: str, device_id: str):
+def get_weekly_backups_api(device_type: str, device_id: str):
     """获取每周自动备份文件列表"""
     data = get_weekly_backups_list(device_id)
     return api_response(code=200, message="success", data=data)
@@ -2330,7 +1788,7 @@ async def get_weekly_backups_api(device_type: str, device_id: str):
 
 
 @app.get("/api/devices/{device_type}/{device_id}/logs")
-async def get_device_logs_api(
+def get_device_logs_api(
     device_type: str,
     device_id: str,
     limit: int = Query(100, ge=1, le=500, description="返回最新日志条数"),
@@ -2348,7 +1806,7 @@ async def get_device_logs_api(
 
 
 @app.post("/api/devices/{device_type}/{device_id}/logs/confirm_alarms")
-async def confirm_device_alarms_api(
+def confirm_device_alarms_api(
     device_type: str,
     device_id: str,
     request: Request = None
@@ -2363,17 +1821,17 @@ async def confirm_device_alarms_api(
 
     operator = "Normal"
     if request:
-        user_name = request.headers.get("X-User-Name")
+        user_name = request.state.user['username']
         if user_name and user_name != "guest":
             operator = user_name
 
     result = confirm_all_alarms_log(device_id=device_id, operator=operator)
-    return api_response(code=200, message="已确认所有Mc报警信息!", data=result)
+    return api_response(code=200, message="已登记平台已阅，控制器报警未清除", data=result)
 
 
 
 @app.get("/api/devices/{device_type}/{device_id}/report")
-async def get_device_report_api(
+def get_device_report_api(
     device_type: str,
     device_id: str,
     period: str = Query("daily", description="报告周期: daily(每日) 或 monthly(每月)"),
@@ -2391,7 +1849,7 @@ async def get_device_report_api(
 
 
 @app.get("/api/devices/{device_type}/{device_id}/alarms/analytics")
-async def get_alarm_analytics_api(
+def get_alarm_analytics_api(
     device_type: str,
     device_id: str,
     days: int = Query(14, ge=3, le=30, description="统计分析天数")
@@ -2406,13 +1864,13 @@ async def get_alarm_analytics_api(
 
 
 @app.get("/api/alarms/knowledge_base")
-async def get_alarm_knowledge_base_api(
+def get_alarm_knowledge_base_api(
     device_type: Optional[str] = Query(None, description="设备类型"),
     keyword: Optional[str] = Query(None, description="搜索关键字"),
 ):
     """
     查询故障代码知识库。
-    该知识库为华数控制器官方故障码（伺服/运动学/IO 类），
+    当前知识库导入官方ErrDef.h的32位SDK接口返回码，不是完整64位伺服硬件报警表，
     仅对 huashu_arm 类型设备返回；其他类型设备无对应故障码体系，返回空。
     """
     if device_type and device_type not in ("huashu_arm", "arm"):
@@ -2422,7 +1880,7 @@ async def get_alarm_knowledge_base_api(
 
 
 @app.get("/api/alarms/resolutions")
-async def get_alarm_resolutions_api(
+def get_alarm_resolutions_api(
     device_id: Optional[str] = Query(None, description="指定设备ID"),
     limit: int = Query(50, description="返回记录条数")
 ):
@@ -2443,54 +1901,25 @@ class AddAlarmResolutionRequest(BaseModel):
 
 
 @app.post("/api/alarms/resolutions")
-async def add_alarm_resolution_api(body: AddAlarmResolutionRequest = Body(...)):
-    """用户手动添加一条报警处理记录"""
-    ok, msg = add_alarm_resolution(
-        device_id=body.device_id.strip(),
-        device_type=body.device_type.strip(),
-        alarm_code=body.alarm_code.strip(),
-        alarm_msg=body.alarm_msg.strip(),
-        solution=body.solution.strip(),
-        handler=body.handler.strip(),
-        notes=body.notes or "",
-        resolved_at=body.resolved_at
-    )
-    if ok:
-        return api_response(code=200, message=msg, data=get_alarm_resolutions(body.device_id, 20))
-    return api_response(code=400, message=msg)
+def add_alarm_resolution_api(body: AddAlarmResolutionRequest=Body(...),request: Request=None):
+    values=body.model_dump()
+    values['handler']=request.state.user['username']
+    ok,msg=add_alarm_resolution(**values)
+    return api_response(200 if ok else 400,msg)
 
 
 @app.get("/api/devices/{device_type}/{device_id}/alarms/active")
-async def get_device_active_alarms_api(device_type: str, device_id: str):
-    """获取当前设备的报警状态及最近 7 天内的报警流"""
-    # 自动执行 7 天过期清理
-    cleanup_old_alarms(7)
-    
-    # 查询当前遥测状态
-    latest = get_latest_data(device_type, device_id)
-    latest_payload = latest.get("parsed_payload", {}) if latest else {}
-    if not isinstance(latest_payload, dict):
-        try:
-            latest_payload = json.loads(latest.get("raw_payload", "{}"))
-        except Exception:
-            latest_payload = {}
-    error_code = latest_payload.get("error_code", 0)
-    has_error = bool(error_code or latest_payload.get("status") in ["error", "alarm", "fault", "estop"])
-    
-    # 查询该设备最近 7 天内的报警记录
-    recent_history = get_device_history(device_type, device_id, page=1, page_size=20, data_type="alarm")
-    
-    return api_response(code=200, message="success", data={
-        "device_id": device_id,
-        "device_type": device_type,
-        "has_error": has_error,
-        "current_error_code": error_code,
-        "recent_alarms": recent_history
-    })
+def get_device_active_alarms_api(device_type: str,device_id: str):
+    latest=get_latest_data(device_type,device_id)
+    p=latest.get('parsed_payload',{}) if latest else {}
+    count=p.get('error_count')
+    has_error=(count>0 or p.get('emergency_stop') is True) if isinstance(count,int) and p.get('state_fresh') else None
+    return api_response(data={'device_id':device_id,'device_type':device_type,'has_error':has_error,'current_error_code':None,
+        'error_count':count,'recent_alarms':get_device_history(device_type,device_id,page=1,page_size=20,data_type='alarm')})
 
 
 if STATIC_DIR.exists():
-    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+    app.mount('/static',StaticFiles(directory=str(STATIC_DIR)),name='static')
 
 
 def render_page_with_site_config(template_path: Path) -> HTMLResponse:
@@ -2502,7 +1931,7 @@ def render_page_with_site_config(template_path: Path) -> HTMLResponse:
     html_content = template_path.read_text(encoding="utf-8")
     try:
         cfg = get_site_config()
-        cfg_json = json.dumps(cfg, ensure_ascii=False)
+        cfg_json = json.dumps(cfg, ensure_ascii=False).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
         # 同步注入服务端最新持久化配置，首屏即为用户自定义图文与图片，彻底消除异步替换闪烁
         injection_script = f"""<script>
 window.SITE_CONFIG = {cfg_json};
@@ -2519,7 +1948,7 @@ try {{ localStorage.setItem('SITE_CONFIG_CACHE', JSON.stringify({cfg_json})); }}
 
 
 @app.get("/login", include_in_schema=False)
-async def serve_login_page():
+def serve_login_page():
     """纯净极简浅色登录页面 (带服务端配置即时同步注入)"""
     if LOGIN_HTML.exists():
         return render_page_with_site_config(LOGIN_HTML)
@@ -2534,7 +1963,7 @@ async def serve_login_page():
 @app.get("/v2", include_in_schema=False)
 @app.get("/next", include_in_schema=False)
 @app.get("/preview", include_in_schema=False)
-async def serve_index_next():
+def serve_index_next():
     """全新极简浅白企业版 UI 大屏 (带服务端配置即时同步注入，杜绝替换闪烁)"""
     if INDEX_NEXT_HTML.exists():
         return render_page_with_site_config(INDEX_NEXT_HTML)
@@ -2545,7 +1974,7 @@ async def serve_index_next():
 
 @app.get("/dark", include_in_schema=False)
 @app.get("/", include_in_schema=False)
-async def serve_index():
+def serve_index():
     """企业级机器人孪生大屏 UI (带服务端配置即时同步注入，杜绝替换闪烁)"""
     if INDEX_HTML.exists():
         return render_page_with_site_config(INDEX_HTML)

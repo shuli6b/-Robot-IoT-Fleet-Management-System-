@@ -1,43 +1,19 @@
 [Unit]
-Description=Robot IoT Management System Backend
-Documentation=https://github.com/robot-iot
-After=network.target network-online.target emqx.service
+Description=Verified Robot IoT Backend
+After=network-online.target emqx.service
 Wants=network-online.target emqx.service
-
 [Service]
 Type=simple
-# 建议部署时使用的运行用户与组（可根据实际部署用户修改，如 root 或 ubuntu）
-User=root
-Group=root
-
-# 部署工作目录（请与实际部署路径保持一致）
+User=nbrobotsys
+Group=nbrobotsys
 WorkingDirectory=/opt/robot-iot
-
-# 环境变量配置
-Environment="PATH=/opt/robot-iot/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"
-Environment="PYTHONUNBUFFERED=1"
-Environment="MQTT_HOST=127.0.0.1"
-Environment="MQTT_PORT=1883"
-Environment="MQTT_USERNAME=robot_server"
-Environment="MQTT_PASSWORD=robot_server_pass"
-Environment="OFFLINE_THRESHOLD=30"
-Environment="DB_PATH=/opt/robot-iot/robot.db"
-
-# 启动命令：调用虚拟环境中的 uvicorn
-ExecStart=/opt/robot-iot/venv/bin/python -m uvicorn main:app --host 0.0.0.0 --port 8000
-
-# 崩溃自愈与重启策略（7x24小时稳定运行）
-Restart=always
-RestartSec=3s
-KillMode=process
-TimeoutStopSec=10s
-
-# 标准输出与错误日志输出至系统日志与本地文件
-StandardOutput=append:/opt/robot-iot/robot_iot.log
-StandardError=append:/opt/robot-iot/robot_iot.log
-
-# 资源与文件限制
-LimitNOFILE=65535
-
+EnvironmentFile=/etc/robot-iot/backend.env
+ExecStart=/opt/robot-iot/venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8000 --workers 1
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+UMask=0077
+TimeoutStopSec=20
 [Install]
 WantedBy=multi-user.target

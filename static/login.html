@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN" class="dark">
 <head>
+    <script src="/static/secure-ui.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>登录 - 昕邦智能 · 多品类异构机器人智能管控平台</title>
@@ -464,7 +465,7 @@
                     const loginErrBox = document.getElementById('loginErrorBox');
                     if (loginErrBox) {
                         loginErrBox.className = 'p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-xs flex items-start gap-2';
-                        loginErrBox.innerHTML = `<span class="text-base leading-none">⏳</span><span>账号 <b>${u}</b> 注册申请已提交，等待超级管理员审核中。</span>`;
+                        loginErrBox.innerHTML = `<span class="text-base leading-none">⏳</span><span>账号 <b>${String(u).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</b> 注册申请已提交，等待超级管理员审核中。</span>`;
                         loginErrBox.classList.remove('hidden');
                     }
                 } else {

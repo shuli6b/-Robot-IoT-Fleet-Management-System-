@@ -315,12 +315,12 @@ def main():
                     break
 
                 # 1. 发送 state 状态数据
-                topic_state = f"robot/{sim.device_type}/{sim.device_id}/state"
+                topic_state = f"simulation/robot/{sim.device_type}/{sim.device_id}/state"
                 payload_state = sim.generate_state_payload()
                 json_state = json.dumps(payload_state, ensure_ascii=False)
 
                 # 2. 发送 sensor 传感器数据
-                topic_sensor = f"robot/{sim.device_type}/{sim.device_id}/sensor"
+                topic_sensor = f"simulation/robot/{sim.device_type}/{sim.device_id}/sensor"
                 payload_sensor = sim.generate_sensor_payload()
                 json_sensor = json.dumps(payload_sensor, ensure_ascii=False)
 
@@ -377,4 +377,6 @@ def main():
 
 
 if __name__ == "__main__":
+    if os.getenv('ALLOW_SIMULATION', '0') != '1':
+        raise SystemExit('Simulation is disabled in production')
     main()

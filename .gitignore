@@ -78,3 +78,8 @@ arm_001_169_latest.json
 arm_001_latest_api.json
 arm_001_real_telemetry.json
 _quarantine/
+
+# Production secrets and edge idempotency state
+.env
+*.env
+edge_state/
